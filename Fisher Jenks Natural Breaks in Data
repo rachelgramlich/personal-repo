@@ -1,7 +1,9 @@
+#Purpose: Find Natural Breaks in data using Fisher Jenks method
+#Author: Rachel Gramlich
+#Date Updated: 2023-09-14
 
 
 #Table creation query goes here
-
 
 
 #importing packages
