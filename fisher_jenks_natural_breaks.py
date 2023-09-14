@@ -15,18 +15,19 @@ import jenkspy
 from jenks import jenks
 import seaborn as sns
 
+#connect to bigquery
 from analytics_cloud_core import Clients, ClientType
-client = Clients.get_bigquery(project="wf-gcp-us-ae-merch-prod")
+client = Clients.get_bigquery(project="projectnamegoeshere")
 
 
 
 
 # Read from GBQ table and write results to dataframe
 data = client.query(
-"SELECT * FROM tablename WHERE skuvisits_ltm > 0 and ordercount_ltm > 0"
+"SELECT * FROM tablename WHERE visits > 0 and orders > 0"
 ).result().to_dataframe()
 
-df = data.sort_values(by='skuvisits_ltm')
+df = data.sort_values(by='visits')
 
 
 
@@ -36,16 +37,16 @@ print(df)
 
 
 
-#Plotting histogram to visualize sku visits data set
-hist = plt.hist(df['skuvisits_ltm'], bins=100, align='left', color = 'blue')
-plt.xlabel('skuvisits_ltm')
-plt.ylabel('skucount')
+#Plotting histogram to visualize product visits data set
+hist = plt.hist(df['visits'], bins=100, align='left', color = 'blue')
+plt.xlabel('visits')
+plt.ylabel('products')
 
 
 #Plotting histogram to visualize order count data set
-hist = plt.hist(df['ordercount_ltm'], bins=100, align='left', color = 'blue')
-plt.xlabel('ordercount_ltm')
-plt.ylabel('skucount')
+hist = plt.hist(df['orders'], bins=100, align='left', color = 'blue')
+plt.xlabel('orders')
+plt.ylabel('products')
 
 
 #creating function to find goodness of variance fit
@@ -105,8 +106,8 @@ for col in df.columns[1:3]:
     for i in range(2, 10):
         results.append(goodness_of_variance_fit(df[col].to_numpy(), i))
     my_dict[col] = results
-plt.plot(range(2, 10), my_dict['skuvisits_ltm'], label='skuvisits_ltm')
-plt.plot(range(2, 10), my_dict['ordercount_ltm'], label='ordercount_ltm')
+plt.plot(range(2, 10), my_dict['visits'], label='visits')
+plt.plot(range(2, 10), my_dict['orders'], label='orders')
 plt.xlabel('Number of clusters')
 plt.ylabel('Goodness of Variance Fit')
 plt.legend(loc='best')
@@ -119,9 +120,9 @@ plt.show()
 
 
 #finding natural breaks, once nb_class is determined (the number of breaks)
-visits_jbreaks4 = jenkspy.jenks_breaks(df['skuvisits_ltm'].to_numpy(), nb_class=4)
-visits_jbreaks3 = jenkspy.jenks_breaks(df['skuvisits_ltm'].to_numpy(), nb_class=3)
-visits_jbreaks2 = jenkspy.jenks_breaks(df['skuvisits_ltm'].to_numpy(), nb_class=2)
+visits_jbreaks4 = jenkspy.jenks_breaks(df['visits'].to_numpy(), nb_class=4)
+visits_jbreaks3 = jenkspy.jenks_breaks(df['visits'].to_numpy(), nb_class=3)
+visits_jbreaks2 = jenkspy.jenks_breaks(df['visits'].to_numpy(), nb_class=2)
 
 
 
@@ -131,12 +132,12 @@ print(visits_jbreaks3)
 print(visits_jbreaks2)
 
 
-#Plotting histogram for each of jbreaks 2,3,4 for skuvisits
-hist = plt.hist(df['skuvisits_ltm'], bins=100, align='left', color = 'yellow')
-plt.xlabel('skuvisits_ltm')
-plt.ylabel('skucount')
+#Plotting histogram for each of jbreaks 2,3,4 for productvisits
+hist = plt.hist(df['visits'], bins=100, align='left', color = 'yellow')
+plt.xlabel('visits')
+plt.ylabel('products')
 plt.title('nclasses=3')
-plt.ylim(0,100) #100 as max in order to visualize rest of chart - high sku count at 0.
+plt.ylim(0,100) #100 as max in order to visualize rest of chart - high product count at 0.
 for b in visits_jbreaks2:
     plt.vlines(b, ymin=0, ymax = max(hist[0]), color = 'red')
 #for b in visits_jbreaks3:
@@ -149,36 +150,36 @@ for b in visits_jbreaks2:
 
 
 #finding natural breaks, once nb_class is determined (the number of breaks)
-orders_jbreaks4 = jenkspy.jenks_breaks(df['ordercount_ltm'].to_numpy(), nb_class=4)
-orders_jbreaks3 = jenkspy.jenks_breaks(df['ordercount_ltm'].to_numpy(), nb_class=3)
-orders_jbreaks2 = jenkspy.jenks_breaks(df['ordercount_ltm'].to_numpy(), nb_class=2)
+orders_jbreaks4 = jenkspy.jenks_breaks(df['orders'].to_numpy(), nb_class=4)
+orders_jbreaks3 = jenkspy.jenks_breaks(df['orders'].to_numpy(), nb_class=3)
+orders_jbreaks2 = jenkspy.jenks_breaks(df['orders'].to_numpy(), nb_class=2)
 
 
 #df['quantilev2'] = pd.qcut(
-#    df['skuvisits_ltm'], q=3, labels=['not trending', 'average', 'trending'])
+#    df['visits'], q=3, labels=['not trending', 'average', 'trending'])
 
 #reset df to base data, remove any added columns in testing
 df=data
 
 df['visits_jbreaks2_range'] = pd.cut(
-    df['skuvisits_ltm'],
+    df['visits'],
     bins=visits_jbreaks2,
     include_lowest=True)
 
 
 df['visits_jbreaks2'] = pd.cut(
-    df['skuvisits_ltm'],
+    df['visits'],
     bins=visits_jbreaks2,
     labels=['not trending','trending'],
     include_lowest=True)
 
 df['ordercount_jbreaks2_range'] = pd.cut(
-    df['ordercount_ltm'],
+    df['orders'],
     bins=orders_jbreaks2,
     include_lowest=True)
 
 df['ordercount_jbreaks2'] = pd.cut(
-    df['ordercount_ltm'],
+    df['orders'],
     bins=orders_jbreaks2,
     labels=['not selling', 'selling'],
     include_lowest=True)
@@ -186,14 +187,14 @@ df['ordercount_jbreaks2'] = pd.cut(
 df.head()
 
 
-df.groupby(['visits_jbreaks2','ordercount_jbreaks2']).describe().round(0)[['skuvisits_ltm','ordercount_ltm']]
+df.groupby(['visits_jbreaks2','ordercount_jbreaks2']).describe().round(0)[['visits','orders']]
 
 
 
 
 
 
-df.groupby(['visits_jbreaks2','visits_jbreaks2_range','ordercount_jbreaks2','ordercount_jbreaks2_range']).count()['prsku']
+df.groupby(['visits_jbreaks2','visits_jbreaks2_range','ordercount_jbreaks2','ordercount_jbreaks2_range']).count()['product']
 
 
 
@@ -204,11 +205,11 @@ print(orders_jbreaks2)
 
 
 #Plotting histogram for each of jbreaks 2,3,4 for orders
-hist = plt.hist(df['ordercount_ltm'], bins=100, align='left', color = 'yellow')
-plt.xlabel('ordercount_ltm')
-plt.ylabel('skucount')
+hist = plt.hist(df['orders'], bins=100, align='left', color = 'yellow')
+plt.xlabel('orders')
+plt.ylabel('products')
 plt.title('nclasses=3')
-plt.ylim(0,100) #100 as max in order to visualize rest of chart - high sku count at 0.
+plt.ylim(0,100) #100 as max in order to visualize rest of chart - high product count at 0.
 for b in orders_jbreaks3:
     plt.vlines(b, ymin=0, ymax = max(hist[0]), color = 'red')
 #for b in orders_jbreaks3:
