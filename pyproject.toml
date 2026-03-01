@@ -1,0 +1,27 @@
+[project]
+name = "personal-repo"
+version = "0.0.0"
+description = "Personal projects"
+requires-python = ">=3.12,<3.13"
+
+dependencies = [
+    "beautifulsoup4>=4.12.3",
+    "google-auth>=2.30.0",
+    "google-auth-oauthlib>=1.2.0",
+    "gspread>=6.1.2",
+    "jenkspy>=0.4.1",
+    "loguru>=0.7.2",
+    "matplotlib>=3.9.1",
+    "numpy>=1.26.4",
+    "pandas>=2.2.2",
+    "pytest>=8.2.2",
+    "requests>=2.32.3",
+    "seaborn>=0.13.2",
+]
+
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+# TODO: add linting and auto formatting

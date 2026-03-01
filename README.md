@@ -1,10 +1,21 @@
-# personal-repo
+# One-Time Setup
 
-File naming convention:
-  name_goes_here.filetype
+1. Install [brew](https://brew.sh/): a package manager.
+   - Install it directly as a package from its GitHub repo.
+   - Follow installation steps, including command to setup your shell, by exporting path -> .zshrc.
 
-Header format
-  Purpose:
-  Author:
-  Date Updated:
-  Details:
+2. Install other tools
+   ```shell
+   brew install \
+     just
+     uv
+   ```
+
+# Local setup
+
+1. Update local environment by running:
+   ```shell
+   just setup
+   ```
+
+# Execution
