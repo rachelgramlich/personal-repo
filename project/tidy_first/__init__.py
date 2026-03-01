@@ -64,7 +64,7 @@ def process_user_untidy(user_data):
 
 # TIDY: Refactored by removing unused variables and commented-out code
 def process_user_tidy(user_data):
-    return user_data["name"].upper()
+    return f"User: {user_data['name'].upper()}"
 
 
 # ============================================================================
@@ -190,7 +190,7 @@ DISCOUNTS = {
     "vip": 0.7
 }
 
-def apply_discount(price, discount_type: str | None):
+def apply_discount_tidy(price, discount_type: str | None):
     rate = DISCOUNTS.get(discount_type)
     return price * rate
 
@@ -259,10 +259,10 @@ def process_order_tidy(order):
 
 
 # ============================================================================
-# PROBLEM 9: Magic Numbers and Poor Naming
+# PROBLEM 9: Poor Naming
 # ============================================================================
-# UNTIDY: This function has magic numbers and poor naming. Refactor it.
-# Hint: Extract the magic numbers and rename variables meaningfully
+# UNTIDY: This function has poor naming. Refactor it.
+# Hint: Rename variables meaningfully
 
 
 def calc_cost_untidy(qty, uprice, shipcost, taxrate):
@@ -270,12 +270,16 @@ def calc_cost_untidy(qty, uprice, shipcost, taxrate):
     final = subtotal * (1 + taxrate)
     return final
 
+def calculate_cost_tidy(quantity, unit_price, shipping_cost, tax_rate):
+    subtotal = (quantity * unit_price) + shipping_cost
+    tax = subtotal * tax_rate
+    return subtotal + tax
+
 
 # ============================================================================
 # PROBLEM 10: Extract Helper Functions
 # ============================================================================
-# UNTIDY: This function has magic numbers and poor naming. Refactor it.
-# Hint: The email, phone, and age checks could be separate functions
+# UNTIDY: The email, phone, and age checks could be separate functions
 
 
 def validate_user_profile_untidy(profile):
@@ -301,37 +305,31 @@ def validate_user_profile_untidy(profile):
 
     return True
 
+def _validate_email_tidy(email) -> bool:
+    if "@" not in email or "." not in email:
+        return False
+    return True
 
-if __name__ == "__main__":
-    # Test examples
-    logger.info("=== Problem 1: Calculate Discount ===")
-    logger.info(f"Untidy version: {calculate_discount_untidy('retail', 150, True)}")
-    logger.info(f"Tidy version: {calculate_discount_tidy('retail', 150, True)}")
-    
-    logger.info("=== Problem 2: Process User ===")
-    logger.info(f"Untidy version: {process_user_untidy({'id': 1, 'name': 'john'})}")
-    logger.info(f"Tidy version: {process_user_tidy({'id': 1, 'name': 'john'})}")
-    
-    logger.info("=== Problem 3: Validate Email ===")
-    logger.info(f"Untidy version: {validate_email_untidy('test@example.com')}")
-    logger.info(f"Tidy version: {validate_email_tidy('test@example.com')}")
-    
-    logger.info("=== Problem 3: Validate Phone ===")
-    logger.info(f"Untidy version: {validate_phone_untidy('5551234567')}")
-    logger.info(f"Tidy version: {validate_phone_tidy('5551234567')}")
-    
-    logger.info("=== Problem 4: Calculate Salary ===")
-    logger.info(f"Untidy version: {calculate_salary_untidy(40, 25, False)}")
-    logger.info(f"Tidy version: {calculate_salary_tidy(40, 25, False)}")
-    
-    logger.info("=== Problem 4: Calculate Salary ===")
-    logger.info(calculate_salary_untidy(40, 25, False))
-    
-    logger.info("=== Problem 5: Calculate Shipping ===")
-    logger.info(f"Shipping cost: ${calculate_shipping_untidy(30, 100, False)}")
-    
-    logger.info("=== Exercise 1: Process Order ===")
-    logger.info(process_order_exercise({"items": [{"price": 50}, {"price": 75}]}))
-    
-    logger.info("=== Exercise 2: Calc Cost ===")
-    logger.info(f"Final cost: ${calc_cost_ex2(5, 20, 10, 0.08)}")
+def _validate_phone_tidy(phone) -> bool:
+    if len(phone) < 10 or not phone.isdigit():
+        return False
+    return True
+
+def _validate_age_tidy(age) -> bool:
+    if age < 18:
+        return False
+    return True
+
+def validate_user_profile_tidy(profile) -> bool:
+    email = profile.get("email")
+    phone = profile.get("phone")
+    age = profile.get("age")
+
+    if not all([email, phone, age]):
+        return False
+
+    return all([
+        _validate_email_tidy(email),
+        _validate_phone_tidy(phone),
+        _validate_age_tidy(age)
+    ])

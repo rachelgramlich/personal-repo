@@ -4,6 +4,9 @@ settings.toml
 
 # Python
 *.venv/*
+pycache/
+*.py[cod]
+*$py.class
 
 # IDE
 .vscode/
