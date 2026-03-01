@@ -385,18 +385,18 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "beautifulsoup4" },
-    { name = "google-auth" },
-    { name = "google-auth-oauthlib" },
-    { name = "gspread" },
-    { name = "jenkspy" },
-    { name = "loguru" },
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "pytest" },
-    { name = "requests" },
-    { name = "seaborn" },
+    { name = "beautifulsoup4", specifier = ">=4.12.3" },
+    { name = "google-auth", specifier = ">=2.30.0" },
+    { name = "google-auth-oauthlib", specifier = ">=1.2.0" },
+    { name = "gspread", specifier = ">=6.1.2" },
+    { name = "jenkspy", specifier = ">=0.4.1" },
+    { name = "loguru", specifier = ">=0.7.2" },
+    { name = "matplotlib", specifier = ">=3.9.1" },
+    { name = "numpy", specifier = ">=1.26.4" },
+    { name = "pandas", specifier = ">=2.2.2" },
+    { name = "pytest", specifier = ">=8.2.2" },
+    { name = "requests", specifier = ">=2.32.3" },
+    { name = "seaborn", specifier = ">=0.13.2" },
 ]
 
 [[package]]
