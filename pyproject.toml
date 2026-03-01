@@ -17,5 +17,4 @@ dependencies = [
     "beautifulsoup4",
 ]
 
-
 # TODO: add linting and auto formatting

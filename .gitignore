@@ -1,0 +1,12 @@
+# Local files and directories to ignore
+.local/
+settings.toml
+
+# Python
+*.venv/*
+
+# IDE
+.vscode/
+
+# uv
+.uv/

@@ -8,15 +8,11 @@ default:
 
 # Setup: Install Python dependencies
 setup:
-    uv sync
+    uv sync --all-extras
 
 # Upgrade and sync dependencies
 setup-upgrade:
     uv sync --upgrade
-
-# Install dev dependencies (linting, formatting, testing)
-setup-dev:
-    uv sync
 
 # Run linting checks
 lint:
@@ -25,7 +21,7 @@ lint:
 
 # Format code
 format:
-    uv run ruff format .
+    uv run ruff format
 
 # Run tests
 test:
@@ -47,8 +43,12 @@ clean:
 # Run all checks (lint, format check, tests)
 check: lint test
 
+# Run pre-commit checks
+pre-commit:
+    uv run pre-commit run --all-files
+
 # Full development setup
-dev-setup: setup-dev format lint test
+dev-setup: setup format lint test
     @echo "Development setup complete!"
 
 # Show Python version and environment info
