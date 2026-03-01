@@ -1,5 +1,5 @@
 import pytest
-from project.tidy_first import *
+from projects.tidy_first import *
 
 @pytest.mark.parametrize("customer_type, amount, member, expected", [
     ("retail", 150, True, 0.20),
