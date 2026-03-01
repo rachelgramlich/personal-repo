@@ -15,6 +15,7 @@ dependencies = [
     "google-auth-oauthlib",
     "requests",
     "beautifulsoup4",
+    "loguru",
 ]
 
 # TODO: add linting and auto formatting
