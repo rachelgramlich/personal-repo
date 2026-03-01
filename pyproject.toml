@@ -1,0 +1,21 @@
+[project]
+name = "personal-repo"
+version = "0.0.0"
+description = "Personal projects"
+requires-python = ">=3.12,<3.13"
+
+dependencies = [
+    "pandas",
+    "jenkspy",
+    "numpy",
+    "matplotlib",
+    "seaborn",
+    "gspread",
+    "google-auth",
+    "google-auth-oauthlib",
+    "requests",
+    "beautifulsoup4",
+]
+
+
+# TODO: add linting and auto formatting
