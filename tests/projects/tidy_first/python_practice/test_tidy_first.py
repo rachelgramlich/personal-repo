@@ -1,5 +1,5 @@
 import pytest
-from projects.python_practice.tidy_first import (
+from src.python_practice.tidy_first import (
     calculate_discount_untidy,
     calculate_discount_tidy,
     process_user_untidy,

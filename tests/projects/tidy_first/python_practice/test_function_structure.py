@@ -1,6 +1,6 @@
 import pytest
 from loguru import logger
-from projects.tidy_first.python_practice.function_structure import (
+from src.python_practice.function_structure import (
     process_employee_data,
     process_employee_data_refactored,
     generate_report,
