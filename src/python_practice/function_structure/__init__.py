@@ -9,6 +9,8 @@ Feel free to add new functions or remove existing ones to make the
 code as readable and maintainable as possible.
 """
 
+from datetime import datetime
+from loguru import logger
 import re
 
 # =====================================================================
@@ -44,7 +46,7 @@ def process_employee_data(raw_csv_line):
     # 3. Format the date (from YYYY-MM-DD to DD/MM/YYYY)
     date_parts = raw_date.split("-")
     if len(date_parts) == 3:
-        formatted_date = f"{date_parts[2]}/{date_parts[1]}/{date_parts[0]}"
+        formatted_date = f"{date_parts[1]}/{date_parts[2]}/{date_parts[0]}"
     else:
         formatted_date = "Unknown"
 
@@ -65,13 +67,138 @@ def process_employee_data(raw_csv_line):
     }
 
 
-# --- PROBLEM 1 PLACEHOLDERS ---
-def process_employee_data_refactored(raw_csv_line):
+# --- PROBLEM 1 REFACTOR ---
+## Move sections into helper functions
+def _parse_csv_line(raw_csv_line: str) -> tuple[str, str, str, str]:
+    """Parse the raw CSV line and return the components."""
+    parts = raw_csv_line.strip().split(",")
+    if len(parts) != 4:
+        return None
+
+    name = parts[0]
+    raw_date = parts[1]
+    department = parts[2]
+    salary_str = parts[3]
+
+    return name, raw_date, department, salary_str
+
+
+def _validate_department(department: str) -> None:
+    """Check if department is in valid list."""
+    valid_departments = ["Engineering", "Sales", "Marketing", "HR"]
+    if department not in valid_departments:
+        print(f"Error: Invalid department {department}")
+        return None
+
+    return department
+
+
+def _format_date(raw_date: str) -> str:
+    """Convert date from YYYY-MM-DD to MM/DD/YYYY format."""
+    date_parts = raw_date.split("-")
+    if len(date_parts) == 3:
+        formatted_date = f"{date_parts[1]}/{date_parts[2]}/{date_parts[0]}"
+    else:
+        formatted_date = "Unknown"
+
+    return formatted_date
+
+
+def _calculate_bonus_by_department(salary_str: str, department: str) -> float:
+    """Calculate bonus based on department."""
+    base_salary = float(salary_str)
+    if department == "Engineering":
+        bonus = base_salary * 0.15
+    elif department == "Sales":
+        bonus = base_salary * 0.20
+    else:
+        bonus = base_salary * 0.05
+
+    return base_salary, bonus
+
+
+## Refactor helper functions tidier
+
+
+def _parse_csv_line_refactored(raw_csv_line: str) -> tuple[str, str, str, str]:
+    """Parse the raw CSV line and return the components."""
+    parts = raw_csv_line.strip().split(",")
+    if len(parts) != 4:
+        # Better: raise an exception instead of returning None
+        return None
+
+    name = parts[0]
+    raw_date = parts[1]
+    department = parts[2]
+    salary_str = parts[3]
+
+    return name, raw_date, department, salary_str
+
+
+def is_valid_department_refactored(department: str) -> bool:
+    """Check if department is in valid list."""
+    VALID_DEPARTMENTS = ["Engineering", "Sales", "Marketing", "HR"]
+
+    if department not in VALID_DEPARTMENTS:
+        logger.error(f"Invalid department {department}")
+        return False
+    return True
+
+
+def _format_date_refactored(raw_date: str) -> datetime:
+    """Convert date from YYYY-MM-DD to DD/MM/YYYY format."""
+    original_date_object = datetime.strptime(raw_date, "%Y-%m-%d")
+    return original_date_object.strftime("%m/%d/%Y")
+
+
+def _calculate_compensation_by_department_refactored(
+    salary_str: str, department: str
+) -> float:
+    """Calculate total compensation based on department."""
+    DEPARTMENT_BONUS_RATES = {
+        "Engineering": 0.15,
+        "Sales": 0.20,
+    }
+    STANDARD_BONUS_RATE = 0.05
+
+    base_salary = float(salary_str)
+    bonus_rate = DEPARTMENT_BONUS_RATES.get(department, STANDARD_BONUS_RATE)
+    bonus = base_salary * bonus_rate
+
+    total_compensation = base_salary + bonus
+
+    return total_compensation
+
+
+def process_employee_data_refactored(
+    raw_csv_line: str,
+) -> dict[str, datetime, str, float] | None:
     """
     Re-implement process_employee_data.
     Create your own helper functions above this one as you see fit!
     """
-    pass
+    parsed_data = _parse_csv_line_refactored(raw_csv_line)
+    if not parsed_data:
+        # Better: raise an exception instead of returning None
+        return None
+
+    name, raw_date, department, salary_str = parsed_data
+
+    if not is_valid_department_refactored(department):
+        return None
+
+    formatted_date = _format_date_refactored(raw_date)
+
+    total_compensation = _calculate_compensation_by_department_refactored(
+        salary_str, department
+    )
+
+    return {
+        "name": name,
+        "hire_date": formatted_date,
+        "department": department,
+        "total_compensation": total_compensation,
+    }
 
 
 # =====================================================================
@@ -233,3 +360,41 @@ if __name__ == "__main__":
     # Remove the 'pass' and uncomment 'run_tests()' when you are ready to test!
     pass
     # run_tests()
+
+
+# =====================================================================
+# EXECUTION BLOCK (Run the functions to see them work)
+# =====================================================================
+
+
+if __name__ == "__main__":
+    logger.info("RUNNING PROBLEM 1: Employee Data")
+    csv_line = "John Doe,2022-10-15,Engineering,100000"
+    logger.info(f"Input: {csv_line}")
+    result_p1 = process_employee_data(csv_line)
+    logger.info(f"Original Output:\n{result_p1}")
+    result_p1_ref = process_employee_data_refactored(csv_line)
+    logger.info(f"Refactored Output:\n{result_p1_ref}\n")
+
+    logger.info("RUNNING PROBLEM 2: Generate Report")
+    result_p2 = generate_report("October", 50000, 30000)
+    logger.info("Original Output:")
+    logger.info(f"\n{result_p2}")
+    result_p2_ref = generate_report_refactored("October", 50000, 30000)
+    logger.info("Refactored Output:")
+    logger.info(f"\n{result_p2_ref}\n")
+
+    logger.info("RUNNING PROBLEM 3: Register User")
+
+    class MockDB:
+        def execute(self, query):
+            logger.debug(f"[DB Mock executing]: {query}")
+            return False  # Simulates that the user does not exist yet
+
+    db = MockDB()
+    payload = {"email": "new@test.com", "password": "StrongPassword1"}
+    logger.info(f"Input Payload: {payload}")
+    result_p3 = register_user(payload, db)
+    logger.info(f"Original Output:\n{result_p3}")
+    result_p3_ref = register_user_refactored(payload, db)
+    logger.info(f"Refactored Output:\n{result_p3_ref}\n")
