@@ -245,10 +245,25 @@ def generate_report(month, revenue, expenses):
     return report
 
 
-# --- PROBLEM 2 PLACEHOLDER ---
-def generate_report_refactored(month, revenue, expenses):
+# --- PROBLEM 2 REFACTOR ---
+def _format_currency_refactored(amount: float) -> float:
+    return f"${amount:.2f}"
+
+
+def _calculate_net_profit_refactored(revenue: float, expenses: float) -> float:
+    return revenue - expenses
+
+
+def generate_report_refactored(month: str, revenue: float, expenses: float) -> str:
     """Inline the small helper functions so this is readable in one glance."""
-    pass
+    report_title = f"Financial Report for {month}"
+    profit = _calculate_net_profit_refactored(revenue, expenses)
+
+    report = f"=== {report_title.upper()} ===\n"
+    report += f"Revenue: {_format_currency_refactored(revenue)}\n"
+    report += f"Expenses: {_format_currency_refactored(expenses)}\n"
+    report += f"Net Profit: {_format_currency_refactored(profit)}\n"
+    return report
 
 
 # =====================================================================
@@ -300,101 +315,60 @@ def register_user(user_data, db_connection):
     return {"status": "success", "message": "User created successfully"}
 
 
-# --- PROBLEM 3 PLACEHOLDERS ---
-def register_user_refactored(user_data, db_connection):
+# --- PROBLEM 3 REFACTOR ---
+def _is_valid_email(email: str) -> bool:
+    """Validate email format using regex."""
+    email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+    return bool(re.match(email_regex, email))
+
+
+def _is_strong_password(password: str) -> bool:
+    """Validate password strength."""
+    return len(password) >= 8 and any(char.isdigit() for char in password)
+
+
+def _is_existing_user(email: str, db_connection) -> bool:
+    """Check if user already exists in the database."""
+    return db_connection.execute(f"SELECT * FROM users WHERE email='{email}'")
+
+
+def _create_user(email: str, password: str, db_connection) -> None:
+    """Create a new user in the database."""
+    db_connection.execute(
+        f"INSERT INTO users (email, password) VALUES ('{email}', '{password}')"
+    )
+
+
+def _send_welcome_email(email: str) -> None:
+    """Send a welcome email to the new user."""
+    email_body = f"Welcome to our platform, {email}! We are glad to have you."
+    print(f"Sending email to {email}: {email_body}")
+
+
+def register_user_refactored(user_data: dict, db_connection: object) -> dict:
     """
     Re-implement register_user.
     Extract helper functions as you see fit to balance readability!
     """
-    pass
+    email = user_data.get("email")
+    password = user_data.get("password")
 
+    if not email or not password:
+        return {"status": "error", "message": "Missing email or password"}
 
-# =====================================================================
-# TESTS TO ENSURE YOUR REFACTORS MATCH THE ORIGINAL BEHAVIOR
-# =====================================================================
-def run_tests():
-    print("Running tests...\n")
+    if not _is_valid_email(email):
+        return {"status": "error", "message": "Invalid email format"}
 
-    # Test Problem 1
-    print("Testing Problem 1...")
-    p1_input = "John Doe,2022-10-15,Engineering,100000"
-    expected_p1 = process_employee_data(p1_input)
-    actual_p1 = process_employee_data_refactored(p1_input)
-    assert actual_p1 == expected_p1, f"Expected {expected_p1}, but got {actual_p1}"
-    print("Problem 1 tests passed!\n")
+    if not _is_strong_password(password):
+        return {
+            "status": "error",
+            "message": "Password must be 8+ chars and contain a number",
+        }
 
-    # Test Problem 2
-    print("Testing Problem 2...")
-    expected_p2 = generate_report("October", 50000, 30000)
-    actual_p2 = generate_report_refactored("October", 50000, 30000)
-    assert (
-        actual_p2 == expected_p2
-    ), "Problem 2 refactored output does not match original"
-    print("Problem 2 tests passed!\n")
+    if _is_existing_user(email, db_connection):
+        return {"status": "error", "message": "User already exists"}
 
-    # Test Problem 3
-    print("Testing Problem 3...")
+    _create_user(email, password, db_connection)
+    _send_welcome_email(email)
 
-    class MockDB:
-        def execute(self, query):
-            if "SELECT" in query and "existing@test.com" in query:
-                return True
-            return False
-
-    db = MockDB()
-    valid_payload = {"email": "new@test.com", "password": "StrongPassword1"}
-    expected_p3 = register_user(valid_payload, db)
-    actual_p3 = register_user_refactored(valid_payload, db)
-    assert actual_p3 == expected_p3, "Problem 3 valid user logic failed"
-
-    invalid_payload = {"email": "bademail", "password": "weak"}
-    assert register_user_refactored(invalid_payload, db) == register_user(
-        invalid_payload, db
-    ), "Problem 3 invalid user logic failed"
-    print("Problem 3 tests passed!\n")
-
-    print("🎉 ALL TESTS PASSED! Your refactored code is tidy AND correct.")
-
-
-if __name__ == "__main__":
-    # Remove the 'pass' and uncomment 'run_tests()' when you are ready to test!
-    pass
-    # run_tests()
-
-
-# =====================================================================
-# EXECUTION BLOCK (Run the functions to see them work)
-# =====================================================================
-
-
-if __name__ == "__main__":
-    logger.info("RUNNING PROBLEM 1: Employee Data")
-    csv_line = "John Doe,2022-10-15,Engineering,100000"
-    logger.info(f"Input: {csv_line}")
-    result_p1 = process_employee_data(csv_line)
-    logger.info(f"Original Output:\n{result_p1}")
-    result_p1_ref = process_employee_data_refactored(csv_line)
-    logger.info(f"Refactored Output:\n{result_p1_ref}\n")
-
-    logger.info("RUNNING PROBLEM 2: Generate Report")
-    result_p2 = generate_report("October", 50000, 30000)
-    logger.info("Original Output:")
-    logger.info(f"\n{result_p2}")
-    result_p2_ref = generate_report_refactored("October", 50000, 30000)
-    logger.info("Refactored Output:")
-    logger.info(f"\n{result_p2_ref}\n")
-
-    logger.info("RUNNING PROBLEM 3: Register User")
-
-    class MockDB:
-        def execute(self, query):
-            logger.debug(f"[DB Mock executing]: {query}")
-            return False  # Simulates that the user does not exist yet
-
-    db = MockDB()
-    payload = {"email": "new@test.com", "password": "StrongPassword1"}
-    logger.info(f"Input Payload: {payload}")
-    result_p3 = register_user(payload, db)
-    logger.info(f"Original Output:\n{result_p3}")
-    result_p3_ref = register_user_refactored(payload, db)
-    logger.info(f"Refactored Output:\n{result_p3_ref}\n")
+    return {"status": "success", "message": "User created successfully"}

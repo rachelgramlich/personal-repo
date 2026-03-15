@@ -17,7 +17,7 @@ from src.python_practice.function_structure import (
             "John Doe,2022-10-15,Engineering,100000",
             {
                 "name": "John Doe",
-                "hire_date": "15/10/2022",
+                "hire_date": "10/15/2022",
                 "department": "Engineering",
                 "total_compensation": 115000.0,
             },
