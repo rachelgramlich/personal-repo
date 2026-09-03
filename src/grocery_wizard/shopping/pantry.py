@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -26,15 +27,60 @@ def load_pantry(path: Path | None = None) -> set[str]:
 
 
 def is_pantry_item(normalized: str, pantry: set[str]) -> bool:
-    """Return True if normalized ingredient matches any pantry item (substring)."""
+    """Return True if normalized ingredient matches a pantry item.
+
+    Pantry items match when they appear as a consecutive word phrase in the
+    ingredient (e.g. pantry ``salt`` matches ``kosher salt``). We do not match
+    the reverse (ingredient word appearing inside a longer pantry phrase like
+    ``beef stock``).
+    """
     name = normalized.strip().lower()
     if not name:
         return False
 
+    name_words = name.split()
     for item in pantry:
-        if item in name or name in item:
+        if name == item:
+            return True
+        if _contains_word_phrase(name_words, item.split()):
+            return True
+        # Narrow reverse rule: single-token ingredient (e.g. "oil") matches
+        # when it equals the *last* word of a multi-word pantry phrase
+        # (e.g. "olive oil", "vegetable oil").  This avoids re-introducing
+        # broad false positives like "beef" matching "beef stock".
+        if len(name_words) == 1:
+            item_words = item.split()
+            if len(item_words) > 1 and item_words[-1] == name_words[0]:
+                return True
+    return False
+
+
+def _contains_word_phrase(haystack_words: list[str], needle_words: list[str]) -> bool:
+    if not needle_words or len(needle_words) > len(haystack_words):
+        return False
+    width = len(needle_words)
+    for index in range(len(haystack_words) - width + 1):
+        if haystack_words[index : index + width] == needle_words:
             return True
     return False
+
+
+def _matches_pantry_search(search: str, item: str) -> bool:
+    """Return True if search term identifies a pantry item by name."""
+    lowered_search = search.strip().lower()
+    lowered_item = item.strip().lower()
+    if not lowered_search or not lowered_item:
+        return False
+    if lowered_search == lowered_item:
+        return True
+    if lowered_item.startswith(lowered_search):
+        return True
+
+    search_words = lowered_search.split()
+    item_words = lowered_item.split()
+    return _contains_word_phrase(search_words, item_words) or _contains_word_phrase(
+        item_words, search_words
+    )
 
 
 @dataclass
@@ -182,12 +228,7 @@ def _remove_item(lines: list[str], sections: list[PantrySection]) -> None:
         if 1 <= number <= len(flat):
             line_index = flat[number - 1][0]
     else:
-        lowered = choice.lower()
-        matches = [
-            (index, item)
-            for index, item in flat
-            if lowered in item.lower() or item.lower() in lowered
-        ]
+        matches = [(index, item) for index, item in flat if _matches_pantry_search(choice, item)]
         if len(matches) == 1:
             line_index = matches[0][0]
         elif len(matches) > 1:
@@ -243,7 +284,7 @@ def parse_pantry_file_from_lines(lines: list[str]) -> tuple[list[str], list[Pant
 def _open_in_editor(path: Path) -> None:
     editor = os.environ.get("EDITOR", "vi")
     try:
-        subprocess.run([editor, str(path)], check=False)
+        subprocess.run([*shlex.split(editor), str(path)], check=False)
     except FileNotFoundError:
         print(f"Editor not found: {editor}", file=sys.stderr)
 
@@ -262,7 +303,7 @@ def run_pantry_interactive(path: Path | None = None) -> int:
         print("[a]dd  [r]emove  [e]ditor  [q]uit")
         choice = input("> ").strip().lower()
 
-        if choice in ("q", "quit", ""):
+        if choice in ("q", "quit"):
             write_pantry_file(pantry_path, lines)
             print(f"Saved {pantry_path}")
             return 0
@@ -277,5 +318,8 @@ def run_pantry_interactive(path: Path | None = None) -> int:
             _open_in_editor(pantry_path)
             lines, sections = parse_pantry_file(pantry_path)
             continue
+
+        if not choice:
+            continue  # empty Enter — just re-display the menu
 
         print("Unknown option. Use a, r, e, or q.")

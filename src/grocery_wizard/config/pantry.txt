@@ -1,4 +1,4 @@
-# Pantry staples — one item per line. Substring matching (e.g. "kosher salt" matches "salt").
+# Pantry staples — one item per line. Phrase-boundary matching (e.g. "kosher salt" matches pantry item "salt").
 # Lines starting with # are ignored.
 
 # --- Salt & pepper ---
@@ -72,7 +72,7 @@ peanut butter
 almond butter
 
 # --- Stocks ---
-not beef stock
+beef stock
 veggie bouillon
 chicken bouillon
 

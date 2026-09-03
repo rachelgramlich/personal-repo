@@ -10,11 +10,16 @@ from pathlib import Path
 from src.grocery_wizard.config import LEGACY_WEEK_PLAN_PATH, WEEK_PLAN_PATH
 from src.grocery_wizard.ingredients.normalize import (
     _normalize_unicode_dashes,
+    aggregate_amounts,
     expand_ingredient_line,
     is_junk_ingredient,
-    normalize_ingredient,
+    parse_amount,
 )
-from src.grocery_wizard.ingredients.sync import recipe_needs_empty_sync, run_sync
+from src.grocery_wizard.ingredients.sync import (
+    SyncSummary,
+    recipe_needs_empty_sync,
+    run_sync_recipes,
+)
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
 from src.grocery_wizard.recipes.scraper import scrape_recipe
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
@@ -43,15 +48,16 @@ def run_grocery_list(
 
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
     if backfill_missing or _should_prompt_backfill(names, recipes_by_name):
+        needs_backfill = _recipes_needing_backfill(names, recipes_by_name)
         if backfill_missing or _prompt_backfill(names, recipes_by_name):
-            summary = run_sync(db)
+            summary = run_sync_recipes(db, needs_backfill)
             print(format_sync_message(summary))
             recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
 
     pantry = load_pantry(pantry_path)
 
-    grocery_items: list[str] = []
-    seen: set[str] = set()
+    # collected maps normalized_name_lower → (display_name, [amounts])
+    collected: dict[str, tuple[str, list[str | None]]] = {}
     excluded_pantry: list[str] = []
 
     for name in names:
@@ -66,14 +72,19 @@ def run_grocery_list(
             continue
 
         for line in ingredient_lines:
-            _add_ingredient_line(
+            _collect_ingredient_line(
                 line,
                 pantry=pantry,
                 exclude_pantry=exclude_pantry,
-                grocery_items=grocery_items,
+                collected=collected,
                 excluded_pantry=excluded_pantry,
-                seen=seen,
             )
+
+    seen: set[str] = set(collected.keys())
+    grocery_items: list[str] = [
+        format_grocery_item(display_name, aggregate_amounts(amounts))
+        for display_name, amounts in collected.values()
+    ]
 
     excluded_sorted = sorted(excluded_pantry, key=str.lower)
 
@@ -122,16 +133,19 @@ def build_grocery_list(
     week_plan_path: Path = WEEK_PLAN_PATH,
     pantry_path: Path | None = None,
     exclude_pantry: bool = True,
-) -> tuple[list[str], list[str]]:
-    """Build grocery list items and excluded pantry items (for UI use)."""
-    if backfill_missing:
-        run_sync(db)
-
+) -> tuple[list[str], list[str], SyncSummary | None]:
+    """Build grocery list items, excluded pantry items, and optional sync summary (for UI use)."""
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
+    sync_summary: SyncSummary | None = None
+    if backfill_missing:
+        needs_backfill = _recipes_needing_backfill(recipe_names, recipes_by_name)
+        if needs_backfill:
+            sync_summary = run_sync_recipes(db, needs_backfill)
+            recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
     pantry = load_pantry(pantry_path)
 
-    grocery_items: list[str] = []
-    seen: set[str] = set()
+    # collected maps normalized_name_lower → (display_name, [amounts])
+    collected: dict[str, tuple[str, list[str | None]]] = {}
     excluded_pantry: list[str] = []
 
     for name in recipe_names:
@@ -141,14 +155,19 @@ def build_grocery_list(
 
         ingredient_lines = _get_ingredient_lines(recipe)
         for line in ingredient_lines:
-            _add_ingredient_line(
+            _collect_ingredient_line(
                 line,
                 pantry=pantry,
                 exclude_pantry=exclude_pantry,
-                grocery_items=grocery_items,
+                collected=collected,
                 excluded_pantry=excluded_pantry,
-                seen=seen,
             )
+
+    seen: set[str] = set(collected.keys())
+    grocery_items: list[str] = [
+        format_grocery_item(display_name, aggregate_amounts(amounts))
+        for display_name, amounts in collected.values()
+    ]
 
     for staple in staples or []:
         key = staple.lower()
@@ -158,7 +177,7 @@ def build_grocery_list(
 
     grocery_items.sort(key=str.lower)
     excluded_pantry.sort(key=str.lower)
-    return grocery_items, excluded_pantry
+    return grocery_items, excluded_pantry, sync_summary
 
 
 def format_sync_message(summary) -> str:
@@ -175,7 +194,11 @@ def _load_week_plan_names(path: Path) -> list[str]:
         else:
             return []
 
-    data = json.loads(resolved.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(resolved.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"Warning: could not read week plan ({resolved}): {exc}", file=sys.stderr)
+        return []
     if isinstance(data, dict):
         recipes = data.get("recipes", [])
         if isinstance(recipes, list):
@@ -206,19 +229,31 @@ def _get_ingredient_lines(recipe: Recipe) -> list[str]:
     return []
 
 
-def _add_ingredient_line(
+def format_grocery_item(name: str, amount: str | None) -> str:
+    """Format a grocery item for display: ``"amount name"`` or just ``name``."""
+    if amount is None:
+        return name
+    return f"{amount} {name}"
+
+
+def _collect_ingredient_line(
     line: str,
     *,
     pantry: set[str],
     exclude_pantry: bool,
-    grocery_items: list[str],
+    collected: dict[str, tuple[str, list[str | None]]],
     excluded_pantry: list[str],
-    seen: set[str],
 ) -> None:
+    """Parse *line*, deduplicate by normalised name, and accumulate amounts.
+
+    Pantry items are routed to *excluded_pantry* instead of *collected*.
+    Duplicate ingredient names across recipes have their amounts appended so
+    they can later be aggregated.
+    """
     if is_junk_ingredient(line):
         return
     for piece in expand_ingredient_line(line):
-        normalized = normalize_ingredient(piece)
+        normalized, amount = parse_amount(piece)
         if not normalized:
             continue
         if exclude_pantry and is_pantry_item(normalized, pantry):
@@ -226,10 +261,10 @@ def _add_ingredient_line(
                 excluded_pantry.append(normalized)
             continue
         key = normalized.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        grocery_items.append(normalized)
+        if key in collected:
+            collected[key][1].append(amount)
+        else:
+            collected[key] = (normalized, [amount])
 
 
 def _split_ingredient_text(text: str) -> list[str]:

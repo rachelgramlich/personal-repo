@@ -13,6 +13,7 @@ from src.grocery_wizard.shopping.grocery_list import (
     _print_excluded_summary,
     _recipes_needing_backfill,
     build_grocery_list,
+    format_grocery_item,
     match_excluded_items,
     parse_readd_excluded,
     run_grocery_list,
@@ -36,6 +37,18 @@ def pantry_file(tmp_path: Path) -> Path:
     return path
 
 
+@pytest.mark.parametrize(
+    ("name", "amount", "expected"),
+    [
+        ("chicken breast", "1 lb", "1 lb chicken breast"),
+        ("eggs", None, "eggs"),
+        ("garlic", "3 cloves", "3 cloves garlic"),
+    ],
+)
+def test_format_grocery_item(name: str, amount: str | None, expected: str) -> None:
+    assert format_grocery_item(name, amount) == expected
+
+
 def test_build_grocery_list_excludes_pantry_by_default(pantry_file: Path) -> None:
     db = MagicMock()
     db.query_recipes.return_value = [
@@ -45,16 +58,16 @@ def test_build_grocery_list_excludes_pantry_by_default(pantry_file: Path) -> Non
         )
     ]
 
-    items, excluded = build_grocery_list(
+    items, excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Test Recipe"],
         pantry_path=pantry_file,
         exclude_pantry=True,
     )
 
-    assert "chicken breast" in items
-    assert "olive oil" not in items
-    assert "garlic" not in items
+    assert any("chicken breast" in item for item in items)
+    assert not any("olive oil" in item for item in items)
+    assert not any("garlic" in item for item in items)
     assert "olive oil" in excluded
     assert "garlic" in excluded
 
@@ -68,16 +81,16 @@ def test_build_grocery_list_include_pantry(pantry_file: Path) -> None:
         )
     ]
 
-    items, excluded = build_grocery_list(
+    items, excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Test Recipe"],
         pantry_path=pantry_file,
         exclude_pantry=False,
     )
 
-    assert "chicken breast" in items
-    assert "olive oil" in items
-    assert "garlic" in items
+    assert any("chicken breast" in item for item in items)
+    assert any("olive oil" in item for item in items)
+    assert any("garlic" in item for item in items)
     assert excluded == []
 
 
@@ -94,7 +107,7 @@ def test_build_grocery_list_splits_compound_ingredients(tmp_path: Path) -> None:
         )
     ]
 
-    items, excluded = build_grocery_list(
+    items, excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Chana Masala"],
         pantry_path=pantry_path,
@@ -129,7 +142,7 @@ def test_build_grocery_list_splits_cauliflower_and_rice(
         _recipe("Stir Fry", ingredient_line),
     ]
 
-    items, excluded = build_grocery_list(
+    items, excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Stir Fry"],
         pantry_path=pantry_path,
@@ -151,7 +164,7 @@ def test_build_grocery_list_keeps_cauliflower_rice_without_conjunction(tmp_path:
         _recipe("Stir Fry", "cauliflower rice"),
     ]
 
-    items, excluded = build_grocery_list(
+    items, excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Stir Fry"],
         pantry_path=pantry_path,
@@ -171,14 +184,14 @@ def test_build_grocery_list_white_beans_not_split(tmp_path: Path) -> None:
         _recipe("Soup", "2 cans white beans"),
     ]
 
-    items, excluded = build_grocery_list(
+    items, excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
         exclude_pantry=True,
     )
 
-    assert items == ["white beans"]
+    assert items == ["2 cans white beans"]
     assert "white" not in items
     assert "beans" not in items
 
@@ -320,3 +333,135 @@ def test_load_week_plan_names_falls_back_to_legacy_path(tmp_path: Path, monkeypa
 
     assert not (tmp_path / WEEK_PLAN_PATH).exists()
     assert _load_week_plan_names(WEEK_PLAN_PATH) == ["Legacy Soup"]
+
+
+def test_load_week_plan_names_invalid_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from src.grocery_wizard.shopping.grocery_list import _load_week_plan_names
+
+    path = tmp_path / "week_plan.json"
+    path.write_text("{not json", encoding="utf-8")
+    assert _load_week_plan_names(path) == []
+    assert "could not read week plan" in capsys.readouterr().err
+
+
+def test_load_week_plan_names_oserror_returns_empty(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Patch read_text to raise OSError and assert _load_week_plan_names returns [] gracefully."""
+    from pathlib import Path as _Path
+
+    from src.grocery_wizard.shopping.grocery_list import _load_week_plan_names
+
+    path = tmp_path / "week_plan.json"
+    path.write_text('{"recipes": ["Soup"]}', encoding="utf-8")
+
+    with patch.object(_Path, "read_text", side_effect=OSError("permission denied")):
+        result = _load_week_plan_names(path)
+
+    assert result == []
+    assert "could not read week plan" in capsys.readouterr().err
+
+
+def test_build_grocery_list_only_syncs_empty_recipes(tmp_path: Path) -> None:
+    """Only week-plan recipes with empty ingredients should be passed to run_sync_recipes."""
+    from src.grocery_wizard.ingredients.sync import SyncSummary
+
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    populated = _recipe("Populated", "1 cup flour\n2 eggs")
+    empty = _recipe("Empty", "")
+    empty.ingredients = None
+
+    db = MagicMock()
+    # First call: initial query; second call: after sync refresh
+    db.query_recipes.side_effect = [
+        [populated, empty],
+        [populated, empty],
+    ]
+
+    captured: list = []
+
+    def fake_run_sync_recipes(db_arg, recipes, **kwargs):  # noqa: ANN001
+        captured.extend(recipes)
+        return SyncSummary()
+
+    with patch(
+        "src.grocery_wizard.shopping.grocery_list.run_sync_recipes",
+        side_effect=fake_run_sync_recipes,
+    ):
+        items, excluded, sync_summary = build_grocery_list(
+            db,
+            recipe_names=["Populated", "Empty"],
+            backfill_missing=True,
+            pantry_path=pantry_path,
+        )
+
+    # Only the empty recipe should have been sent to sync
+    assert len(captured) == 1
+    assert captured[0].name == "Empty"
+
+
+def test_build_grocery_list_shows_amounts(tmp_path: Path) -> None:
+    """Amounts parsed from ingredient lines appear in the grocery list."""
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Soup", "1 lb chicken breast\n2 cans white beans"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Soup"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert "1 lb chicken breast" in items
+    assert "2 cans white beans" in items
+
+
+def test_build_grocery_list_aggregates_amounts_across_recipes(tmp_path: Path) -> None:
+    """Same ingredient from two recipes has its amounts summed."""
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Recipe A", "1 can white beans"),
+        _recipe("Recipe B", "1 can white beans"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Recipe A", "Recipe B"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert "2 cans white beans" in items
+    assert len([item for item in items if "white beans" in item]) == 1
+
+
+def test_build_grocery_list_no_amount_fallback(tmp_path: Path) -> None:
+    """Ingredients without a quantity are still shown, just without a prefix."""
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Salad", "chicken breast"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Salad"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert "chicken breast" in items
