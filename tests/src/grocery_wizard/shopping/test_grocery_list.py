@@ -320,3 +320,14 @@ def test_load_week_plan_names_falls_back_to_legacy_path(tmp_path: Path, monkeypa
 
     assert not (tmp_path / WEEK_PLAN_PATH).exists()
     assert _load_week_plan_names(WEEK_PLAN_PATH) == ["Legacy Soup"]
+
+
+def test_load_week_plan_names_invalid_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from src.grocery_wizard.shopping.grocery_list import _load_week_plan_names
+
+    path = tmp_path / "week_plan.json"
+    path.write_text("{not json", encoding="utf-8")
+    assert _load_week_plan_names(path) == []
+    assert "could not read week plan" in capsys.readouterr().err

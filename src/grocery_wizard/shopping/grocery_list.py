@@ -14,7 +14,7 @@ from src.grocery_wizard.ingredients.normalize import (
     is_junk_ingredient,
     normalize_ingredient,
 )
-from src.grocery_wizard.ingredients.sync import recipe_needs_empty_sync, run_sync
+from src.grocery_wizard.ingredients.sync import recipe_needs_empty_sync, run_sync_recipes
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
 from src.grocery_wizard.recipes.scraper import scrape_recipe
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
@@ -43,8 +43,9 @@ def run_grocery_list(
 
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
     if backfill_missing or _should_prompt_backfill(names, recipes_by_name):
+        needs_backfill = _recipes_needing_backfill(names, recipes_by_name)
         if backfill_missing or _prompt_backfill(names, recipes_by_name):
-            summary = run_sync(db)
+            summary = run_sync_recipes(db, needs_backfill)
             print(format_sync_message(summary))
             recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
 
@@ -124,10 +125,12 @@ def build_grocery_list(
     exclude_pantry: bool = True,
 ) -> tuple[list[str], list[str]]:
     """Build grocery list items and excluded pantry items (for UI use)."""
-    if backfill_missing:
-        run_sync(db)
-
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
+    if backfill_missing:
+        needs_backfill = _recipes_needing_backfill(recipe_names, recipes_by_name)
+        if needs_backfill:
+            run_sync_recipes(db, needs_backfill)
+            recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
     pantry = load_pantry(pantry_path)
 
     grocery_items: list[str] = []
@@ -175,7 +178,11 @@ def _load_week_plan_names(path: Path) -> list[str]:
         else:
             return []
 
-    data = json.loads(resolved.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(resolved.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"Warning: could not read week plan ({resolved}): {exc}", file=sys.stderr)
+        return []
     if isinstance(data, dict):
         recipes = data.get("recipes", [])
         if isinstance(recipes, list):
