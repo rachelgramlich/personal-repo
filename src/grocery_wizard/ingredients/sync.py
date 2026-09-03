@@ -477,6 +477,37 @@ def run_sync(
     return summary
 
 
+def run_sync_recipes(
+    db: NotionRecipesDB,
+    recipes: list[Recipe],
+    *,
+    dry_run: bool = False,
+    force: bool = False,
+) -> SyncSummary:
+    """Sync ingredients for a specific list of recipes (e.g. week-plan backfill)."""
+    categories = categorize_recipes(db.query_recipes())
+    summary = SyncSummary(categories=categories)
+
+    if dry_run:
+        summary.dry_run = [recipe.name for recipe in recipes]
+        return summary
+
+    for recipe in recipes:
+        try:
+            result = sync_ingredients_for_recipe(db, recipe, dry_run=False, force=force)
+        except Exception as exc:
+            result = SyncResult(recipe.name, "failed", str(exc))
+
+        summary.results.append(result)
+        if result.status == "synced":
+            summary.synced += 1
+            summary.synced_names.append(recipe.name)
+        elif result.status == "failed":
+            summary.failed.append(f"{recipe.name}: {result.message}")
+
+    return summary
+
+
 def run_merge_sync(
     db: NotionRecipesDB,
     *,
