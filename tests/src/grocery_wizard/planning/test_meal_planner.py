@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.grocery_wizard.meal_planner import (
+from src.grocery_wizard.integrations.notion import ColumnInfo, DatabaseSchema, Recipe
+from src.grocery_wizard.planning.meal_planner import (
     MealPlanFilters,
     _build_plan_interactive,
     _review_plan_interactive,
@@ -20,7 +21,6 @@ from src.grocery_wizard.meal_planner import (
     save_week_plan,
     select_diverse_meals,
 )
-from src.grocery_wizard.notion import ColumnInfo, DatabaseSchema, Recipe
 
 
 def _recipe(
@@ -281,7 +281,7 @@ def test_parse_meal_requests_splits_and_trims() -> None:
 
 def test_reject_suggests_different_recipe_same_slot(monkeypatch) -> None:
     monkeypatch.setattr(
-        "src.grocery_wizard.meal_planner.pick_diverse_recipe",
+        "src.grocery_wizard.planning.meal_planner.pick_diverse_recipe",
         lambda candidates, selected, **kwargs: candidates[0],
     )
     pool = DIVERSITY_RECIPES[:3]
@@ -306,7 +306,7 @@ def test_global_reject_excludes_from_later_slots(monkeypatch) -> None:
         return candidates[0]
 
     monkeypatch.setattr(
-        "src.grocery_wizard.meal_planner.pick_diverse_recipe",
+        "src.grocery_wizard.planning.meal_planner.pick_diverse_recipe",
         deterministic_pick,
     )
     pool = DIVERSITY_RECIPES[:3]
@@ -323,7 +323,7 @@ def test_global_reject_excludes_from_later_slots(monkeypatch) -> None:
 
 def test_review_plan_regenerates_single_slot(monkeypatch) -> None:
     monkeypatch.setattr(
-        "src.grocery_wizard.meal_planner.pick_diverse_recipe",
+        "src.grocery_wizard.planning.meal_planner.pick_diverse_recipe",
         lambda candidates, selected, **kwargs: candidates[0],
     )
     pool = DIVERSITY_RECIPES[:4]
@@ -352,7 +352,7 @@ def test_review_plan_old_slot_not_auto_rejected(monkeypatch) -> None:
         return next(picks)
 
     monkeypatch.setattr(
-        "src.grocery_wizard.meal_planner.pick_diverse_recipe",
+        "src.grocery_wizard.planning.meal_planner.pick_diverse_recipe",
         next_pick,
     )
     rejected: set[str] = set()
@@ -416,7 +416,7 @@ def _dinner_recipes(recipes: list[Recipe]) -> list[Recipe]:
 
 def test_run_meal_planner_with_requested_meals(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "src.grocery_wizard.meal_planner.pick_diverse_recipe",
+        "src.grocery_wizard.planning.meal_planner.pick_diverse_recipe",
         lambda candidates, selected, **kwargs: candidates[0],
     )
     db = _FakeDB(_dinner_recipes(DIVERSITY_RECIPES))

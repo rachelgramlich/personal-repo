@@ -8,16 +8,16 @@ import sys
 from pathlib import Path
 
 from src.grocery_wizard.config import LEGACY_WEEK_PLAN_PATH, WEEK_PLAN_PATH
-from src.grocery_wizard.ingredient_normalize import (
+from src.grocery_wizard.ingredients.normalize import (
     _normalize_unicode_dashes,
     expand_ingredient_line,
     is_junk_ingredient,
     normalize_ingredient,
 )
-from src.grocery_wizard.ingredients_sync import recipe_needs_empty_sync, run_sync
-from src.grocery_wizard.notion import NotionRecipesDB, Recipe
-from src.grocery_wizard.pantry import is_pantry_item, load_pantry
-from src.grocery_wizard.scraper import scrape_recipe
+from src.grocery_wizard.ingredients.sync import recipe_needs_empty_sync, run_sync
+from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
+from src.grocery_wizard.recipes.scraper import scrape_recipe
+from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
 
 
 def run_grocery_list(
@@ -162,7 +162,7 @@ def build_grocery_list(
 
 
 def format_sync_message(summary) -> str:
-    from src.grocery_wizard.ingredients_sync import format_sync_summary
+    from src.grocery_wizard.ingredients.sync import format_sync_summary
 
     return format_sync_summary(summary)
 

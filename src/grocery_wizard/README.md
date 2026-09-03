@@ -96,9 +96,54 @@ uv run python -m src.grocery_wizard.cli dev audit-recipes
 uv run python -m src.grocery_wizard.cli dev show-schema
 ```
 
-## Architecture
+## Project layout
 
-This repo is a **multi-project monorepo** (`personal-repo`). Grocery Wizard lives at `src/grocery_wizard/` with imports like `from src.grocery_wizard.cli import ...`. Tests mirror that layout under `tests/src/grocery_wizard/`.
+Grocery Wizard is a package under `src/grocery_wizard/`. Folders group code by **what it does**; tests mirror the same folders under `tests/src/grocery_wizard/`.
+
+### Source (`src/grocery_wizard/`)
+
+| Folder | Key files | Responsibility |
+|--------|-----------|----------------|
+| `cli/` | `main.py` | Command-line entry (`add-recipe`, `plan-recipes`, `create-grocery-list`, `edit-pantry`, `dev …`) |
+| `ui/` | `app.py` | Streamlit app (partial — Plan Meals tab is still a stub) |
+| `config/` | `__init__.py`, `pantry.txt` | Env settings, paths, committed pantry staples |
+| `integrations/` | `notion.py` | Notion API client and recipe model |
+| `recipes/` | `scraper.py`, `classify.py`, `add_recipe.py` | Scrape URLs, classify metadata, save new recipes |
+| `ingredients/` | `normalize.py`, `sync.py` | Parse/normalize ingredient lines; sync to Notion |
+| `planning/` | `meal_planner.py` | Interactive weeknight dinner planner |
+| `shopping/` | `grocery_list.py`, `pantry.py` | Build shopping list; pantry load/match/edit |
+| `dev/` | `audit.py` | Recipe health checks |
+| `lib/` | `prompts.py` | Shared interactive prompts |
+
+### Tests (`tests/src/grocery_wizard/`)
+
+Same subfolders as source — e.g. `recipes/test_scraper.py` tests `recipes/scraper.py`.
+
+### Local runtime data (gitignored)
+
+| Path | Purpose |
+|------|---------|
+| `.local/grocery_wizard/week_plan.json` | This week's planned recipe names |
+| `.env` | `NOTION_API_KEY`, `NOTION_DATABASE_ID` (see `.env.example`) |
+
+### Entry points
+
+```shell
+# CLI (primary)
+uv run python -m src.grocery_wizard.cli <command>
+
+# Streamlit (secondary)
+uv run streamlit run src/grocery_wizard/ui/app.py
+```
+
+```
+personal-repo/
+├── src/grocery_wizard/          # package (table above)
+├── tests/src/grocery_wizard/    # tests (mirrors package folders)
+└── .local/grocery_wizard/       # your week plan (not committed)
+```
+
+## Architecture notes
 
 ## How ingredients are stored
 
@@ -134,9 +179,12 @@ Suggestions maximize variety across **Protein**, **Dinner Category**, and **Cuis
 
 ## Configuration vs local data
 
+Committed config lives in the package; per-week data stays local:
+
 | Path | Committed? | Purpose |
 |------|------------|---------|
 | `src/grocery_wizard/config/pantry.txt` | yes | Pantry staples excluded from grocery lists |
+| `src/grocery_wizard/config/__init__.py` | yes | Env vars, Notion IDs, file paths |
 | `.local/grocery_wizard/week_plan.json` | no | This week's planned recipes |
 
 ## Pantry staples
@@ -153,7 +201,7 @@ Matching is substring-based: `kosher salt` matches pantry item `salt`. Grocery l
 ## Streamlit UI
 
 ```shell
-uv run streamlit run src/grocery_wizard/app.py
+uv run streamlit run src/grocery_wizard/ui/app.py
 ```
 
 Tabs: Add Recipe, Sync Ingredients, Plan Meals (stub), Grocery List.

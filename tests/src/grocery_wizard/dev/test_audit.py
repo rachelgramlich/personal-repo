@@ -1,9 +1,9 @@
-from src.grocery_wizard.audit import (
+from src.grocery_wizard.dev.audit import (
     audit_recipes,
     looks_suspicious_ingredients,
     split_ingredient_lines,
 )
-from src.grocery_wizard.notion import Recipe
+from src.grocery_wizard.integrations.notion import Recipe
 
 
 def test_split_ingredient_lines_handles_br_tags() -> None:

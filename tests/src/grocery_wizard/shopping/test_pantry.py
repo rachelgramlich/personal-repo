@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.grocery_wizard.config import PANTRY_PATH
-from src.grocery_wizard.pantry import (
+from src.grocery_wizard.shopping.pantry import (
     format_pantry_display,
     load_pantry,
     parse_pantry_file,

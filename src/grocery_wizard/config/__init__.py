@@ -8,10 +8,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-_PACKAGE_DIR = Path(__file__).resolve().parent
+_PACKAGE_DIR = Path(__file__).resolve().parent.parent
 
 # Committed package configuration (pantry staples, etc.).
-CONFIG_DIR = _PACKAGE_DIR / "config"
+CONFIG_DIR = Path(__file__).resolve().parent
 PANTRY_PATH = CONFIG_DIR / "pantry.txt"
 
 # Per-week local runtime data (gitignored via .local/).

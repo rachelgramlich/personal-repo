@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.grocery_wizard.cli import main
+from src.grocery_wizard.cli.main import main
 
 
 @pytest.mark.parametrize(
@@ -48,7 +48,7 @@ def test_create_grocery_list_help_lists_new_flags(capsys: pytest.CaptureFixture[
 
 
 def test_cmd_grocery_passes_new_flags() -> None:
-    from src.grocery_wizard.cli import cmd_grocery
+    from src.grocery_wizard.cli.main import cmd_grocery
 
     args = argparse.Namespace(
         recipes="Soup,Salad",
@@ -57,9 +57,9 @@ def test_cmd_grocery_passes_new_flags() -> None:
         include_staples=True,
     )
     with (
-        patch("src.grocery_wizard.cli.load_config"),
-        patch("src.grocery_wizard.cli.NotionRecipesDB"),
-        patch("src.grocery_wizard.grocery_list.run_grocery_list") as run_mock,
+        patch("src.grocery_wizard.cli.main.load_config"),
+        patch("src.grocery_wizard.cli.main.NotionRecipesDB"),
+        patch("src.grocery_wizard.shopping.grocery_list.run_grocery_list") as run_mock,
     ):
         run_mock.return_value = 0
         assert cmd_grocery(args) == 0

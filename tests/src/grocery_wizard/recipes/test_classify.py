@@ -1,6 +1,6 @@
 """Tests for recipe classification."""
 
-from src.grocery_wizard.classify import classify_column, classify_recipe
+from src.grocery_wizard.recipes.classify import classify_column, classify_recipe
 
 MEAL_OPTIONS = ["Drink", "Breakfast", "Lunch", "Dinner", "Snack", "Dessert"]
 
