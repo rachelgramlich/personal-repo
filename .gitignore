@@ -1,6 +1,7 @@
 # Local files and directories to ignore
 .local/
 settings.toml
+.env
 
 # Python
 *.venv/*

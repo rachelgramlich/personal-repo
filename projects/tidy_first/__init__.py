@@ -7,6 +7,7 @@ from the book. Try to refactor them yourself!
 
 from loguru import logger
 
+
 # ============================================================================
 # PROBLEM 1: Guard Clauses
 # ============================================================================
@@ -126,7 +127,7 @@ def _calculate_tax_and_benefits(base, is_overtime):
     tax = base * 0.25 if is_overtime else base * 0.20
     benefits = base * 0.08 if is_overtime else base * 0.05
     return tax, benefits
-    
+
 
 def calculate_salary_tidy(hours_worked, hourly_rate, is_overtime):
     base = hours_worked * hourly_rate
@@ -163,7 +164,7 @@ EXPRESS_DISTANCE_RATE = 0.02
 def calculate_shipping_tidy(weight, distance, is_express):
     weight_rate = HEAVY_WEIGHT_RATE if weight > HEAVY_WEIGHT_THRESHOLD else LIGHT_WEIGHT_RATE
     distance_rate = EXPRESS_DISTANCE_RATE if is_express else STANDARD_DISTANCE_RATE
-    
+
     return (weight * weight_rate) + (distance * distance_rate) + BASE_FEE
 
 
@@ -212,13 +213,13 @@ def should_grant_access_untidy(user_role, is_active, account_balance):
 def should_grant_access_tidy(user_role, is_active, account_balance):
     if user_role == "admin":
         return True
-    
+
     if user_role != "user":
         return False
-    
+
     if not is_active:
         return False
-    
+
     has_sufficient_balance = account_balance > 0
     return has_sufficient_balance
 
@@ -243,17 +244,17 @@ LARGE_ORDER_THRESHOLD = 100
 def process_order_tidy(order):
     if not order:
         return "No order provided"
-    
+
     if "items" not in order:
         return "Invalid order format"
-    
+
     if len(order["items"]) == 0:
         return "Order is empty"
-    
+
     total = sum(item["price"] for item in order["items"])
 
     order_size = "Large" if total > LARGE_ORDER_THRESHOLD else "Small"
-    
+
     return f"{order_size} order: ${total}"
 
 
