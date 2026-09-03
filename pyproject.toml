@@ -15,6 +15,7 @@ dependencies = [
     "numpy>=1.26.4",
     "pandas>=2.2.2",
     "pytest>=8.2.2",
+    "ruff>=0.15.6",
     "requests>=2.32.3",
     "seaborn>=0.13.2",
 ]
@@ -23,13 +24,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "mypy>=1.11",
-    "ruff>=0.8",
 ]
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-exclude = ["projects/tidy_first", "tests/projects/tidy_first"]
+exclude = ["src/python_practice/tidy_first", "tests/python_practice/test_tidy_first.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
