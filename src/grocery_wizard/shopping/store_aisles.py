@@ -2,308 +2,71 @@
 
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+
+from src.grocery_wizard.config import STORE_AISLES_PATH
 from src.grocery_wizard.ingredients.normalize import parse_amount
 
-AISLE_ORDER: tuple[str, ...] = (
-    "produce",
-    "refrigerated",
-    "canned drinks",
-    "dairy/eggs",
-    "bakery",
-    "dry goods",
-    "baking",
-    "frozen",
-    "crackers/cookies",
-    "coffee",
-    "nuts/dried fruit",
-    "snacks",
-    "other",
-)
+_SECTION_HEADER_RE = re.compile(r"^#\s*---\s*(?P<id>.+?)(?::\s*(?P<label>.+?))?\s*---\s*$")
 
-AISLE_LABELS: dict[str, str] = {
-    "produce": "Produce",
-    "refrigerated": "Refrigerated (cheese/tofu)",
-    "canned drinks": "Canned drinks",
-    "dairy/eggs": "Dairy & eggs",
-    "bakery": "Bakery",
-    "dry goods": "Dry goods / cans / cereal / rice",
-    "baking": "Baking",
-    "frozen": "Frozen",
-    "crackers/cookies": "Crackers & cookies",
-    "coffee": "Coffee & tea",
-    "nuts/dried fruit": "Nuts & dried fruit",
-    "snacks": "Snacks",
-    "other": "Other",
-}
 
-# Keywords checked in aisle order; longer phrases should appear first within each list.
-AISLE_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "produce": (
-        "bell pepper",
-        "sweet potato",
-        "green onion",
-        "bok choy",
-        "brussels sprouts",
-        "butternut squash",
-        "spaghetti squash",
-        "onion",
-        "onions",
-        "garlic",
-        "shallot",
-        "ginger",
-        "cilantro",
-        "parsley",
-        "basil",
-        "mint",
-        "dill",
-        "thyme",
-        "rosemary",
-        "sage",
-        "chive",
-        "tomato",
-        "lettuce",
-        "spinach",
-        "kale",
-        "arugula",
-        "carrot",
-        "celery",
-        "cucumber",
-        "zucchini",
-        "squash",
-        "broccoli",
-        "cauliflower",
-        "mushroom",
-        "potato",
-        "jalapeño",
-        "jalapeno",
-        "serrano",
-        "habanero",
-        "lime",
-        "lemon",
-        "orange",
-        "apple",
-        "apples",
-        "banana",
-        "avocado",
-        "berry",
-        "berries",
-        "strawberry",
-        "blueberry",
-        "raspberry",
-        "corn",
-        "peas",
-        "bean sprouts",
-        "cabbage",
-        "fennel",
-        "leek",
-        "scallion",
-        "radish",
-        "beet",
-        "asparagus",
-        "eggplant",
-        "chard",
-        "grape",
-        "melon",
-        "mango",
-        "pineapple",
-        "peach",
-        "pear",
-        "plum",
-        "herb",
-        "salad greens",
-        "greens",
-    ),
-    "refrigerated": (
-        "goat cheese",
-        "cream cheese",
-        "parmesan",
-        "mozzarella",
-        "feta",
-        "cheddar",
-        "gruyere",
-        "pecorino",
-        "ricotta",
-        "mascarpone",
-        "provolone",
-        "swiss cheese",
-        "cheese",
-        "tofu",
-        "tempeh",
-        "miso paste",
-        "kimchi",
-        "sauerkraut",
-    ),
-    "canned drinks": (
-        "sparkling water",
-        "ginger ale",
-        "club soda",
-        "la croix",
-        "seltzer",
-        "kombucha",
-        "soda",
-        "cola",
-    ),
-    "dairy/eggs": (
-        "sour cream",
-        "heavy cream",
-        "whipping cream",
-        "half and half",
-        "greek yogurt",
-        "cottage cheese",
-        "cream cheese",
-        "milk",
-        "yogurt",
-        "egg",
-        "eggs",
-        "butter",
-    ),
-    "bakery": (
-        "english muffin",
-        "hot dog bun",
-        "hamburger bun",
-        "dinner roll",
-        "baguette",
-        "tortilla",
-        "pita",
-        "naan",
-        "bagel",
-        "bread",
-        "bun",
-        "roll",
-        "croissant",
-    ),
-    "dry goods": (
-        "chicken broth",
-        "beef broth",
-        "vegetable broth",
-        "chicken stock",
-        "beef stock",
-        "vegetable stock",
-        "coconut milk",
-        "tomato paste",
-        "tomato sauce",
-        "diced tomatoes",
-        "crushed tomatoes",
-        "canned tomatoes",
-        "white beans",
-        "black beans",
-        "kidney beans",
-        "chickpeas",
-        "garbanzo",
-        "lentils",
-        "split peas",
-        "brown rice",
-        "jasmine rice",
-        "basmati rice",
-        "wild rice",
-        "rice",
-        "quinoa",
-        "couscous",
-        "farro",
-        "barley",
-        "bulgur",
-        "oats",
-        "oatmeal",
-        "cereal",
-        "granola",
-        "pasta",
-        "spaghetti",
-        "penne",
-        "rigatoni",
-        "fettuccine",
-        "linguine",
-        "orzo",
-        "noodle",
-        "noodles",
-        "ramen",
-        "tortellini",
-        "ravioli",
-        "broth",
-        "stock",
-        "beans",
-        "canned",
-    ),
-    "baking": (
-        "chocolate chips",
-        "baking powder",
-        "baking soda",
-        "powdered sugar",
-        "brown sugar",
-        "granulated sugar",
-        "all-purpose flour",
-        "bread flour",
-        "cake flour",
-        "vanilla extract",
-        "cocoa powder",
-        "flour",
-        "sugar",
-        "cornstarch",
-        "yeast",
-        "honey",
-        "maple syrup",
-        "molasses",
-    ),
-    "frozen": (
-        "frozen peas",
-        "frozen corn",
-        "frozen berries",
-        "ice cream",
-        "frozen",
-        "popsicle",
-    ),
-    "crackers/cookies": (
-        "graham cracker",
-        "ritz cracker",
-        "cookie",
-        "cookies",
-        "cracker",
-        "crackers",
-        "biscuit",
-        "biscuits",
-    ),
-    "coffee": (
-        "coffee beans",
-        "coffee",
-        "espresso",
-        "tea",
-        "matcha",
-    ),
-    "nuts/dried fruit": (
-        "dried cranberries",
-        "dried apricot",
-        "dried mango",
-        "sun-dried tomato",
-        "pine nut",
-        "macadamia",
-        "pistachio",
-        "walnut",
-        "almonds",
-        "almond",
-        "pecan",
-        "cashew",
-        "peanut",
-        "hazelnut",
-        "raisin",
-        "raisins",
-        "dates",
-        "prune",
-        "prunes",
-        "dried fruit",
-    ),
-    "snacks": (
-        "potato chips",
-        "tortilla chips",
-        "pita chips",
-        "popcorn",
-        "pretzel",
-        "pretzels",
-        "trail mix",
-        "granola bar",
-        "protein bar",
-        "chips",
-        "snack",
-    ),
-}
+@dataclass(frozen=True)
+class StoreAisleConfig:
+    aisle_order: tuple[str, ...]
+    aisle_labels: dict[str, str]
+    aisle_keywords: dict[str, tuple[str, ...]]
+
+
+def parse_store_aisles_file(path: Path) -> StoreAisleConfig:
+    """Parse store aisle order, labels, and keywords from a config file."""
+    aisle_order: list[str] = []
+    aisle_labels: dict[str, str] = {}
+    aisle_keywords: dict[str, list[str]] = {}
+    current_aisle: str | None = None
+
+    if not path.exists():
+        return StoreAisleConfig((), {}, {})
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+
+        header_match = _SECTION_HEADER_RE.match(stripped)
+        if header_match:
+            aisle_id = header_match.group("id").strip().lower()
+            label = (header_match.group("label") or aisle_id).strip()
+            aisle_order.append(aisle_id)
+            aisle_labels[aisle_id] = label
+            aisle_keywords[aisle_id] = []
+            current_aisle = aisle_id
+            continue
+
+        if stripped.startswith("#") or current_aisle is None:
+            continue
+
+        aisle_keywords[current_aisle].append(stripped.lower())
+
+    if "other" not in aisle_order:
+        aisle_order.append("other")
+        aisle_labels.setdefault("other", "Other")
+        aisle_keywords.setdefault("other", [])
+
+    return StoreAisleConfig(
+        aisle_order=tuple(aisle_order),
+        aisle_labels=aisle_labels,
+        aisle_keywords={aisle: tuple(words) for aisle, words in aisle_keywords.items()},
+    )
+
+
+@lru_cache(maxsize=1)
+def load_store_aisles(path: str | None = None) -> StoreAisleConfig:
+    """Load store aisle config from the committed config file."""
+    resolved = Path(path) if path else STORE_AISLES_PATH
+    return parse_store_aisles_file(resolved)
 
 
 def ingredient_name(item: str) -> str:
@@ -312,8 +75,9 @@ def ingredient_name(item: str) -> str:
     return name or item.strip()
 
 
-def classify_aisle(item: str) -> str:
+def classify_aisle(item: str, *, config: StoreAisleConfig | None = None) -> str:
     """Classify a grocery list item into a store aisle."""
+    cfg = config or load_store_aisles()
     name = ingredient_name(item).lower()
     if not name:
         return "other"
@@ -321,12 +85,12 @@ def classify_aisle(item: str) -> str:
     name_words = name.split()
     best_aisle = "other"
     best_keyword_len = 0
-    best_aisle_rank = len(AISLE_ORDER)
+    best_aisle_rank = len(cfg.aisle_order)
 
-    for rank, aisle in enumerate(AISLE_ORDER):
+    for rank, aisle in enumerate(cfg.aisle_order):
         if aisle == "other":
             continue
-        for keyword in AISLE_KEYWORDS.get(aisle, ()):
+        for keyword in cfg.aisle_keywords.get(aisle, ()):
             keyword_words = keyword.split()
             if _contains_word_phrase(name_words, keyword_words):
                 keyword_len = len(keyword_words)
@@ -340,26 +104,36 @@ def classify_aisle(item: str) -> str:
     return best_aisle
 
 
-def sort_grocery_items(items: list[str]) -> list[str]:
+def sort_grocery_items(
+    items: list[str],
+    *,
+    config: StoreAisleConfig | None = None,
+) -> list[str]:
     """Sort grocery items by store walk order, then alphabetically within each aisle."""
-    aisle_rank = {aisle: index for index, aisle in enumerate(AISLE_ORDER)}
+    cfg = config or load_store_aisles()
+    aisle_rank = {aisle: index for index, aisle in enumerate(cfg.aisle_order)}
 
     def sort_key(item: str) -> tuple[int, str]:
-        aisle = classify_aisle(item)
-        return aisle_rank.get(aisle, len(AISLE_ORDER)), item.lower()
+        aisle = classify_aisle(item, config=cfg)
+        return aisle_rank.get(aisle, len(cfg.aisle_order)), item.lower()
 
     return sorted(items, key=sort_key)
 
 
-def group_grocery_items_by_aisle(items: list[str]) -> list[tuple[str, list[str]]]:
+def group_grocery_items_by_aisle(
+    items: list[str],
+    *,
+    config: StoreAisleConfig | None = None,
+) -> list[tuple[str, list[str]]]:
     """Group sorted grocery items by aisle, omitting empty aisles."""
-    sorted_items = sort_grocery_items(items)
+    cfg = config or load_store_aisles()
+    sorted_items = sort_grocery_items(items, config=cfg)
     groups: list[tuple[str, list[str]]] = []
     current_aisle: str | None = None
     current_items: list[str] = []
 
     for item in sorted_items:
-        aisle = classify_aisle(item)
+        aisle = classify_aisle(item, config=cfg)
         if aisle != current_aisle:
             if current_items:
                 groups.append((current_aisle or "other", current_items))
@@ -373,8 +147,9 @@ def group_grocery_items_by_aisle(items: list[str]) -> list[tuple[str, list[str]]
     return groups
 
 
-def aisle_label(aisle: str) -> str:
-    return AISLE_LABELS.get(aisle, aisle.title())
+def aisle_label(aisle: str, *, config: StoreAisleConfig | None = None) -> str:
+    cfg = config or load_store_aisles()
+    return cfg.aisle_labels.get(aisle, aisle.title())
 
 
 def _contains_word_phrase(haystack_words: list[str], needle_words: list[str]) -> bool:

@@ -2,14 +2,47 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from src.grocery_wizard.shopping.store_aisles import (
-    AISLE_ORDER,
     classify_aisle,
     group_grocery_items_by_aisle,
+    load_store_aisles,
+    parse_store_aisles_file,
     sort_grocery_items,
 )
+
+
+def test_parse_store_aisles_file_reads_sections_and_keywords(tmp_path: Path) -> None:
+    path = tmp_path / "store_aisles.txt"
+    path.write_text(
+        "\n".join(
+            [
+                "# --- produce: Fresh stuff ---",
+                "onion",
+                "garlic",
+                "",
+                "# --- other: Other ---",
+                "# catch-all",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    config = parse_store_aisles_file(path)
+
+    assert config.aisle_order == ("produce", "other")
+    assert config.aisle_labels["produce"] == "Fresh stuff"
+    assert config.aisle_keywords["produce"] == ("onion", "garlic")
+
+
+def test_load_store_aisles_uses_committed_config() -> None:
+    config = load_store_aisles()
+    assert "produce" in config.aisle_order
+    assert config.aisle_labels["produce"] == "Produce"
+    assert "onion" in config.aisle_keywords["produce"]
 
 
 @pytest.mark.parametrize(
@@ -74,4 +107,5 @@ def test_sort_grocery_items_is_stable_within_aisle() -> None:
 
 
 def test_aisle_order_has_other_last() -> None:
-    assert AISLE_ORDER[-1] == "other"
+    config = load_store_aisles()
+    assert config.aisle_order[-1] == "other"

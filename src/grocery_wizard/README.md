@@ -184,6 +184,7 @@ Committed config lives in the package; per-week data stays local:
 | Path | Committed? | Purpose |
 |------|------------|---------|
 | `src/grocery_wizard/config/pantry.txt` | yes | Pantry staples excluded from grocery lists |
+| `src/grocery_wizard/config/store_aisles.txt` | yes | Store walk order, aisle labels, and ingredient keywords |
 | `src/grocery_wizard/config/__init__.py` | yes | Env vars, Notion IDs, file paths |
 | `.local/grocery_wizard/week_plan.json` | no | This week's planned recipes |
 
@@ -200,11 +201,16 @@ Matching uses phrase boundaries: `kosher salt` matches pantry item `salt`, but `
 
 ## Grocery list aisle order
 
-`create-grocery-list` sorts items by store walk order and prints aisle section headers:
+`create-grocery-list` sorts items by store walk order and prints aisle section headers. Edit `src/grocery_wizard/config/store_aisles.txt` to change walk order, labels, or keywords — same section-header style as `pantry.txt`:
 
-produce → refrigerated → canned drinks → dairy/eggs → bakery → dry goods → baking → frozen → crackers/cookies → coffee → nuts/dried fruit → snacks → other
+```text
+# --- produce: Produce ---
+onion
+garlic
+...
+```
 
-Unmatched items land in **Other**. Keyword rules live in `shopping/store_aisles.py`.
+Unmatched items land in **Other** (always last). Longer keyword phrases win over shorter ones (`potato chips` → snacks, not produce).
 
 ## Streamlit UI
 
