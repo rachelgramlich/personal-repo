@@ -6,22 +6,37 @@ requires-python = ">=3.12,<3.13"
 
 dependencies = [
     "beautifulsoup4>=4.12.3",
-    "google-auth>=2.30.0",
-    "google-auth-oauthlib>=1.2.0",
-    "gspread>=6.1.2",
     "jenkspy>=0.4.1",
     "loguru>=0.7.2",
     "matplotlib>=3.9.1",
+    "notion-client>=2.2.1",
     "numpy>=1.26.4",
     "pandas>=2.2.2",
     "pytest>=8.2.2",
+    "python-dotenv>=1.0.1",
     "requests>=2.32.3",
     "seaborn>=0.13.2",
+    "streamlit>=1.39.0",
 ]
 
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.11",
+    "ruff>=0.8",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["projects/tidy_first", "tests/projects/tidy_first"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E501"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-
-# TODO: add linting and auto formatting
