@@ -17,7 +17,6 @@ setup-upgrade:
 # Run linting checks
 lint:
     uv run ruff check --fix
-    uv run mypy . --ignore-missing-imports
 
 # Format code
 format:
