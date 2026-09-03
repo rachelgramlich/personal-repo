@@ -198,6 +198,14 @@ Committed config lives in the package; per-week data stays local:
 
 Matching uses phrase boundaries: `kosher salt` matches pantry item `salt`, but `beef` does not match `beef stock`.
 
+## Grocery list aisle order
+
+`create-grocery-list` sorts items by store walk order and prints aisle section headers:
+
+produce → refrigerated → canned drinks → dairy/eggs → bakery → dry goods → baking → frozen → crackers/cookies → coffee → nuts/dried fruit → snacks → other
+
+Unmatched items land in **Other**. Keyword rules live in `shopping/store_aisles.py`.
+
 ## Streamlit UI
 
 ```shell

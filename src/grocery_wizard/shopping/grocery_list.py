@@ -23,6 +23,11 @@ from src.grocery_wizard.ingredients.sync import (
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
 from src.grocery_wizard.recipes.scraper import scrape_recipe
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
+from src.grocery_wizard.shopping.store_aisles import (
+    aisle_label,
+    group_grocery_items_by_aisle,
+    sort_grocery_items,
+)
 
 
 def run_grocery_list(
@@ -98,7 +103,7 @@ def run_grocery_list(
                     grocery_items.append(item)
                     existing.add(item.lower())
 
-        grocery_items.sort(key=str.lower)
+        grocery_items = sort_grocery_items(grocery_items)
         _print_grocery_list(grocery_items, heading="Draft grocery list")
 
         extra_staples = staples if staples is not None else _prompt_staples()
@@ -108,7 +113,7 @@ def run_grocery_list(
                 seen.add(key)
                 grocery_items.append(staple)
 
-        grocery_items.sort(key=str.lower)
+        grocery_items = sort_grocery_items(grocery_items)
         _print_grocery_list(grocery_items, heading="Grocery list")
         grocery_items = _prompt_accept_or_edit(grocery_items)
         _print_grocery_list(grocery_items, heading="Final grocery list")
@@ -118,7 +123,7 @@ def run_grocery_list(
             if key not in seen:
                 seen.add(key)
                 grocery_items.append(staple)
-        grocery_items.sort(key=str.lower)
+        grocery_items = sort_grocery_items(grocery_items)
         _print_grocery_list(grocery_items)
 
     return 0
@@ -175,7 +180,7 @@ def build_grocery_list(
             seen.add(key)
             grocery_items.append(staple)
 
-    grocery_items.sort(key=str.lower)
+    grocery_items = sort_grocery_items(grocery_items)
     excluded_pantry.sort(key=str.lower)
     return grocery_items, excluded_pantry, sync_summary
 
@@ -330,8 +335,15 @@ def _print_grocery_list(items: list[str], *, heading: str | None = "Grocery list
         print()
         print(heading)
         print("=" * 40)
-    for item in items:
-        print(item)
+
+    groups = group_grocery_items_by_aisle(items)
+    for index, (aisle, aisle_items) in enumerate(groups):
+        if index:
+            print()
+        print(aisle_label(aisle))
+        print("-" * 40)
+        for item in aisle_items:
+            print(item)
 
 
 def _recipes_needing_backfill(
@@ -430,7 +442,7 @@ def _prompt_accept_or_edit(items: list[str]) -> list[str]:
             print("Paste your edited list (one per line, empty line when done):")
             edited = _prompt_staples()
             if edited:
-                return sorted(edited, key=str.lower)
+                return sort_grocery_items(edited)
             return items
 
         print("Press Enter to accept or type 'e' to edit.")

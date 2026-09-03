@@ -17,6 +17,21 @@ from src.grocery_wizard.shopping.grocery_list import (
     _load_week_plan_names,
     build_grocery_list,
 )
+from src.grocery_wizard.shopping.store_aisles import (
+    aisle_label,
+    group_grocery_items_by_aisle,
+    sort_grocery_items,
+)
+
+
+def _format_aisle_grouped_list(items: list[str]) -> str:
+    lines: list[str] = []
+    for aisle, aisle_items in group_grocery_items_by_aisle(items):
+        if lines:
+            lines.append("")
+        lines.append(aisle_label(aisle))
+        lines.extend(aisle_items)
+    return "\n".join(lines)
 
 
 @st.cache_resource
@@ -256,11 +271,11 @@ def render_grocery_list() -> None:
             if item.lower() not in existing:
                 draft_items.append(item)
                 existing.add(item.lower())
-        draft_items.sort(key=str.lower)
+        draft_items = sort_grocery_items(draft_items)
 
         if draft_items:
             st.write("**Draft grocery list**")
-            st.text("\n".join(draft_items))
+            st.text(_format_aisle_grouped_list(draft_items))
 
         staples_text = st.text_area(
             "Additional items (one per line)",
@@ -280,11 +295,11 @@ def render_grocery_list() -> None:
             if item.lower() not in existing:
                 final_items.append(item)
                 existing.add(item.lower())
-        final_items.sort(key=str.lower)
+        final_items = sort_grocery_items(final_items)
 
         if final_items:
             st.write("**Final grocery list**")
-            list_text = "\n".join(final_items)
+            list_text = _format_aisle_grouped_list(final_items)
             st.text_area("Copy-ready list", value=list_text, height=300)
         elif not excluded:
             st.warning("No grocery items found.")
