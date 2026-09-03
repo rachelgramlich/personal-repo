@@ -1,0 +1,402 @@
+"""Grocery Wizard CLI — production workflow and dev maintenance commands."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+
+from projects.grocery_wizard.config import load_config
+from projects.grocery_wizard.notion import NotionRecipesDB
+
+_DEPRECATED_COMMANDS: dict[str, str] = {
+    "add": "Use `add-recipe` instead.",
+    "plan": "Use `plan-recipes` instead.",
+    "grocery": "Use `create-grocery-list` instead.",
+    "pantry": "Use `edit-pantry` instead.",
+    "sync": "Use `dev backfill-ingredients` or `dev reconcile-ingredients`.",
+    "refresh-ingredients": "Use `dev refresh-all-ingredients` instead.",
+    "audit": "Use `dev audit-recipes` instead.",
+    "schema": "Use `dev show-schema` instead.",
+}
+
+_DEPRECATED_DEV_COMMANDS: dict[str, str] = {
+    "backfill": "Use `dev backfill-ingredients` instead.",
+    "reconcile": "Use `dev reconcile-ingredients` instead.",
+    "refresh-all": "Use `dev refresh-all-ingredients` instead.",
+    "audit": "Use `dev audit-recipes` instead.",
+    "schema": "Use `dev show-schema` instead.",
+}
+
+
+def _print_deprecated(name: str, message: str) -> None:
+    print(f"Command '{name}' was removed.", file=sys.stderr)
+    print(message, file=sys.stderr)
+    print(
+        "Run: uv run python -m projects.grocery_wizard.cli --help",
+        file=sys.stderr,
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+
+    if argv and argv[0] in _DEPRECATED_COMMANDS:
+        _print_deprecated(argv[0], _DEPRECATED_COMMANDS[argv[0]])
+        return 1
+
+    if len(argv) >= 2 and argv[0] == "dev" and argv[1] in _DEPRECATED_DEV_COMMANDS:
+        _print_deprecated(f"dev {argv[1]}", _DEPRECATED_DEV_COMMANDS[argv[1]])
+        return 1
+
+    parser = argparse.ArgumentParser(
+        prog="grocery-wizard",
+        description="Plan meals from Notion recipes and build grocery lists.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    add_parser = subparsers.add_parser(
+        "add-recipe",
+        help="Save a new recipe from a URL into Notion",
+    )
+    add_parser.add_argument(
+        "urls",
+        nargs="*",
+        help="Recipe page URLs to save (or paste URLs when prompted)",
+    )
+    add_parser.set_defaults(func=cmd_add)
+
+    plan_parser = subparsers.add_parser(
+        "plan-recipes",
+        help="Pick dinners for the week (saves week_plan.json)",
+    )
+    plan_parser.add_argument(
+        "--meals",
+        type=int,
+        default=None,
+        help="How many dinners to plan (default: from your config, usually 7)",
+    )
+    plan_parser.set_defaults(func=cmd_plan)
+
+    grocery_parser = subparsers.add_parser(
+        "create-grocery-list",
+        help="Build your shopping list from this week's plan",
+    )
+    grocery_parser.add_argument(
+        "--recipes",
+        help="Use these recipe names instead of the saved week plan",
+    )
+    grocery_parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Minimal output: hide excluded staples and skip the re-add prompt",
+    )
+    grocery_parser.add_argument(
+        "--backfill-missing",
+        action="store_true",
+        help=("Scrape Notion recipes that have a link but no ingredients, then build the list"),
+    )
+    grocery_parser.add_argument(
+        "--include-staples",
+        action="store_true",
+        help="Don't exclude pantry staples (salt, oil, etc.) from the list",
+    )
+    grocery_parser.set_defaults(func=cmd_grocery)
+
+    pantry_parser = subparsers.add_parser(
+        "edit-pantry",
+        help="Edit what's always in your kitchen (won't appear on shopping list)",
+    )
+    pantry_parser.set_defaults(func=cmd_pantry)
+
+    dev_parser = subparsers.add_parser(
+        "dev",
+        help="Database maintenance and debugging commands",
+    )
+    dev_subparsers = dev_parser.add_subparsers(dest="dev_command", required=True)
+
+    backfill_parser = dev_subparsers.add_parser(
+        "backfill-ingredients",
+        help="Fill in missing ingredient lists from recipe links",
+    )
+    backfill_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show which recipes would be updated without writing to Notion",
+    )
+    backfill_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-scrape recipes with empty ingredients (does not overwrite filled rows)",
+    )
+    backfill_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show each scraped ingredient line as it is saved",
+    )
+    backfill_parser.set_defaults(func=cmd_dev_backfill)
+
+    reconcile_parser = dev_subparsers.add_parser(
+        "reconcile-ingredients",
+        help="Update ingredients where you already have some (keeps your edits)",
+    )
+    reconcile_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show which recipes would be merged without writing to Notion",
+    )
+    reconcile_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show each scraped ingredient line during merge",
+    )
+    reconcile_parser.set_defaults(func=cmd_dev_reconcile)
+
+    refresh_parser = dev_subparsers.add_parser(
+        "refresh-all-ingredients",
+        help="Re-download ingredients for every recipe",
+    )
+    refresh_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would change without writing to Notion",
+    )
+    refresh_parser.add_argument(
+        "--split-only",
+        action="store_true",
+        help="Re-split existing ingredient text without re-scraping links",
+    )
+    refresh_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show ingredient lines for each recipe",
+    )
+    refresh_parser.set_defaults(func=cmd_dev_refresh_all)
+
+    audit_parser = dev_subparsers.add_parser(
+        "audit-recipes",
+        help="Show which recipes need attention",
+    )
+    audit_parser.set_defaults(func=cmd_dev_audit)
+
+    schema_parser = dev_subparsers.add_parser(
+        "show-schema",
+        help="Show how Notion columns are detected",
+    )
+    schema_parser.set_defaults(func=cmd_dev_schema)
+
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+def cmd_add(args: argparse.Namespace) -> int:
+    from projects.grocery_wizard.add_recipe import add_recipes_from_urls, read_urls_from_stdin
+
+    config = load_config()
+    db = NotionRecipesDB(config)
+
+    urls = list(args.urls)
+    if not urls:
+        urls = read_urls_from_stdin()
+    if not urls:
+        print("No URLs provided.", file=sys.stderr)
+        return 1
+
+    created = add_recipes_from_urls(db, urls)
+    print(f"\nCreated {len(created)} recipe(s).")
+    return 0
+
+
+def cmd_plan(args: argparse.Namespace) -> int:
+    from projects.grocery_wizard.meal_planner import run_meal_planner
+
+    config = load_config()
+    db = NotionRecipesDB(config)
+    meals = args.meals or config.default_meals
+    plan = run_meal_planner(db, meals=meals)
+    return 0 if plan else 1
+
+
+def cmd_grocery(args: argparse.Namespace) -> int:
+    from projects.grocery_wizard.grocery_list import run_grocery_list
+
+    config = load_config()
+    db = NotionRecipesDB(config)
+
+    recipe_names: list[str] | None = None
+    if args.recipes:
+        recipe_names = [name.strip() for name in args.recipes.split(",") if name.strip()]
+
+    return run_grocery_list(
+        db,
+        recipe_names=recipe_names,
+        quiet=args.quiet,
+        backfill_missing=args.backfill_missing,
+        exclude_pantry=not args.include_staples,
+    )
+
+
+def cmd_pantry(_args: argparse.Namespace) -> int:
+    from projects.grocery_wizard.pantry import run_pantry_interactive
+
+    return run_pantry_interactive()
+
+
+def cmd_dev_schema(_args: argparse.Namespace) -> int:
+    config = load_config()
+    db = NotionRecipesDB(config)
+    schema = db.schema
+
+    print(f"Database ID: {config.notion_database_id}")
+    print(f"Name column: {schema.name_column}")
+    print(f"Link column: {schema.link_column}")
+    print(f"Ingredients column: {schema.ingredients_column or '(not detected)'}")
+    print()
+
+    print("All columns:")
+    for name, col in sorted(schema.all_columns.items()):
+        line = f"  {name} ({col.type})"
+        if col.options:
+            line += f" — options: {', '.join(col.options)}"
+        print(line)
+
+    print()
+    print(f"Filter columns ({len(schema.filter_columns)}):")
+    for col in schema.filter_columns:
+        print(f"  {col.name} ({col.type})")
+        if col.options:
+            print(f"    options: {', '.join(col.options)}")
+
+    recipes = db.query_recipes()
+    print()
+    print(f"Recipes in database: {len(recipes)}")
+    return 0
+
+
+def cmd_dev_backfill(args: argparse.Namespace) -> int:
+    from projects.grocery_wizard.ingredients_sync import (
+        categorize_recipes,
+        format_recipe_progress,
+        format_sync_summary,
+        run_sync,
+    )
+
+    config = load_config()
+    db = NotionRecipesDB(config)
+
+    categories = categorize_recipes(db.query_recipes())
+    count = len(categories.empty)
+    if args.dry_run:
+        print(f"Would backfill {count} recipe(s) with empty Ingredients...")
+    else:
+        print(f"Backfilling {count} recipe(s) with empty Ingredients...")
+        if count:
+            print()
+
+    def on_recipe_done(index: int, total: int, result) -> None:
+        print(format_recipe_progress(index, total, result))
+        if args.verbose and result.ingredient_lines:
+            for line in result.ingredient_lines:
+                print(f"    {line}")
+
+    summary = run_sync(
+        db,
+        dry_run=args.dry_run,
+        force=args.force,
+        on_recipe_done=None if args.dry_run else on_recipe_done,
+    )
+
+    print()
+    print(format_sync_summary(summary, dry_run=args.dry_run, merge=False, verbose=args.verbose))
+    return 0
+
+
+def cmd_dev_reconcile(args: argparse.Namespace) -> int:
+    from projects.grocery_wizard.ingredients_sync import (
+        categorize_recipes,
+        format_sync_summary,
+        run_merge_sync,
+    )
+
+    config = load_config()
+    db = NotionRecipesDB(config)
+
+    if args.dry_run:
+        categories = categorize_recipes(db.query_recipes())
+        count = len(categories.populated)
+        print(f"Would reconcile {count} populated recipe(s)...")
+    else:
+        print("Reconciling populated recipes one at a time...")
+
+    summary = run_merge_sync(db, dry_run=args.dry_run)
+
+    print()
+    print(format_sync_summary(summary, dry_run=args.dry_run, merge=True, verbose=args.verbose))
+    return 0
+
+
+def cmd_dev_refresh_all(args: argparse.Namespace) -> int:
+    from projects.grocery_wizard.ingredients_sync import (
+        format_refresh_progress,
+        format_refresh_summary,
+        run_refresh_ingredients,
+    )
+
+    config = load_config()
+    db = NotionRecipesDB(config)
+    recipes = db.query_recipes()
+    total = len(recipes)
+
+    if args.split_only:
+        mode = "split-only"
+    else:
+        mode = "scrape + split"
+
+    if args.dry_run:
+        print(f"Dry run: refreshing {total} recipe(s) ({mode})...")
+    else:
+        print(f"Refreshing {total} recipe(s) ({mode})...")
+        if total:
+            print()
+
+    def on_recipe_done(index: int, count: int, result) -> None:
+        print(format_refresh_progress(index, count, result))
+        if args.verbose and result.ingredient_lines:
+            for line in result.ingredient_lines:
+                print(f"    {line}")
+
+    summary = run_refresh_ingredients(
+        db,
+        dry_run=args.dry_run,
+        split_only=args.split_only,
+        on_recipe_done=None if args.dry_run else on_recipe_done,
+    )
+
+    if args.dry_run:
+        print()
+        for index, result in enumerate(summary.results, start=1):
+            if result.status in ("dry_run", "unchanged", "skipped", "failed"):
+                print(format_refresh_progress(index, total, result))
+
+    print()
+    print(
+        format_refresh_summary(
+            summary,
+            dry_run=args.dry_run,
+            split_only=args.split_only,
+        )
+    )
+    return 0
+
+
+def cmd_dev_audit(_args: argparse.Namespace) -> int:
+    from projects.grocery_wizard.audit import audit_recipes, format_audit_report
+
+    config = load_config()
+    db = NotionRecipesDB(config)
+    report = audit_recipes(db.query_recipes())
+    print(format_audit_report(report))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
