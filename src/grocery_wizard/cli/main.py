@@ -7,6 +7,7 @@ import sys
 
 from src.grocery_wizard.config import load_config
 from src.grocery_wizard.integrations.notion import NotionRecipesDB
+from src.grocery_wizard.lib.feedback import PROD_COMMANDS, prompt_for_feedback
 
 _DEPRECATED_COMMANDS: dict[str, str] = {
     "add": "Use `add-recipe` instead.",
@@ -184,8 +185,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     schema_parser.set_defaults(func=cmd_dev_schema)
 
+    list_feedback_parser = dev_subparsers.add_parser(
+        "list-feedback",
+        help="Show feedback collected from production commands",
+    )
+    list_feedback_parser.set_defaults(func=cmd_dev_list_feedback)
+
     args = parser.parse_args(argv)
-    return args.func(args)
+    exit_code = args.func(args)
+    if exit_code == 0 and args.command in PROD_COMMANDS:
+        prompt_for_feedback(args.command)
+    return exit_code
 
 
 def cmd_add(args: argparse.Namespace) -> int:
@@ -395,6 +405,13 @@ def cmd_dev_audit(_args: argparse.Namespace) -> int:
     db = NotionRecipesDB(config)
     report = audit_recipes(db.query_recipes())
     print(format_audit_report(report))
+    return 0
+
+
+def cmd_dev_list_feedback(_args: argparse.Namespace) -> int:
+    from src.grocery_wizard.lib.feedback import list_feedback
+
+    print(list_feedback())
     return 0
 
 

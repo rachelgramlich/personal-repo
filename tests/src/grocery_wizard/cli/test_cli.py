@@ -70,3 +70,44 @@ def test_cmd_grocery_passes_new_flags() -> None:
     assert kwargs["quiet"] is True
     assert kwargs["backfill_missing"] is True
     assert kwargs["exclude_pantry"] is False
+
+
+def test_main_prompts_feedback_after_successful_prod_command() -> None:
+    with (
+        patch("src.grocery_wizard.cli.main.cmd_plan", return_value=0),
+        patch("src.grocery_wizard.cli.main.prompt_for_feedback") as prompt_mock,
+    ):
+        code = main(["plan-recipes"])
+
+    assert code == 0
+    prompt_mock.assert_called_once_with("plan-recipes")
+
+
+def test_main_skips_feedback_on_failure() -> None:
+    with (
+        patch("src.grocery_wizard.cli.main.cmd_plan", return_value=1),
+        patch("src.grocery_wizard.cli.main.prompt_for_feedback") as prompt_mock,
+    ):
+        code = main(["plan-recipes"])
+
+    assert code == 1
+    prompt_mock.assert_not_called()
+
+
+def test_main_skips_feedback_for_dev_commands() -> None:
+    with (
+        patch("src.grocery_wizard.cli.main.cmd_dev_list_feedback", return_value=0),
+        patch("src.grocery_wizard.cli.main.prompt_for_feedback") as prompt_mock,
+    ):
+        code = main(["dev", "list-feedback"])
+
+    assert code == 0
+    prompt_mock.assert_not_called()
+
+
+def test_dev_list_feedback_prints_entries(capsys: pytest.CaptureFixture[str]) -> None:
+    with patch("src.grocery_wizard.lib.feedback.list_feedback", return_value="[ts] plan: ok"):
+        code = main(["dev", "list-feedback"])
+
+    assert code == 0
+    assert "[ts] plan: ok" in capsys.readouterr().out
