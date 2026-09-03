@@ -402,3 +402,82 @@ def test_build_grocery_list_only_syncs_empty_recipes(tmp_path: Path) -> None:
     # Only the empty recipe should have been sent to sync
     assert len(captured) == 1
     assert captured[0].name == "Empty"
+
+
+# ---------------------------------------------------------------------------
+# Amount display
+# ---------------------------------------------------------------------------
+
+
+def test_format_grocery_item_with_amount() -> None:
+    assert format_grocery_item("chicken breast", "1 lb") == "1 lb chicken breast"
+    assert format_grocery_item("white beans", "2 cans") == "2 cans white beans"
+
+
+def test_format_grocery_item_without_amount() -> None:
+    assert format_grocery_item("kosher salt", None) == "kosher salt"
+    assert format_grocery_item("cilantro", None) == "cilantro"
+
+
+def test_build_grocery_list_shows_amounts(tmp_path: Path) -> None:
+    """Amounts parsed from ingredient lines appear in the grocery list."""
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Soup", "1 lb chicken breast\n2 cans white beans"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Soup"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert "1 lb chicken breast" in items
+    assert "2 cans white beans" in items
+
+
+def test_build_grocery_list_aggregates_amounts_across_recipes(tmp_path: Path) -> None:
+    """Same ingredient from two recipes has its amounts summed."""
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Recipe A", "1 can white beans"),
+        _recipe("Recipe B", "1 can white beans"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Recipe A", "Recipe B"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert "2 cans white beans" in items
+    # Only one entry — no duplicates
+    assert len([item for item in items if "white beans" in item]) == 1
+
+
+def test_build_grocery_list_no_amount_fallback(tmp_path: Path) -> None:
+    """Ingredients without a quantity are still shown, just without a prefix."""
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Salad", "chicken breast"),  # no quantity
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Salad"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert "chicken breast" in items  # displayed without an amount prefix
