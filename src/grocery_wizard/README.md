@@ -196,7 +196,7 @@ Committed config lives in the package; per-week data stays local:
 - **e** — open `src/grocery_wizard/config/pantry.txt` in `$EDITOR`
 - **q** — save and quit
 
-Matching is substring-based: `kosher salt` matches pantry item `salt`. Grocery list generation excludes pantry items by default.
+Matching uses phrase boundaries: `kosher salt` matches pantry item `salt`, but `beef` does not match `beef stock`.
 
 ## Streamlit UI
 

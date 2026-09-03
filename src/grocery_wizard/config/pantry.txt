@@ -72,7 +72,7 @@ peanut butter
 almond butter
 
 # --- Stocks ---
-not beef stock
+beef stock
 veggie bouillon
 chicken bouillon
 

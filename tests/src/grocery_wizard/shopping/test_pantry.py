@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from src.grocery_wizard.config import PANTRY_PATH
 from src.grocery_wizard.shopping.pantry import (
+    _matches_pantry_search,
     format_pantry_display,
+    is_pantry_item,
     load_pantry,
     parse_pantry_file,
     write_pantry_file,
@@ -57,3 +61,37 @@ def test_write_pantry_file_adds_trailing_newline(tmp_path: Path) -> None:
     path = tmp_path / "pantry.txt"
     write_pantry_file(path, ["salt", "pepper"])
     assert path.read_text(encoding="utf-8") == "salt\npepper\n"
+
+
+@pytest.mark.parametrize(
+    ("ingredient", "expected"),
+    [
+        ("kosher salt", True),
+        ("olive oil", True),
+        ("beef", False),
+        ("ground beef", False),
+        ("white beans", False),
+        ("rice", True),
+        ("brown rice", True),
+    ],
+)
+def test_is_pantry_item_phrase_matching(ingredient: str, expected: bool) -> None:
+    pantry = {"salt", "olive oil", "beef stock", "rice", "white wine vinegar"}
+    assert is_pantry_item(ingredient, pantry) is expected
+
+
+@pytest.mark.parametrize(
+    ("search", "item", "expected"),
+    [
+        ("salt", "salt", True),
+        ("beef stock", "beef stock", True),
+        ("beef", "beef stock", True),
+        ("stock", "beef stock", True),
+        ("low sodium beef stock", "beef stock", True),
+        ("ice", "rice", False),
+        ("vinegar", "white wine vinegar", True),
+        ("wine", "white wine vinegar", True),
+    ],
+)
+def test_matches_pantry_search(search: str, item: str, expected: bool) -> None:
+    assert _matches_pantry_search(search, item) is expected
