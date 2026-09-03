@@ -10,6 +10,18 @@ _QUANTITY_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Captures a leading numeric quantity (integer, decimal, fraction, or mixed
+# number like "2 1/2") at the start of a string.
+_LEADING_QTY_RE = re.compile(
+    r"^((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s*",
+)
+
+# Same pattern but also captures any trailing text (unit / rest).
+_AMOUNT_STR_RE = re.compile(
+    r"^((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s*(.*)\Z",
+    re.DOTALL,
+)
+
 _UNICODE_DASHES = ("–", "—", "−")  # en-dash, em-dash, minus sign
 
 _UNITS = {
@@ -442,3 +454,249 @@ def _prefer_plural_form(text: str) -> str:
         return "garlic"
 
     return text
+
+
+# ---------------------------------------------------------------------------
+# Amount parsing and aggregation
+# ---------------------------------------------------------------------------
+
+# Maps any recognised unit spelling to a canonical comparison key.
+_UNIT_CANONICAL: dict[str, str] = {
+    "teaspoon": "tsp",
+    "teaspoons": "tsp",
+    "tsp": "tsp",
+    "tablespoon": "tbsp",
+    "tablespoons": "tbsp",
+    "tbsp": "tbsp",
+    "cup": "cup",
+    "cups": "cup",
+    "ounce": "oz",
+    "ounces": "oz",
+    "oz": "oz",
+    "pound": "lb",
+    "pounds": "lb",
+    "lb": "lb",
+    "lbs": "lb",
+    "gram": "g",
+    "grams": "g",
+    "g": "g",
+    "kilogram": "kg",
+    "kilograms": "kg",
+    "kg": "kg",
+    "milliliter": "ml",
+    "milliliters": "ml",
+    "ml": "ml",
+    "liter": "l",
+    "liters": "l",
+    "l": "l",
+    "pinch": "pinch",
+    "pinches": "pinch",
+    "dash": "dash",
+    "dashes": "dash",
+    "clove": "clove",
+    "cloves": "clove",
+    "head": "head",
+    "heads": "head",
+    "bunch": "bunch",
+    "bunches": "bunch",
+    "sprig": "sprig",
+    "sprigs": "sprig",
+    "slice": "slice",
+    "slices": "slice",
+    "piece": "piece",
+    "pieces": "piece",
+    "can": "can",
+    "cans": "can",
+    "package": "pkg",
+    "packages": "pkg",
+    "pkg": "pkg",
+    "stick": "stick",
+    "sticks": "stick",
+    "bag": "bag",
+    "bags": "bag",
+    "jar": "jar",
+    "jars": "jar",
+    "box": "box",
+    "boxes": "box",
+    "container": "container",
+    "containers": "container",
+    "packet": "packet",
+    "packets": "packet",
+    "sheet": "sheet",
+    "sheets": "sheet",
+    "leaf": "leaf",
+    "leaves": "leaf",
+}
+
+# Maps canonical key -> (singular_display, plural_display).
+_UNIT_DISPLAY: dict[str, tuple[str, str]] = {
+    "tsp": ("tsp", "tsp"),
+    "tbsp": ("tbsp", "tbsp"),
+    "cup": ("cup", "cups"),
+    "oz": ("oz", "oz"),
+    "lb": ("lb", "lb"),
+    "g": ("g", "g"),
+    "kg": ("kg", "kg"),
+    "ml": ("ml", "ml"),
+    "l": ("l", "l"),
+    "pinch": ("pinch", "pinches"),
+    "dash": ("dash", "dashes"),
+    "clove": ("clove", "cloves"),
+    "head": ("head", "heads"),
+    "bunch": ("bunch", "bunches"),
+    "sprig": ("sprig", "sprigs"),
+    "slice": ("slice", "slices"),
+    "piece": ("piece", "pieces"),
+    "can": ("can", "cans"),
+    "pkg": ("pkg", "pkgs"),
+    "stick": ("stick", "sticks"),
+    "bag": ("bag", "bags"),
+    "jar": ("jar", "jars"),
+    "box": ("box", "boxes"),
+    "container": ("container", "containers"),
+    "packet": ("packet", "packets"),
+    "sheet": ("sheet", "sheets"),
+    "leaf": ("leaf", "leaves"),
+}
+
+
+def parse_amount(line: str) -> tuple[str, str | None]:
+    """Parse a raw ingredient line into ``(normalized_name, amount_str | None)``.
+
+    The amount string (e.g. ``"1 lb"``, ``"2 cans"``, ``"3 cloves"``) is
+    ready for display.  Returns ``None`` for the amount when no leading
+    numeric quantity is present or when the bare count is exactly 1 (showing
+    ``"1 onions"`` is less useful than just ``"onions"``).
+
+    Examples::
+
+        parse_amount("1 lb chicken breast") == ("chicken breast", "1 lb")
+        parse_amount("2 cans white beans")  == ("white beans", "2 cans")
+        parse_amount("3 cloves garlic")     == ("garlic", "3 cloves")
+        parse_amount("2 eggs")              == ("eggs", "2")
+        parse_amount("kosher salt")         == ("kosher salt", None)
+    """
+    normalized = normalize_ingredient(line)
+    if not normalized:
+        return normalized, None
+
+    text = _normalize_unicode_dashes(line.strip().lower())
+    m = _LEADING_QTY_RE.match(text)
+    if m is None:
+        return normalized, None
+
+    qty_str = m.group(1).strip()
+    rest = text[m.end() :].strip()
+
+    # Skip an inline descriptor like "(15-ounce)" that may follow the number.
+    rest = re.sub(r"^\([^)]*\)\s*", "", rest)
+
+    # Check whether a recognised unit word comes next.
+    unit_match = re.match(r"^([a-zA-Z]+\.?)\b", rest)
+    if unit_match:
+        candidate = unit_match.group(1).rstrip(".")
+        if candidate in _UNITS:
+            return normalized, f"{qty_str} {candidate}"
+
+    # No recognised unit — only return a bare count when quantity > 1.
+    # Showing "1 onions" is worse than just "onions".
+    try:
+        if _parse_qty(qty_str) > 1:
+            return normalized, qty_str
+    except (ValueError, ZeroDivisionError):
+        pass
+    return normalized, None
+
+
+def aggregate_amounts(amounts: list[str | None]) -> str | None:
+    """Aggregate a list of amount strings by summing matched units.
+
+    When all non-``None`` amounts share the same canonical unit the quantities
+    are summed and returned as a formatted string.  When units differ, or
+    parsing fails, the first non-``None`` amount is returned unchanged.
+    Returns ``None`` when there are no amounts.
+
+    Examples::
+
+        aggregate_amounts(["1 can", "1 can"]) == "2 cans"
+        aggregate_amounts(["1 lb", "500g"])   == "1 lb"
+        aggregate_amounts([None, None])        == None
+    """
+    non_none = [a for a in amounts if a is not None]
+    if not non_none:
+        return None
+    if len(non_none) == 1:
+        return non_none[0]
+
+    parsed = [_split_amount_str(a) for a in non_none]
+    canon_units = {_canonical_unit(unit) for _, unit in parsed}
+
+    if len(canon_units) != 1:
+        # Mixed units — return first amount unchanged.
+        return non_none[0]
+
+    canonical = next(iter(canon_units))
+    try:
+        total = sum(_parse_qty(qty_str) for qty_str, _ in parsed)
+    except (ValueError, ZeroDivisionError):
+        return non_none[0]
+
+    qty_formatted = _format_qty(total)
+    if canonical is None:
+        # Bare counts (no unit).
+        return qty_formatted
+
+    orig_unit = parsed[0][1]  # e.g. "can" or "cans" from the first amount
+    singular, plural = _UNIT_DISPLAY.get(canonical, (orig_unit, orig_unit + "s"))
+    display_unit = plural if total > 1 else singular
+    return f"{qty_formatted} {display_unit}"
+
+
+# --- Private helpers for amount parsing/aggregation ---
+
+
+def _split_amount_str(amount: str) -> tuple[str, str | None]:
+    """Split ``"2 cans"`` → ``("2", "cans")``; ``"3"`` → ``("3", None)``.
+
+    Handles mixed-number quantities like ``"2 1/2 cups"`` → ``("2 1/2", "cups")``.
+    """
+    m = _AMOUNT_STR_RE.match(amount.strip())
+    if m is None:
+        return (amount, None)
+    qty_str = m.group(1).strip()
+    unit_part = m.group(2).strip() if m.group(2) else None
+    return (qty_str, unit_part if unit_part else None)
+
+
+def _canonical_unit(unit: str | None) -> str | None:
+    """Return canonical unit key for comparison, or ``None``."""
+    if unit is None:
+        return None
+    return _UNIT_CANONICAL.get(unit.lower(), unit.lower())
+
+
+def _parse_qty(s: str) -> float:
+    """Parse a quantity string: ``"1/2"`` → 0.5, ``"2 1/2"`` → 2.5."""
+    s = s.strip()
+    if " " in s:
+        whole, frac = s.split(None, 1)
+        return float(whole) + _parse_qty(frac)
+    if "/" in s:
+        num, denom = s.split("/", 1)
+        return float(num) / float(denom)
+    return float(s)
+
+
+def _format_qty(qty: float) -> str:
+    """Format a quantity as a clean string (whole number, simple fraction, or decimal)."""
+    if qty == int(qty):
+        return str(int(qty))
+    whole = int(qty)
+    frac = qty - whole
+    for num, denom in ((1, 4), (1, 3), (1, 2), (2, 3), (3, 4)):
+        if abs(frac - num / denom) < 0.005:
+            if whole:
+                return f"{whole} {num}/{denom}"
+            return f"{num}/{denom}"
+    # Fall back to decimal, stripping trailing zeros.
+    return f"{qty:.2f}".rstrip("0").rstrip(".")

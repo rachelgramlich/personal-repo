@@ -13,6 +13,7 @@ from src.grocery_wizard.shopping.grocery_list import (
     _print_excluded_summary,
     _recipes_needing_backfill,
     build_grocery_list,
+    format_grocery_item,
     match_excluded_items,
     parse_readd_excluded,
     run_grocery_list,
@@ -36,6 +37,18 @@ def pantry_file(tmp_path: Path) -> Path:
     return path
 
 
+@pytest.mark.parametrize(
+    ("name", "amount", "expected"),
+    [
+        ("chicken breast", "1 lb", "1 lb chicken breast"),
+        ("eggs", None, "eggs"),
+        ("garlic", "3 cloves", "3 cloves garlic"),
+    ],
+)
+def test_format_grocery_item(name: str, amount: str | None, expected: str) -> None:
+    assert format_grocery_item(name, amount) == expected
+
+
 def test_build_grocery_list_excludes_pantry_by_default(pantry_file: Path) -> None:
     db = MagicMock()
     db.query_recipes.return_value = [
@@ -52,9 +65,9 @@ def test_build_grocery_list_excludes_pantry_by_default(pantry_file: Path) -> Non
         exclude_pantry=True,
     )
 
-    assert "chicken breast" in items
-    assert "olive oil" not in items
-    assert "garlic" not in items
+    assert any("chicken breast" in item for item in items)
+    assert not any("olive oil" in item for item in items)
+    assert not any("garlic" in item for item in items)
     assert "olive oil" in excluded
     assert "garlic" in excluded
 
@@ -75,9 +88,9 @@ def test_build_grocery_list_include_pantry(pantry_file: Path) -> None:
         exclude_pantry=False,
     )
 
-    assert "chicken breast" in items
-    assert "olive oil" in items
-    assert "garlic" in items
+    assert any("chicken breast" in item for item in items)
+    assert any("olive oil" in item for item in items)
+    assert any("garlic" in item for item in items)
     assert excluded == []
 
 
@@ -178,7 +191,7 @@ def test_build_grocery_list_white_beans_not_split(tmp_path: Path) -> None:
         exclude_pantry=True,
     )
 
-    assert items == ["white beans"]
+    assert items == ["2 cans white beans"]
     assert "white" not in items
     assert "beans" not in items
 

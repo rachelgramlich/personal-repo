@@ -1,9 +1,11 @@
 import pytest
 
 from src.grocery_wizard.ingredients.normalize import (
+    aggregate_amounts,
     expand_ingredient_line,
     is_junk_ingredient,
     normalize_ingredient,
+    parse_amount,
     split_compound_ingredients,
 )
 
@@ -108,3 +110,74 @@ def test_split_compound_ingredients_multiline() -> None:
 def test_split_compound_ingredients_empty() -> None:
     assert split_compound_ingredients("") == []
     assert split_compound_ingredients("   \n") == []
+
+
+# ---------------------------------------------------------------------------
+# parse_amount
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected_name", "expected_amount"),
+    [
+        # Recognised unit → amount includes qty + unit
+        ("1 lb chicken breast", "chicken breast", "1 lb"),
+        ("2 cans white beans", "white beans", "2 cans"),
+        ("3 cloves garlic, minced", "garlic", "3 cloves"),
+        ("8 oz tortellini", "tortellini", "8 oz"),
+        ("1/2 cup all-purpose flour", "all-purpose flour", "1/2 cup"),
+        ("2 tbsp olive oil, plus more for drizzling", "olive oil", "2 tbsp"),
+        # Inline descriptor stripped, unit still detected
+        ("2 (15-ounce) cans diced tomatoes", "diced tomatoes", "2 cans"),
+        # Bare count > 1 (no recognised unit) → bare number returned
+        ("2 eggs", "eggs", "2"),
+        ("4 large carrots, peeled", "carrots", "4"),
+        # Bare count of exactly 1 → no amount (avoids "1 onions")
+        ("1 large egg, beaten", "eggs", None),
+        ("1 medium onion, diced", "onions", None),
+        # No leading quantity → no amount
+        ("kosher salt", "kosher salt", None),
+        ("fresh cilantro", "cilantro", None),
+    ],
+)
+def test_parse_amount(raw: str, expected_name: str, expected_amount: str | None) -> None:
+    name, amount = parse_amount(raw)
+    assert name == expected_name
+    assert amount == expected_amount
+
+
+def test_parse_amount_junk_line_returns_empty_name() -> None:
+    name, amount = parse_amount("rinsed and drained")
+    assert name == ""
+    assert amount is None
+
+
+# ---------------------------------------------------------------------------
+# aggregate_amounts
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("amounts", "expected"),
+    [
+        # Same canonical unit → sum
+        (["1 can", "1 can"], "2 cans"),
+        (["2 cans", "1 can"], "3 cans"),
+        (["1 lb", "1 lb"], "2 lb"),
+        (["3 cloves", "2 cloves"], "5 cloves"),
+        (["1/2 cup", "1/2 cup"], "1 cup"),
+        # Mixed units → first wins
+        (["1 lb", "500g"], "1 lb"),
+        # Single element passes through unchanged
+        (["1 can"], "1 can"),
+        (["2 tbsp"], "2 tbsp"),
+        # None values are skipped
+        ([None, None], None),
+        ([None, "2 cans"], "2 cans"),
+        (["2 cans", None], "2 cans"),
+        # Bare counts (no unit) → sum
+        (["2", "3"], "5"),
+    ],
+)
+def test_aggregate_amounts(amounts: list, expected: str | None) -> None:
+    assert aggregate_amounts(amounts) == expected
