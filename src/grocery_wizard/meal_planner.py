@@ -11,9 +11,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from projects.grocery_wizard.config import WEEK_PLAN_PATH
-from projects.grocery_wizard.notion import ColumnInfo, NotionRecipesDB, Recipe
-from projects.grocery_wizard.prompts import confirm_yes_default, parse_yes_no
+from src.grocery_wizard.config import WEEK_PLAN_PATH
+from src.grocery_wizard.notion import ColumnInfo, NotionRecipesDB, Recipe
+from src.grocery_wizard.prompts import confirm_yes_default, parse_yes_no
 
 DIVERSITY_COLUMNS = ("Protein", "Dinner Category", "Cuisine")
 

@@ -8,12 +8,12 @@ from dataclasses import dataclass, field
 
 import requests
 
-from projects.grocery_wizard.ingredient_normalize import (
+from src.grocery_wizard.ingredient_normalize import (
     expand_ingredient_line,
     normalize_ingredient,
 )
-from projects.grocery_wizard.notion import NotionRecipesDB, Recipe
-from projects.grocery_wizard.scraper import (
+from src.grocery_wizard.notion import NotionRecipesDB, Recipe
+from src.grocery_wizard.scraper import (
     ScrapeError,
     ingredients_to_text,
     scrape_recipe,

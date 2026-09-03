@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from projects.grocery_wizard.config import load_config
-from projects.grocery_wizard.notion import NotionRecipesDB
+from src.grocery_wizard.config import load_config
+from src.grocery_wizard.notion import NotionRecipesDB
 
 _DEPRECATED_COMMANDS: dict[str, str] = {
     "add": "Use `add-recipe` instead.",
@@ -32,7 +32,7 @@ def _print_deprecated(name: str, message: str) -> None:
     print(f"Command '{name}' was removed.", file=sys.stderr)
     print(message, file=sys.stderr)
     print(
-        "Run: uv run python -m projects.grocery_wizard.cli --help",
+        "Run: uv run python -m src.grocery_wizard.cli --help",
         file=sys.stderr,
     )
 
@@ -189,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def cmd_add(args: argparse.Namespace) -> int:
-    from projects.grocery_wizard.add_recipe import add_recipes_from_urls, read_urls_from_stdin
+    from src.grocery_wizard.add_recipe import add_recipes_from_urls, read_urls_from_stdin
 
     config = load_config()
     db = NotionRecipesDB(config)
@@ -207,7 +207,7 @@ def cmd_add(args: argparse.Namespace) -> int:
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
-    from projects.grocery_wizard.meal_planner import run_meal_planner
+    from src.grocery_wizard.meal_planner import run_meal_planner
 
     config = load_config()
     db = NotionRecipesDB(config)
@@ -217,7 +217,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
 
 def cmd_grocery(args: argparse.Namespace) -> int:
-    from projects.grocery_wizard.grocery_list import run_grocery_list
+    from src.grocery_wizard.grocery_list import run_grocery_list
 
     config = load_config()
     db = NotionRecipesDB(config)
@@ -236,7 +236,7 @@ def cmd_grocery(args: argparse.Namespace) -> int:
 
 
 def cmd_pantry(_args: argparse.Namespace) -> int:
-    from projects.grocery_wizard.pantry import run_pantry_interactive
+    from src.grocery_wizard.pantry import run_pantry_interactive
 
     return run_pantry_interactive()
 
@@ -273,7 +273,7 @@ def cmd_dev_schema(_args: argparse.Namespace) -> int:
 
 
 def cmd_dev_backfill(args: argparse.Namespace) -> int:
-    from projects.grocery_wizard.ingredients_sync import (
+    from src.grocery_wizard.ingredients_sync import (
         categorize_recipes,
         format_recipe_progress,
         format_sync_summary,
@@ -311,7 +311,7 @@ def cmd_dev_backfill(args: argparse.Namespace) -> int:
 
 
 def cmd_dev_reconcile(args: argparse.Namespace) -> int:
-    from projects.grocery_wizard.ingredients_sync import (
+    from src.grocery_wizard.ingredients_sync import (
         categorize_recipes,
         format_sync_summary,
         run_merge_sync,
@@ -335,7 +335,7 @@ def cmd_dev_reconcile(args: argparse.Namespace) -> int:
 
 
 def cmd_dev_refresh_all(args: argparse.Namespace) -> int:
-    from projects.grocery_wizard.ingredients_sync import (
+    from src.grocery_wizard.ingredients_sync import (
         format_refresh_progress,
         format_refresh_summary,
         run_refresh_ingredients,
@@ -389,7 +389,7 @@ def cmd_dev_refresh_all(args: argparse.Namespace) -> int:
 
 
 def cmd_dev_audit(_args: argparse.Namespace) -> int:
-    from projects.grocery_wizard.audit import audit_recipes, format_audit_report
+    from src.grocery_wizard.audit import audit_recipes, format_audit_report
 
     config = load_config()
     db = NotionRecipesDB(config)

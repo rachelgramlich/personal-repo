@@ -15,6 +15,7 @@ dependencies = [
     "pytest>=8.2.2",
     "python-dotenv>=1.0.1",
     "requests>=2.32.3",
+    "ruff>=0.15.6",
     "seaborn>=0.13.2",
     "streamlit>=1.39.0",
 ]
@@ -23,13 +24,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "mypy>=1.11",
-    "ruff>=0.8",
 ]
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-exclude = ["projects/tidy_first", "tests/projects/tidy_first"]
+exclude = ["src/python_practice/tidy_first", "tests/python_practice/test_tidy_first.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

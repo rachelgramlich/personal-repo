@@ -1,4 +1,4 @@
-from projects.grocery_wizard.cli import main
+from src.grocery_wizard.cli import main
 
 if __name__ == "__main__":
     raise SystemExit(main())

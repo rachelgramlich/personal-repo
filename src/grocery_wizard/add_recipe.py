@@ -6,10 +6,10 @@ import sys
 from collections.abc import Callable
 from typing import Any
 
-from projects.grocery_wizard.classify import classify_recipe
-from projects.grocery_wizard.notion import NotionRecipesDB
-from projects.grocery_wizard.prompts import confirm_no_default
-from projects.grocery_wizard.scraper import ScrapeError, ingredients_to_text, scrape_recipe
+from src.grocery_wizard.classify import classify_recipe
+from src.grocery_wizard.notion import NotionRecipesDB
+from src.grocery_wizard.prompts import confirm_no_default
+from src.grocery_wizard.scraper import ScrapeError, ingredients_to_text, scrape_recipe
 
 
 def add_recipes_from_urls(

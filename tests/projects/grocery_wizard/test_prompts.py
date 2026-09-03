@@ -1,6 +1,6 @@
 """Tests for shared CLI yes/no prompt helpers."""
 
-from projects.grocery_wizard.prompts import (
+from src.grocery_wizard.prompts import (
     confirm_no_default,
     confirm_yes_default,
     parse_yes_no,

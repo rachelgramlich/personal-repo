@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from projects.grocery_wizard.ingredients_sync import (
+from src.grocery_wizard.ingredients_sync import (
     apply_removals,
     is_directive,
     is_removal_directive,
@@ -16,7 +16,7 @@ from projects.grocery_wizard.ingredients_sync import (
     refresh_ingredients_for_recipe,
     split_ingredients_text,
 )
-from projects.grocery_wizard.notion import Recipe
+from src.grocery_wizard.notion import Recipe
 
 
 def _recipe(name: str, link: str | None, ingredients: str | None) -> Recipe:

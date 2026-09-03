@@ -7,13 +7,13 @@ Notion-driven recipe tool: add recipes, plan meals, generate grocery lists.
 All commands run from the repo root:
 
 ```shell
-uv run python -m projects.grocery_wizard.cli <command>
+uv run python -m src.grocery_wizard.cli <command>
 ```
 
 ### I found a new recipe online
 
 ```shell
-uv run python -m projects.grocery_wizard.cli add-recipe https://example.com/my-recipe
+uv run python -m src.grocery_wizard.cli add-recipe https://example.com/my-recipe
 ```
 
 Saves the recipe to Notion and scrapes ingredients from the page.
@@ -21,7 +21,7 @@ Saves the recipe to Notion and scrapes ingredients from the page.
 ### I need to plan dinners for the week
 
 ```shell
-uv run python -m projects.grocery_wizard.cli plan-recipes
+uv run python -m src.grocery_wizard.cli plan-recipes
 ```
 
 Picks dinners interactively and saves your choices to `.local/grocery_wizard/week_plan.json`.
@@ -29,7 +29,7 @@ Picks dinners interactively and saves your choices to `.local/grocery_wizard/wee
 ### I want my shopping list
 
 ```shell
-uv run python -m projects.grocery_wizard.cli create-grocery-list
+uv run python -m src.grocery_wizard.cli create-grocery-list
 ```
 
 Uses your saved week plan. No flags needed — it walks you through:
@@ -52,10 +52,10 @@ Uses your saved week plan. No flags needed — it walks you through:
 ### My pantry staples changed
 
 ```shell
-uv run python -m projects.grocery_wizard.cli edit-pantry
+uv run python -m src.grocery_wizard.cli edit-pantry
 ```
 
-Edit `projects/grocery_wizard/config/pantry.txt` — items here won't show up on your shopping list.
+Edit `src/grocery_wizard/config/pantry.txt` — items here won't show up on your shopping list.
 
 ## Command cheat sheet
 
@@ -80,25 +80,25 @@ Use when you edit Notion directly, need to refresh ingredient data, or debug sch
 
 ```shell
 # Recipes added in Notion with a link but no ingredients
-uv run python -m projects.grocery_wizard.cli dev backfill-ingredients
+uv run python -m src.grocery_wizard.cli dev backfill-ingredients
 
 # Preview without writing
-uv run python -m projects.grocery_wizard.cli dev backfill-ingredients --dry-run
+uv run python -m src.grocery_wizard.cli dev backfill-ingredients --dry-run
 
 # Reconcile recipes you already edited in Notion
-uv run python -m projects.grocery_wizard.cli dev reconcile-ingredients
+uv run python -m src.grocery_wizard.cli dev reconcile-ingredients
 
 # Nuclear option: re-scrape everything
-uv run python -m projects.grocery_wizard.cli dev refresh-all-ingredients
+uv run python -m src.grocery_wizard.cli dev refresh-all-ingredients
 
 # Health check
-uv run python -m projects.grocery_wizard.cli dev audit-recipes
-uv run python -m projects.grocery_wizard.cli dev show-schema
+uv run python -m src.grocery_wizard.cli dev audit-recipes
+uv run python -m src.grocery_wizard.cli dev show-schema
 ```
 
 ## Architecture
 
-This repo is a **multi-project monorepo** (`personal-repo`). Grocery Wizard lives at `projects/grocery_wizard/` with imports like `from projects.grocery_wizard.cli import ...`. Tests mirror that layout under `tests/projects/grocery_wizard/`.
+This repo is a **multi-project monorepo** (`personal-repo`). Grocery Wizard lives at `src/grocery_wizard/` with imports like `from src.grocery_wizard.cli import ...`. Tests mirror that layout under `tests/src/grocery_wizard/`.
 
 ## How ingredients are stored
 
@@ -117,7 +117,7 @@ Normalization and pantry exclusion happen at grocery-list time only — not when
    - `NOTION_API_KEY` — integration secret
    - `NOTION_DATABASE_ID` — your Recipes database ID
 4. From repo root: `just setup`
-5. Verify: `uv run python -m projects.grocery_wizard.cli dev show-schema`
+5. Verify: `uv run python -m src.grocery_wizard.cli dev show-schema`
 
 ## Meal planning
 
@@ -136,16 +136,16 @@ Suggestions maximize variety across **Protein**, **Dinner Category**, and **Cuis
 
 | Path | Committed? | Purpose |
 |------|------------|---------|
-| `projects/grocery_wizard/config/pantry.txt` | yes | Pantry staples excluded from grocery lists |
+| `src/grocery_wizard/config/pantry.txt` | yes | Pantry staples excluded from grocery lists |
 | `.local/grocery_wizard/week_plan.json` | no | This week's planned recipes |
 
 ## Pantry staples
 
-`edit-pantry` edits `projects/grocery_wizard/config/pantry.txt`, grouped by section headers. Interactive options:
+`edit-pantry` edits `src/grocery_wizard/config/pantry.txt`, grouped by section headers. Interactive options:
 
 - **a** — add an item (pick a section or create one)
 - **r** — remove by number or name
-- **e** — open `projects/grocery_wizard/config/pantry.txt` in `$EDITOR`
+- **e** — open `src/grocery_wizard/config/pantry.txt` in `$EDITOR`
 - **q** — save and quit
 
 Matching is substring-based: `kosher salt` matches pantry item `salt`. Grocery list generation excludes pantry items by default.
@@ -153,7 +153,7 @@ Matching is substring-based: `kosher salt` matches pantry item `salt`. Grocery l
 ## Streamlit UI
 
 ```shell
-uv run streamlit run projects/grocery_wizard/app.py
+uv run streamlit run src/grocery_wizard/app.py
 ```
 
 Tabs: Add Recipe, Sync Ingredients, Plan Meals (stub), Grocery List.

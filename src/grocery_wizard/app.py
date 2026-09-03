@@ -4,20 +4,20 @@ from __future__ import annotations
 
 import streamlit as st
 
-from projects.grocery_wizard.classify import classify_recipe
-from projects.grocery_wizard.config import load_config
-from projects.grocery_wizard.grocery_list import (
+from src.grocery_wizard.classify import classify_recipe
+from src.grocery_wizard.config import load_config
+from src.grocery_wizard.grocery_list import (
     WEEK_PLAN_PATH,
     _load_week_plan_names,
     build_grocery_list,
 )
-from projects.grocery_wizard.ingredients_sync import (
+from src.grocery_wizard.ingredients_sync import (
     find_recipes_needing_sync,
     format_sync_summary,
     run_sync,
 )
-from projects.grocery_wizard.notion import NotionRecipesDB
-from projects.grocery_wizard.scraper import ScrapeError, ingredients_to_text, scrape_recipe
+from src.grocery_wizard.notion import NotionRecipesDB
+from src.grocery_wizard.scraper import ScrapeError, ingredients_to_text, scrape_recipe
 
 
 @st.cache_resource

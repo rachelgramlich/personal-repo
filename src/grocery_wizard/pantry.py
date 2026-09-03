@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from projects.grocery_wizard.config import PANTRY_PATH
+from src.grocery_wizard.config import PANTRY_PATH
 
 
 def load_pantry(path: Path | None = None) -> set[str]:

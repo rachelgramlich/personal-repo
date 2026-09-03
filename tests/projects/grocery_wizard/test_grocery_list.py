@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from projects.grocery_wizard.grocery_list import (
+from src.grocery_wizard.grocery_list import (
     _print_excluded_summary,
     _recipes_needing_backfill,
     build_grocery_list,
@@ -15,8 +15,8 @@ from projects.grocery_wizard.grocery_list import (
     parse_readd_excluded,
     run_grocery_list,
 )
-from projects.grocery_wizard.ingredients_sync import sync_ingredients_for_recipe
-from projects.grocery_wizard.notion import Recipe
+from src.grocery_wizard.ingredients_sync import sync_ingredients_for_recipe
+from src.grocery_wizard.notion import Recipe
 
 
 def _recipe(name: str, ingredients: str) -> Recipe:
@@ -199,10 +199,10 @@ def test_run_grocery_list_interactive_flow_order(
 
     inputs = iter(["", "eggs", "", ""])
     with (
-        patch("projects.grocery_wizard.grocery_list.input", side_effect=inputs),
-        patch("projects.grocery_wizard.grocery_list._prompt_staples", return_value=["eggs"]),
+        patch("src.grocery_wizard.grocery_list.input", side_effect=inputs),
+        patch("src.grocery_wizard.grocery_list._prompt_staples", return_value=["eggs"]),
         patch(
-            "projects.grocery_wizard.grocery_list._prompt_accept_or_edit",
+            "src.grocery_wizard.grocery_list._prompt_accept_or_edit",
             side_effect=lambda items: items,
         ),
     ):
@@ -240,7 +240,7 @@ def test_sync_writes_full_ingredients_including_pantry() -> None:
     full_text = "2 tbsp olive oil\nkosher salt\n3 cloves garlic\n1 lb chicken"
 
     with patch(
-        "projects.grocery_wizard.ingredients_sync.scrape_ingredients_text",
+        "src.grocery_wizard.ingredients_sync.scrape_ingredients_text",
         return_value=full_text,
     ):
         result = sync_ingredients_for_recipe(db, recipe)
@@ -296,7 +296,7 @@ def test_run_grocery_list_quiet_skips_excluded_display(
     week_plan = pantry_file.parent / "week_plan.json"
     week_plan.write_text('{"recipes": ["Test Recipe"]}', encoding="utf-8")
 
-    with patch("projects.grocery_wizard.grocery_list._prompt_staples", return_value=[]):
+    with patch("src.grocery_wizard.grocery_list._prompt_staples", return_value=[]):
         code = run_grocery_list(
             db,
             quiet=True,
@@ -310,8 +310,8 @@ def test_run_grocery_list_quiet_skips_excluded_display(
 
 
 def test_load_week_plan_names_falls_back_to_legacy_path(tmp_path: Path, monkeypatch) -> None:
-    from projects.grocery_wizard.config import LEGACY_WEEK_PLAN_PATH, WEEK_PLAN_PATH
-    from projects.grocery_wizard.grocery_list import _load_week_plan_names
+    from src.grocery_wizard.config import LEGACY_WEEK_PLAN_PATH, WEEK_PLAN_PATH
+    from src.grocery_wizard.grocery_list import _load_week_plan_names
 
     monkeypatch.chdir(tmp_path)
     legacy_path = tmp_path / LEGACY_WEEK_PLAN_PATH

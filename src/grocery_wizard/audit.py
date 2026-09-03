@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from projects.grocery_wizard.notion import Recipe
-from projects.grocery_wizard.scraper import _has_merge_artifacts, _looks_fragmented
+from src.grocery_wizard.notion import Recipe
+from src.grocery_wizard.scraper import _has_merge_artifacts, _looks_fragmented
 
 _BR_SPLIT = re.compile(r"<br\s*/?>", re.IGNORECASE)
 

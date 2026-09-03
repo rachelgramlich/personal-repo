@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup
 
-from projects.grocery_wizard.scraper import (
+from src.grocery_wizard.scraper import (
     ScrapeError,
     _extract_ingredients,
     _extract_instagram_caption,
@@ -299,7 +299,7 @@ def test_atk_fixture_falls_back_to_json_ld_when_heading_points_to_instructions(
 
         return FakeResponse()
 
-    monkeypatch.setattr("projects.grocery_wizard.scraper.requests.get", fake_get)
+    monkeypatch.setattr("src.grocery_wizard.scraper.requests.get", fake_get)
 
     scraped = scrape_recipe("https://example.com/atk-recipe")
     assert scraped.ingredients == ["1 cup balsamic vinegar", "1 tablespoon honey"]
@@ -351,7 +351,7 @@ def test_scrape_tiktok_extracts_caption_ingredients(monkeypatch) -> None:
 
         return FakeResponse()
 
-    monkeypatch.setattr("projects.grocery_wizard.scraper.requests.get", fake_get)
+    monkeypatch.setattr("src.grocery_wizard.scraper.requests.get", fake_get)
 
     scraped = _scrape_tiktok("https://www.tiktok.com/t/example/")
     assert scraped.title == "Tomato Pasta Salad"
@@ -382,7 +382,7 @@ def test_scrape_tiktok_raises_when_no_ingredients(monkeypatch) -> None:
 
         return FakeResponse()
 
-    monkeypatch.setattr("projects.grocery_wizard.scraper.requests.get", fake_get)
+    monkeypatch.setattr("src.grocery_wizard.scraper.requests.get", fake_get)
 
     try:
         _scrape_tiktok("https://www.tiktok.com/t/example/")
@@ -458,7 +458,7 @@ def test_scrape_instagram_extracts_caption_ingredients(monkeypatch) -> None:
 
         return FakeResponse()
 
-    monkeypatch.setattr("projects.grocery_wizard.scraper.requests.get", fake_get)
+    monkeypatch.setattr("src.grocery_wizard.scraper.requests.get", fake_get)
 
     scraped = _scrape_instagram("https://www.instagram.com/reel/DZz61Yhx2DC/")
     assert scraped.title == "Sheet Pan Lemon Chicken"
@@ -482,7 +482,7 @@ def test_scrape_instagram_from_json_ld(monkeypatch) -> None:
 
         return FakeResponse()
 
-    monkeypatch.setattr("projects.grocery_wizard.scraper.requests.get", fake_get)
+    monkeypatch.setattr("src.grocery_wizard.scraper.requests.get", fake_get)
 
     scraped = scrape_recipe("https://www.instagram.com/reel/example/")
     assert scraped.title == "Creamy Tuscan Pasta"
@@ -505,7 +505,7 @@ def test_scrape_instagram_from_script_json(monkeypatch) -> None:
 
         return FakeResponse()
 
-    monkeypatch.setattr("projects.grocery_wizard.scraper.requests.get", fake_get)
+    monkeypatch.setattr("src.grocery_wizard.scraper.requests.get", fake_get)
 
     scraped = scrape_recipe("https://www.instagram.com/p/example/")
     assert scraped.title == "Garlic Butter Shrimp"
@@ -534,7 +534,7 @@ def test_scrape_instagram_raises_when_no_ingredients(monkeypatch) -> None:
 
         return FakeResponse()
 
-    monkeypatch.setattr("projects.grocery_wizard.scraper.requests.get", fake_get)
+    monkeypatch.setattr("src.grocery_wizard.scraper.requests.get", fake_get)
 
     try:
         _scrape_instagram("https://www.instagram.com/reel/example/")

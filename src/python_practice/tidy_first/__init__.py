@@ -5,7 +5,6 @@ These are untidy code examples that need refactoring using the techniques
 from the book. Try to refactor them yourself!
 """
 
-from loguru import logger
 
 # ============================================================================
 # PROBLEM 1: Guard Clauses
@@ -33,6 +32,7 @@ def calculate_discount_untidy(customer_type, purchase_amount, is_member):
         else:
             return 0.0
 
+
 # TIDY: Refactored with guard clauses
 def calculate_discount_tidy(customer_type, purchase_amount, is_member):
     if customer_type == "wholesale":
@@ -52,11 +52,11 @@ def calculate_discount_tidy(customer_type, purchase_amount, is_member):
 # UNTIDY: Unused variables and commented-out code
 # TRY TO FIX: Remove unused variables and dead code
 def process_user_untidy(user_data):
-    user_id = user_data["id"]
+    user_id = user_data["id"]  # noqa - Unused variable
     user_name = user_data["name"]
-    legacy_field = user_data.get("legacy_status")  # Never used
+    legacy_field = user_data.get("legacy_status")  # noqa - Unused variable
     # temp_value = 42  # Commented out code
-    # print(f"Debug: {user_id}")  # Debug code left behind
+    # print(f"Debug: {user_id}")  # noqa - Debug code left behind
 
     formatted_name = user_name.upper()
     return f"User: {formatted_name}"
@@ -106,6 +106,7 @@ def validate_phone_tidy(phone: str | None) -> bool:
         return False
     return True
 
+
 # ============================================================================
 # PROBLEM 4: Extract Helper Function
 # ============================================================================
@@ -122,11 +123,12 @@ def calculate_salary_untidy(hours_worked, hourly_rate, is_overtime):
     net = base - tax - benefits
     return {"gross": base, "tax": tax, "benefits": benefits, "net": net}
 
+
 def _calculate_tax_and_benefits(base, is_overtime):
     tax = base * 0.25 if is_overtime else base * 0.20
     benefits = base * 0.08 if is_overtime else base * 0.05
     return tax, benefits
-    
+
 
 def calculate_salary_tidy(hours_worked, hourly_rate, is_overtime):
     base = hours_worked * hourly_rate
@@ -152,6 +154,7 @@ def calculate_shipping_untidy(weight, distance, is_express):
 
     return base_cost + distance_cost + 5.0  # 5.0 is base fee
 
+
 BASE_FEE = 5.0
 HEAVY_WEIGHT_THRESHOLD = 50
 HEAVY_WEIGHT_RATE = 0.5
@@ -161,9 +164,11 @@ EXPRESS_DISTANCE_RATE = 0.02
 
 
 def calculate_shipping_tidy(weight, distance, is_express):
-    weight_rate = HEAVY_WEIGHT_RATE if weight > HEAVY_WEIGHT_THRESHOLD else LIGHT_WEIGHT_RATE
+    weight_rate = (
+        HEAVY_WEIGHT_RATE if weight > HEAVY_WEIGHT_THRESHOLD else LIGHT_WEIGHT_RATE
+    )
     distance_rate = EXPRESS_DISTANCE_RATE if is_express else STANDARD_DISTANCE_RATE
-    
+
     return (weight * weight_rate) + (distance * distance_rate) + BASE_FEE
 
 
@@ -183,12 +188,9 @@ def apply_premium_discount_untidy(price):
 def apply_vip_discount_untidy(price):
     return price * 0.7
 
-DISCOUNTS = {
-    None: 1.0,
-    "standard": 0.9,
-    "premium": 0.8,
-    "vip": 0.7
-}
+
+DISCOUNTS = {None: 1.0, "standard": 0.9, "premium": 0.8, "vip": 0.7}
+
 
 def apply_discount_tidy(price, discount_type: str | None):
     rate = DISCOUNTS.get(discount_type)
@@ -209,16 +211,17 @@ def should_grant_access_untidy(user_role, is_active, account_balance):
         else:
             return False
 
+
 def should_grant_access_tidy(user_role, is_active, account_balance):
     if user_role == "admin":
         return True
-    
+
     if user_role != "user":
         return False
-    
+
     if not is_active:
         return False
-    
+
     has_sufficient_balance = account_balance > 0
     return has_sufficient_balance
 
@@ -231,31 +234,31 @@ def should_grant_access_tidy(user_role, is_active, account_balance):
 
 
 def process_order_untidy(order):
-                total = sum(item["price"] for item in order["items"])
-                if total > 100:
-                    return f"Large order: ${total}"
-                else:
-                    return f"Small order: ${total}"
+    total = sum(item["price"] for item in order["items"])
+    if total > 100:
+        return f"Large order: ${total}"
+    else:
+        return f"Small order: ${total}"
 
 
 LARGE_ORDER_THRESHOLD = 100
 
+
 def process_order_tidy(order):
     if not order:
         return "No order provided"
-    
+
     if "items" not in order:
         return "Invalid order format"
-    
+
     if len(order["items"]) == 0:
         return "Order is empty"
-    
+
     total = sum(item["price"] for item in order["items"])
 
     order_size = "Large" if total > LARGE_ORDER_THRESHOLD else "Small"
-    
-    return f"{order_size} order: ${total}"
 
+    return f"{order_size} order: ${total}"
 
 
 # ============================================================================
@@ -269,6 +272,7 @@ def calc_cost_untidy(qty, uprice, shipcost, taxrate):
     subtotal = qty * uprice + shipcost
     final = subtotal * (1 + taxrate)
     return final
+
 
 def calculate_cost_tidy(quantity, unit_price, shipping_cost, tax_rate):
     subtotal = (quantity * unit_price) + shipping_cost
@@ -305,20 +309,24 @@ def validate_user_profile_untidy(profile):
 
     return True
 
+
 def _validate_email_tidy(email) -> bool:
     if "@" not in email or "." not in email:
         return False
     return True
+
 
 def _validate_phone_tidy(phone) -> bool:
     if len(phone) < 10 or not phone.isdigit():
         return False
     return True
 
+
 def _validate_age_tidy(age) -> bool:
     if age < 18:
         return False
     return True
+
 
 def validate_user_profile_tidy(profile) -> bool:
     email = profile.get("email")
@@ -328,8 +336,10 @@ def validate_user_profile_tidy(profile) -> bool:
     if not all([email, phone, age]):
         return False
 
-    return all([
-        _validate_email_tidy(email),
-        _validate_phone_tidy(phone),
-        _validate_age_tidy(age)
-    ])
+    return all(
+        [
+            _validate_email_tidy(email),
+            _validate_phone_tidy(phone),
+            _validate_age_tidy(age),
+        ]
+    )

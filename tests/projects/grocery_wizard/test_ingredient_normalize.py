@@ -1,6 +1,6 @@
 import pytest
 
-from projects.grocery_wizard.ingredient_normalize import (
+from src.grocery_wizard.ingredient_normalize import (
     expand_ingredient_line,
     is_junk_ingredient,
     normalize_ingredient,

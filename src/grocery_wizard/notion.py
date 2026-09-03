@@ -7,7 +7,7 @@ from typing import Any
 
 from notion_client import Client
 
-from projects.grocery_wizard.config import Config
+from src.grocery_wizard.config import Config
 
 
 @dataclass
