@@ -45,7 +45,7 @@ def test_build_grocery_list_excludes_pantry_by_default(pantry_file: Path) -> Non
         )
     ]
 
-    items, excluded = build_grocery_list(
+    items, excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Test Recipe"],
         pantry_path=pantry_file,
@@ -68,7 +68,7 @@ def test_build_grocery_list_include_pantry(pantry_file: Path) -> None:
         )
     ]
 
-    items, excluded = build_grocery_list(
+    items, excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Test Recipe"],
         pantry_path=pantry_file,
@@ -94,7 +94,7 @@ def test_build_grocery_list_splits_compound_ingredients(tmp_path: Path) -> None:
         )
     ]
 
-    items, excluded = build_grocery_list(
+    items, excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Chana Masala"],
         pantry_path=pantry_path,
@@ -129,7 +129,7 @@ def test_build_grocery_list_splits_cauliflower_and_rice(
         _recipe("Stir Fry", ingredient_line),
     ]
 
-    items, excluded = build_grocery_list(
+    items, excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Stir Fry"],
         pantry_path=pantry_path,
@@ -151,7 +151,7 @@ def test_build_grocery_list_keeps_cauliflower_rice_without_conjunction(tmp_path:
         _recipe("Stir Fry", "cauliflower rice"),
     ]
 
-    items, excluded = build_grocery_list(
+    items, excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Stir Fry"],
         pantry_path=pantry_path,
@@ -171,7 +171,7 @@ def test_build_grocery_list_white_beans_not_split(tmp_path: Path) -> None:
         _recipe("Soup", "2 cans white beans"),
     ]
 
-    items, excluded = build_grocery_list(
+    items, excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
@@ -331,3 +331,61 @@ def test_load_week_plan_names_invalid_json(
     path.write_text("{not json", encoding="utf-8")
     assert _load_week_plan_names(path) == []
     assert "could not read week plan" in capsys.readouterr().err
+
+
+def test_load_week_plan_names_oserror_returns_empty(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Patch read_text to raise OSError and assert _load_week_plan_names returns [] gracefully."""
+    from pathlib import Path as _Path
+
+    from src.grocery_wizard.shopping.grocery_list import _load_week_plan_names
+
+    path = tmp_path / "week_plan.json"
+    path.write_text('{"recipes": ["Soup"]}', encoding="utf-8")
+
+    with patch.object(_Path, "read_text", side_effect=OSError("permission denied")):
+        result = _load_week_plan_names(path)
+
+    assert result == []
+    assert "could not read week plan" in capsys.readouterr().err
+
+
+def test_build_grocery_list_only_syncs_empty_recipes(tmp_path: Path) -> None:
+    """Only week-plan recipes with empty ingredients should be passed to run_sync_recipes."""
+    from src.grocery_wizard.ingredients.sync import SyncSummary
+
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    populated = _recipe("Populated", "1 cup flour\n2 eggs")
+    empty = _recipe("Empty", "")
+    empty.ingredients = None
+
+    db = MagicMock()
+    # First call: initial query; second call: after sync refresh
+    db.query_recipes.side_effect = [
+        [populated, empty],
+        [populated, empty],
+    ]
+
+    captured: list = []
+
+    def fake_run_sync_recipes(db_arg, recipes, **kwargs):  # noqa: ANN001
+        captured.extend(recipes)
+        return SyncSummary()
+
+    with patch(
+        "src.grocery_wizard.shopping.grocery_list.run_sync_recipes",
+        side_effect=fake_run_sync_recipes,
+    ):
+        items, excluded, sync_summary = build_grocery_list(
+            db,
+            recipe_names=["Populated", "Empty"],
+            backfill_missing=True,
+            pantry_path=pantry_path,
+        )
+
+    # Only the empty recipe should have been sent to sync
+    assert len(captured) == 1
+    assert captured[0].name == "Empty"
