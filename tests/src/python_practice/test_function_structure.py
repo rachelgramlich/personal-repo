@@ -1,10 +1,11 @@
 import pytest
 from loguru import logger
+
 from src.python_practice.function_structure import (
-    process_employee_data,
-    process_employee_data_refactored,
     generate_report,
     generate_report_refactored,
+    process_employee_data,
+    process_employee_data_refactored,
     register_user,
     register_user_refactored,
 )

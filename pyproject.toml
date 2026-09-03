@@ -29,7 +29,7 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-exclude = ["src/python_practice/tidy_first", "tests/python_practice/test_tidy_first.py"]
+exclude = ["src/python_practice/tidy_first", "tests/src/python_practice/test_tidy_first.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
