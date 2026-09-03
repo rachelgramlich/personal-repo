@@ -223,12 +223,16 @@ def render_grocery_list() -> None:
             return
 
         with st.spinner("Building grocery list..."):
-            items, excluded = build_grocery_list(
+            items, excluded, sync_summary = build_grocery_list(
                 db,
                 recipe_names=selected,
                 backfill_missing=sync_first,
                 exclude_pantry=exclude_pantry,
             )
+
+        if sync_summary is not None and sync_summary.failed:
+            for failure in sync_summary.failed:
+                st.warning(f"⚠️ Failed to scrape ingredients: {failure}")
 
         if not items and not excluded:
             st.warning("No grocery items found.")

@@ -504,6 +504,8 @@ def run_sync_recipes(
             summary.synced_names.append(recipe.name)
         elif result.status == "failed":
             summary.failed.append(f"{recipe.name}: {result.message}")
+        elif result.status == "skipped":
+            summary.skipped += 1
 
     return summary
 

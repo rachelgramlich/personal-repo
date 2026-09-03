@@ -81,6 +81,23 @@ def test_is_pantry_item_phrase_matching(ingredient: str, expected: bool) -> None
 
 
 @pytest.mark.parametrize(
+    ("ingredient", "pantry_items", "expected"),
+    [
+        # single-token "oil" matches last word of any oil phrase
+        ("oil", {"olive oil", "vegetable oil"}, True),
+        # single-token "oil" does NOT match unrelated pantry entries
+        ("oil", {"salt"}, False),
+        # multi-word ingredient must not match via the last-word shortcut
+        ("unsalted butter", {"salt"}, False),
+    ],
+)
+def test_is_pantry_item_single_token_last_word_rule(
+    ingredient: str, pantry_items: set[str], expected: bool
+) -> None:
+    assert is_pantry_item(ingredient, pantry_items) is expected
+
+
+@pytest.mark.parametrize(
     ("search", "item", "expected"),
     [
         ("salt", "salt", True),

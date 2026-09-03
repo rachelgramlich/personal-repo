@@ -14,7 +14,11 @@ from src.grocery_wizard.ingredients.normalize import (
     is_junk_ingredient,
     normalize_ingredient,
 )
-from src.grocery_wizard.ingredients.sync import recipe_needs_empty_sync, run_sync_recipes
+from src.grocery_wizard.ingredients.sync import (
+    SyncSummary,
+    recipe_needs_empty_sync,
+    run_sync_recipes,
+)
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
 from src.grocery_wizard.recipes.scraper import scrape_recipe
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
@@ -123,13 +127,14 @@ def build_grocery_list(
     week_plan_path: Path = WEEK_PLAN_PATH,
     pantry_path: Path | None = None,
     exclude_pantry: bool = True,
-) -> tuple[list[str], list[str]]:
-    """Build grocery list items and excluded pantry items (for UI use)."""
+) -> tuple[list[str], list[str], SyncSummary | None]:
+    """Build grocery list items, excluded pantry items, and optional sync summary (for UI use)."""
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
+    sync_summary: SyncSummary | None = None
     if backfill_missing:
         needs_backfill = _recipes_needing_backfill(recipe_names, recipes_by_name)
         if needs_backfill:
-            run_sync_recipes(db, needs_backfill)
+            sync_summary = run_sync_recipes(db, needs_backfill)
             recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
     pantry = load_pantry(pantry_path)
 
@@ -161,7 +166,7 @@ def build_grocery_list(
 
     grocery_items.sort(key=str.lower)
     excluded_pantry.sort(key=str.lower)
-    return grocery_items, excluded_pantry
+    return grocery_items, excluded_pantry, sync_summary
 
 
 def format_sync_message(summary) -> str:

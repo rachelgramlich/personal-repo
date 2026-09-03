@@ -44,6 +44,14 @@ def is_pantry_item(normalized: str, pantry: set[str]) -> bool:
             return True
         if _contains_word_phrase(name_words, item.split()):
             return True
+        # Narrow reverse rule: single-token ingredient (e.g. "oil") matches
+        # when it equals the *last* word of a multi-word pantry phrase
+        # (e.g. "olive oil", "vegetable oil").  This avoids re-introducing
+        # broad false positives like "beef" matching "beef stock".
+        if len(name_words) == 1:
+            item_words = item.split()
+            if len(item_words) > 1 and item_words[-1] == name_words[0]:
+                return True
     return False
 
 
@@ -310,5 +318,8 @@ def run_pantry_interactive(path: Path | None = None) -> int:
             _open_in_editor(pantry_path)
             lines, sections = parse_pantry_file(pantry_path)
             continue
+
+        if not choice:
+            continue  # empty Enter — just re-display the menu
 
         print("Unknown option. Use a, r, e, or q.")
