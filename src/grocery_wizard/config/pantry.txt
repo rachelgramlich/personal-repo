@@ -1,0 +1,86 @@
+# Pantry staples — one item per line. Substring matching (e.g. "kosher salt" matches "salt").
+# Lines starting with # are ignored.
+
+# --- Salt & pepper ---
+salt
+pepper
+black pepper
+
+# --- Oils & fats ---
+olive oil
+vegetable oil
+canola oil
+coconut oil
+sesame oil
+butter
+cooking spray
+
+# --- Vinegars & acids ---
+red wine vinegar
+balsamic vinegar
+white wine vinegar
+rice vinegar
+apple cider vinegar
+
+# --- Sweeteners ---
+sugar
+granulated sugar
+brown sugar
+honey
+agave
+maple syrup
+powdered sugar
+
+# --- Baking ---
+flour
+all-purpose flour
+baking soda
+baking powder
+cornstarch
+vanilla extract
+vanilla bean paste
+cocoa powder
+
+# --- Spices & dried herbs ---
+cumin
+cinnamon
+oregano
+paprika
+smoked paprika
+turmeric
+chili powder
+red pepper flakes
+onion powder
+garlic powder
+ground ginger
+thyme
+rosemary
+bay leaves
+curry powder
+italian seasoning
+nutmeg
+cayenne
+
+# --- Sauces & condiments ---
+soy sauce
+tamari
+sriracha
+tahini
+
+# --- Nut butters---
+peanut butter
+almond butter
+
+# --- Stocks ---
+not beef stock
+veggie bouillon
+chicken bouillon
+
+# --- Alliums & aromatics (if you always keep on hand) ---
+garlic
+
+# --- Grains & pasta (uncomment if always stocked) ---
+rice
+
+# --- Dairy (uncomment what you always have) ---
+eggs
