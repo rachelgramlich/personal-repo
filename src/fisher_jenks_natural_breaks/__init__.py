@@ -7,23 +7,21 @@
 
 
 # importing packages
-import pandas as pd
 import jenkspy
 import numpy as np
-from matplotlib import pyplot as plt
-from jenks import jenks
+import pandas as pd
 
 # connect to bigquery
 from analytics_cloud_core import Clients
+from jenks import jenks
+from matplotlib import pyplot as plt
 
 client = Clients.get_bigquery(project="projectnamegoeshere")
 
 
 # Read from GBQ table and write results to dataframe
 data = (
-    client.query("SELECT * FROM tablename WHERE visits > 0 and orders > 0")
-    .result()
-    .to_dataframe()
+    client.query("SELECT * FROM tablename WHERE visits > 0 and orders > 0").result().to_dataframe()
 )
 
 df = data.sort_values(by="visits")
@@ -58,8 +56,7 @@ def goodness_of_variance_fit(array, classes):
 
     # nested list of zone indices
     zone_indices = [
-        [idx for idx, val in enumerate(classified) if zone + 1 == val]
-        for zone in range(maxz)
+        [idx for idx, val in enumerate(classified) if zone + 1 == val] for zone in range(maxz)
     ]
 
     # sum of squared deviations from array mean
@@ -69,9 +66,7 @@ def goodness_of_variance_fit(array, classes):
     array_sort = [np.array([array[index] for index in zone]) for zone in zone_indices]
 
     # sum of squared deviations of class means
-    sdcm = sum(
-        [np.sum((classified - classified.mean()) ** 2) for classified in array_sort]
-    )
+    sdcm = sum([np.sum((classified - classified.mean()) ** 2) for classified in array_sort])
 
     # goodness of variance fit
     gvf = (sdam - sdcm) / sdam
@@ -135,9 +130,7 @@ hist = plt.hist(df["visits"], bins=100, align="left", color="yellow")
 plt.xlabel("visits")
 plt.ylabel("products")
 plt.title("nclasses=3")
-plt.ylim(
-    0, 100
-)  # 100 as max in order to visualize rest of chart - high product count at 0.
+plt.ylim(0, 100)  # 100 as max in order to visualize rest of chart - high product count at 0.
 for b in visits_jbreaks2:
     plt.vlines(b, ymin=0, ymax=max(hist[0]), color="red")
 # for b in visits_jbreaks3:
@@ -161,9 +154,7 @@ orders_jbreaks2 = jenkspy.jenks_breaks(df["orders"].to_numpy(), nb_class=2)
 # reset df to base data, remove any added columns in testing
 df = data
 
-df["visits_jbreaks2_range"] = pd.cut(
-    df["visits"], bins=visits_jbreaks2, include_lowest=True
-)
+df["visits_jbreaks2_range"] = pd.cut(df["visits"], bins=visits_jbreaks2, include_lowest=True)
 
 
 df["visits_jbreaks2"] = pd.cut(
@@ -173,9 +164,7 @@ df["visits_jbreaks2"] = pd.cut(
     include_lowest=True,
 )
 
-df["ordercount_jbreaks2_range"] = pd.cut(
-    df["orders"], bins=orders_jbreaks2, include_lowest=True
-)
+df["ordercount_jbreaks2_range"] = pd.cut(df["orders"], bins=orders_jbreaks2, include_lowest=True)
 
 df["ordercount_jbreaks2"] = pd.cut(
     df["orders"],
@@ -187,9 +176,7 @@ df["ordercount_jbreaks2"] = pd.cut(
 df.head()
 
 
-df.groupby(["visits_jbreaks2", "ordercount_jbreaks2"]).describe().round(0)[
-    ["visits", "orders"]
-]
+df.groupby(["visits_jbreaks2", "ordercount_jbreaks2"]).describe().round(0)[["visits", "orders"]]
 
 
 df.groupby(
@@ -213,9 +200,7 @@ hist = plt.hist(df["orders"], bins=100, align="left", color="yellow")
 plt.xlabel("orders")
 plt.ylabel("products")
 plt.title("nclasses=3")
-plt.ylim(
-    0, 100
-)  # 100 as max in order to visualize rest of chart - high product count at 0.
+plt.ylim(0, 100)  # 100 as max in order to visualize rest of chart - high product count at 0.
 for b in orders_jbreaks3:
     plt.vlines(b, ymin=0, ymax=max(hist[0]), color="red")
 # for b in orders_jbreaks3:

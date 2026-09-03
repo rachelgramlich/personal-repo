@@ -21,8 +21,22 @@ dependencies = [
 ]
 
 
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.11",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["src/python_practice/tidy_first", "tests/python_practice/test_tidy_first.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E501"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-
-# TODO: add linting and auto formatting
