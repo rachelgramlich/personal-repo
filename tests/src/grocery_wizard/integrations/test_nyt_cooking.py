@@ -191,11 +191,17 @@ def test_get_recipe(credentials: NytCredentials) -> None:
             "name": "Soup",
             "url": "/recipes/99-soup",
             "parts": [{"ingredients": [{"display_quantity": "2 cups", "display_text": "broth"}]}],
+            "cooking_time": {"display": "45 minutes", "minutes": 45},
+            "prep_time": {"display": "15 minutes", "minutes": 15},
+            "cook_time": {"display": "30 minutes", "minutes": 30},
         }
     )
 
     recipe = client.get_recipe("99")
     assert recipe.ingredients == ["2 cups broth"]
+    assert recipe.total_time_minutes == 45.0
+    assert recipe.prep_time_minutes == 15.0
+    assert recipe.cook_time_minutes == 30.0
 
 
 def test_verify_auth_rejects_401(credentials: NytCredentials) -> None:
@@ -306,7 +312,12 @@ def test_sync_creates_missing_recipes(credentials: NytCredentials) -> None:
     assert summary.created == 1
     add_mock.assert_called_once()
     args, kwargs = add_mock.call_args
-    assert args[1][0] == ("Fresh Recipe", "https://cooking.nytimes.com/recipes/42-fresh", [])
+    assert args[1][0] == (
+        "Fresh Recipe",
+        "https://cooking.nytimes.com/recipes/42-fresh",
+        [],
+        None,
+    )
     assert kwargs["include_ingredients"] is False
     assert kwargs["mark_nyt_synced"] is True
 
@@ -515,3 +526,124 @@ def test_cli_nyt_saved_lists_recipes(capsys: pytest.CaptureFixture[str]) -> None
     output = capsys.readouterr().out
     assert "Pasta" in output
     assert "Total: 1" in output
+
+
+def test_reclassify_updates_meal_and_weeknight() -> None:
+    from dataclasses import dataclass
+
+    from src.grocery_wizard.integrations.nyt_cooking import (
+        NytRecipe,
+        reclassify_nyt_synced_recipes,
+    )
+    from src.grocery_wizard.integrations.notion import ColumnInfo, DatabaseSchema
+
+    @dataclass
+    class StubRecipe:
+        page_id: str
+        name: str
+        link: str
+        ingredients: str | None
+        properties: dict
+
+    db = MagicMock()
+    db.nyt_synced_column_name.return_value = "Synced from NYT recipe box"
+    db.schema = DatabaseSchema(
+        name_column="Name",
+        link_column="Link",
+        ingredients_column="Ingredients",
+        filter_columns=[
+            ColumnInfo(
+                name="Meal",
+                type="select",
+                options=["Dinner", "Lunch", "Snack/Side", "Dessert"],
+            ),
+        ],
+        checkbox_columns=[
+            ColumnInfo(name="Dinner: Weeknight Friendly", type="checkbox"),
+        ],
+        all_columns={
+            "Meal": ColumnInfo(name="Meal", type="select", options=["Dinner", "Lunch"]),
+            "Dinner: Weeknight Friendly": ColumnInfo(
+                name="Dinner: Weeknight Friendly",
+                type="checkbox",
+            ),
+            "Synced from NYT recipe box": ColumnInfo(
+                name="Synced from NYT recipe box",
+                type="checkbox",
+            ),
+        },
+    )
+    db.query_recipes.return_value = [
+        StubRecipe(
+            page_id="page-1",
+            name="Corn Salad With Mango",
+            link="https://cooking.nytimes.com/recipes/101-corn-salad",
+            ingredients=None,
+            properties={
+                "Synced from NYT recipe box": True,
+                "Meal": "Dinner",
+                "Dinner: Weeknight Friendly": False,
+            },
+        ),
+        StubRecipe(
+            page_id="page-2",
+            name="Chickpea Salad Sandwich",
+            link="https://cooking.nytimes.com/recipes/102-sandwich",
+            ingredients=None,
+            properties={
+                "Synced from NYT recipe box": True,
+                "Meal": "Dinner",
+                "Dinner: Weeknight Friendly": False,
+            },
+        ),
+    ]
+
+    client = MagicMock()
+    client.get_recipe.side_effect = [
+        NytRecipe(
+            id="101",
+            name="Corn Salad With Mango",
+            url="https://cooking.nytimes.com/recipes/101-corn-salad",
+            ingredients=[],
+            total_time_minutes=20,
+        ),
+        NytRecipe(
+            id="102",
+            name="Chickpea Salad Sandwich",
+            url="https://cooking.nytimes.com/recipes/102-sandwich",
+            ingredients=[],
+            total_time_minutes=25,
+        ),
+    ]
+
+    summary = reclassify_nyt_synced_recipes(db, client, dry_run=False)
+
+    assert summary.total == 2
+    assert summary.meal_changes == 2
+    assert summary.weeknight_set == 0
+    assert db.update_recipe.call_count == 2
+    db.update_recipe.assert_any_call("page-1", {"Meal": "Snack/Side"})
+    db.update_recipe.assert_any_call("page-2", {"Meal": "Lunch"})
+
+
+def test_cli_nyt_reclassify_dry_run(capsys: pytest.CaptureFixture[str]) -> None:
+    from src.grocery_wizard.cli.main import cmd_nyt_reclassify
+
+    with (
+        patch("src.grocery_wizard.cli.main.load_config"),
+        patch("src.grocery_wizard.cli.main.NotionRecipesDB"),
+        patch("src.grocery_wizard.integrations.nyt_cooking.NYTCookingClient"),
+        patch(
+            "src.grocery_wizard.integrations.nyt_cooking.reclassify_nyt_synced_recipes"
+        ) as reclassify_mock,
+        patch(
+            "src.grocery_wizard.integrations.nyt_cooking.format_reclassify_summary",
+            return_value="summary",
+        ),
+    ):
+        reclassify_mock.return_value = MagicMock()
+        code = cmd_nyt_reclassify(argparse_namespace(dry_run=True))
+
+    assert code == 0
+    assert "Dry run" in capsys.readouterr().out
+    assert reclassify_mock.call_args.kwargs["dry_run"] is True

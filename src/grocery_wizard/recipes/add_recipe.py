@@ -11,6 +11,7 @@ from src.grocery_wizard.integrations.notion import NotionRecipesDB
 from src.grocery_wizard.lib.prompts import confirm_no_default
 from src.grocery_wizard.recipes.classify import classify_recipe
 from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text, scrape_recipe
+from src.grocery_wizard.recipes.weeknight import DEFAULT_WEEKNIGHT_COLUMN
 
 
 @dataclass(frozen=True)
@@ -40,7 +41,9 @@ def add_prefetched_recipes(
     created: list[PrefetchedCreateResult] = []
     schema = db.schema
 
-    for title, url, ingredients in recipes:
+    for entry in recipes:
+        title, url, ingredients = entry[0], entry[1], entry[2]
+        total_minutes = entry[3] if len(entry) > 3 else None
         url = url.strip()
         if not url:
             continue
@@ -51,7 +54,14 @@ def add_prefetched_recipes(
             continue
 
         filter_columns = [(col.name, col.type, col.options) for col in schema.filter_columns]
-        inferred = classify_recipe(title, ingredients, filter_columns)
+        weeknight_column = _weeknight_column_name(schema)
+        inferred = classify_recipe(
+            title,
+            ingredients,
+            filter_columns,
+            total_minutes=total_minutes,
+            weeknight_column=weeknight_column,
+        )
 
         field_values: dict[str, Any] = {
             schema.name_column: title,
@@ -135,7 +145,14 @@ def add_recipes_from_urls(
             continue
 
         filter_columns = [(col.name, col.type, col.options) for col in schema.filter_columns]
-        inferred = classify_recipe(scraped.title, scraped.ingredients, filter_columns)
+        weeknight_column = _weeknight_column_name(schema)
+        inferred = classify_recipe(
+            scraped.title,
+            scraped.ingredients,
+            filter_columns,
+            total_minutes=scraped.total_time_minutes,
+            weeknight_column=weeknight_column,
+        )
 
         field_values: dict[str, Any] = {
             schema.name_column: scraped.title,
@@ -205,6 +222,9 @@ def _review_fields(
             reviewed[field_name] = picked
 
         elif column and column.type == "checkbox":
+            if field_name == DEFAULT_WEEKNIGHT_COLUMN and isinstance(current, bool):
+                reviewed[field_name] = current
+                continue
             picked = _prompt_checkbox(field_name, current, prompt_fn)
             if picked is None:
                 return None
@@ -347,6 +367,12 @@ def _format_value(value: Any) -> str:
     if isinstance(value, list):
         return ", ".join(str(v) for v in value)
     return str(value)
+
+
+def _weeknight_column_name(schema: Any) -> str | None:
+    if DEFAULT_WEEKNIGHT_COLUMN in schema.all_columns:
+        return DEFAULT_WEEKNIGHT_COLUMN
+    return None
 
 
 def _default_prompt(message: str) -> str:

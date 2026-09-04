@@ -249,6 +249,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     nyt_apply_parser.set_defaults(func=cmd_nyt_apply_metadata)
 
+    nyt_reclassify_parser = nyt_subparsers.add_parser(
+        "reclassify",
+        help="Re-run Meal and Weeknight Friendly for NYT-synced recipes",
+    )
+    nyt_reclassify_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview changes without writing to Notion",
+    )
+    nyt_reclassify_parser.set_defaults(func=cmd_nyt_reclassify)
+
     args = parser.parse_args(argv)
     exit_code = args.func(args)
     if exit_code == 0 and args.command in PROD_COMMANDS:
@@ -653,6 +664,31 @@ def cmd_nyt_apply_metadata(args: argparse.Namespace) -> int:
     db = NotionRecipesDB(config)
     updated = apply_metadata_corrections(db, corrections)
     print(f"Updated {updated} recipe(s).")
+    return 0
+
+
+def cmd_nyt_reclassify(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.integrations.nyt_cooking import (
+        NYTCookingClient,
+        format_reclassify_summary,
+        reclassify_nyt_synced_recipes,
+    )
+
+    config = load_config()
+    db = NotionRecipesDB(config)
+    client = NYTCookingClient()
+
+    if args.dry_run:
+        print("Dry run — no recipes will be written to Notion.\n")
+
+    summary = reclassify_nyt_synced_recipes(
+        db,
+        client,
+        dry_run=args.dry_run,
+        on_progress=print,
+    )
+    print()
+    print(format_reclassify_summary(summary))
     return 0
 
 

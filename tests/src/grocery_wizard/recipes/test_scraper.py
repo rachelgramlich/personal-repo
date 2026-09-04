@@ -544,3 +544,42 @@ def test_scrape_instagram_raises_when_no_ingredients(monkeypatch) -> None:
         assert "No ingredient lines found" in str(exc)
         assert "Paste ingredients manually" in str(exc)
     assert raised
+
+
+def test_extract_json_ld_cook_time_minutes_from_total_time() -> None:
+    from src.grocery_wizard.recipes.scraper import _extract_json_ld_cook_time_minutes
+
+    html = """
+    <html>
+      <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Recipe",
+        "name": "Quick Pasta",
+        "totalTime": "PT45M"
+      }
+      </script>
+    </html>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    assert _extract_json_ld_cook_time_minutes(soup) == 45.0
+
+
+def test_extract_json_ld_cook_time_minutes_sums_prep_and_cook() -> None:
+    from src.grocery_wizard.recipes.scraper import _extract_json_ld_cook_time_minutes
+
+    html = """
+    <html>
+      <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Recipe",
+        "name": "Roast Chicken",
+        "prepTime": "PT20M",
+        "cookTime": "PT1H"
+      }
+      </script>
+    </html>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    assert _extract_json_ld_cook_time_minutes(soup) == 80.0

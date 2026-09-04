@@ -102,7 +102,11 @@ NYT sync adds **name, link, classified metadata, and the "Synced from NYT recipe
 
 After sync, a metadata review prints automatically. Run `nyt review-metadata` anytime, or ask your agent to fix flagged recipes.
 
-Other NYT commands: `nyt auth-status`, `nyt review-metadata`, `nyt apply-metadata`.
+Other NYT commands: `nyt auth-status`, `nyt review-metadata`, `nyt apply-metadata`, `nyt reclassify`.
+
+`nyt reclassify` re-runs **Meal** and **Dinner: Weeknight Friendly** for every recipe with the NYT sync checkbox checked.
+
+**Weeknight friendly** is set automatically when you add any recipe (`add-recipe`, NYT sync, or the Streamlit UI). For **Dinner** recipes it is checked when total cook time is under 60 minutes (from the scraper's JSON-LD data or NYT API) or the title suggests a quick/easy dish (weeknight, one-pot, sheet pan, stir fry, etc.). You do not need to set the checkbox manually during review.
 
 ## Command cheat sheet
 
@@ -115,6 +119,7 @@ Other NYT commands: `nyt auth-status`, `nyt review-metadata`, `nyt apply-metadat
 | `nyt auth-status` | Check NYT Cooking env credentials and verify session |
 | `nyt saved` | List recipes in your NYT recipe box |
 | `nyt sync` | Import saved NYT recipes into Notion (interactive folder picker; skips duplicates) |
+| `nyt reclassify` | Re-run Meal and Weeknight Friendly for NYT-synced recipes |
 
 ### Dev / maintenance commands
 
@@ -258,7 +263,7 @@ Tabs: Add Recipe, Sync Ingredients, Plan Meals (stub), Grocery List.
 
 ## Supported recipe sources
 
-Most recipe blogs with structured HTML or JSON-LD work well. TikTok and Instagram are **partially supported** — ingredients must appear in the caption text. When scraping fails, paste ingredients manually into Notion or use a blog link.
+Most recipe blogs with structured HTML or JSON-LD work well. When available, **total cook time** is read from JSON-LD (`totalTime`, or `prepTime` + `cookTime`) for weeknight-friendly classification. TikTok and Instagram are **partially supported** — ingredients must appear in the caption text. When scraping fails, paste ingredients manually into Notion or use a blog link.
 
 ## Notion database schema (auto-detected)
 

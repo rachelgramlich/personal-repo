@@ -79,6 +79,9 @@ class NytRecipe:
     url: str
     ingredients: list[str]
     author: str | None = None
+    total_time_minutes: float | None = None
+    prep_time_minutes: float | None = None
+    cook_time_minutes: float | None = None
 
 
 def parse_regi_id(value: str) -> str:
@@ -438,7 +441,14 @@ def sync_saved_recipes_to_notion(
 
         if dry_run:
             summary.dry_run += 1
-            metadata = _metadata_for_recipe(db, saved.name, url, mark_nyt_synced=True)
+            total_minutes = _fetch_nyt_total_minutes(client, saved.id, saved.url)
+            metadata = _metadata_for_recipe(
+                db,
+                saved.name,
+                url,
+                mark_nyt_synced=True,
+                total_minutes=total_minutes,
+            )
             flags = flag_metadata_issues(saved.name, metadata)
             summary.created_recipes.append(
                 NytCreatedRecipe(
@@ -453,9 +463,10 @@ def sync_saved_recipes_to_notion(
                 on_progress(f"Would add: {saved.name}")
             continue
 
+        total_minutes = _fetch_nyt_total_minutes(client, saved.id, saved.url)
         results = add_prefetched_recipes(
             db,
-            [(saved.name, url, [])],
+            [(saved.name, url, [], total_minutes)],
             confirm=confirm,
             no_confirm=no_confirm,
             include_ingredients=False,
@@ -488,6 +499,8 @@ _TITLE_MEAL_HINTS: dict[str, list[str]] = {
     "Dessert": ["cake", "cookie", "brownie", "pie", "pudding", "tart", "muffin"],
     "Breakfast": ["pancake", "waffle", "oatmeal", "frittata", "omelet", "omelette"],
     "Drink": ["smoothie", "cocktail", "lemonade", "limeade", "mocktail"],
+    "Lunch": ["sandwich"],
+    "Snack/Side": ["salad"],
 }
 
 
@@ -497,11 +510,24 @@ def _metadata_for_recipe(
     url: str,
     *,
     mark_nyt_synced: bool = False,
+    total_minutes: float | None = None,
 ) -> dict[str, Any]:
     from src.grocery_wizard.recipes.classify import classify_recipe
+    from src.grocery_wizard.recipes.weeknight import DEFAULT_WEEKNIGHT_COLUMN
 
     filter_columns = [(col.name, col.type, col.options) for col in db.schema.filter_columns]
-    inferred = classify_recipe(title, [], filter_columns)
+    weeknight_column = (
+        DEFAULT_WEEKNIGHT_COLUMN
+        if DEFAULT_WEEKNIGHT_COLUMN in db.schema.all_columns
+        else None
+    )
+    inferred = classify_recipe(
+        title,
+        [],
+        filter_columns,
+        total_minutes=total_minutes,
+        weeknight_column=weeknight_column,
+    )
     metadata: dict[str, Any] = {
         db.schema.name_column: title,
         db.schema.link_column: url,
@@ -591,6 +617,145 @@ def format_metadata_review(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+@dataclass
+class NytReclassifyChange:
+    page_id: str
+    name: str
+    field: str
+    old_value: Any
+    new_value: Any
+
+
+@dataclass
+class NytReclassifySummary:
+    total: int = 0
+    meal_changes: int = 0
+    weeknight_set: int = 0
+    weeknight_cleared: int = 0
+    unchanged: int = 0
+    api_failures: int = 0
+    changes: list[NytReclassifyChange] = field(default_factory=list)
+
+
+def reclassify_nyt_synced_recipes(
+    db: Any,
+    client: NYTCookingClient,
+    *,
+    dry_run: bool = False,
+    on_progress: Callable[[str], None] | None = None,
+) -> NytReclassifySummary:
+    """Re-run Meal and Weeknight Friendly for NYT-synced recipes in Notion."""
+    from src.grocery_wizard.recipes.classify import classify_recipe
+    from src.grocery_wizard.recipes.weeknight import DEFAULT_WEEKNIGHT_COLUMN, is_weeknight_friendly
+
+    nyt_column = db.nyt_synced_column_name()
+    if not nyt_column:
+        raise NYTCookingError(
+            f"NYT synced checkbox column not found. Add '{DEFAULT_NYT_SYNCED_COLUMN}' to Notion."
+        )
+
+    weeknight_column = DEFAULT_WEEKNIGHT_COLUMN
+    if weeknight_column not in db.schema.all_columns:
+        weeknight_column = ""
+
+    filter_columns = [(col.name, col.type, col.options) for col in db.schema.filter_columns]
+    summary = NytReclassifySummary()
+
+    for recipe in db.query_recipes():
+        if not recipe.properties.get(nyt_column):
+            continue
+
+        summary.total += 1
+        title = recipe.name
+        inferred = classify_recipe(title, [], filter_columns)
+        new_meal = inferred.get("Meal")
+        old_meal = recipe.properties.get("Meal")
+
+        total_minutes: float | None = None
+        recipe_id = _recipe_id_from_url(recipe.link or "")
+        if recipe_id:
+            try:
+                nyt_recipe = client.get_recipe(recipe_id)
+                total_minutes = nyt_recipe.total_time_minutes
+            except NYTCookingError:
+                summary.api_failures += 1
+                if on_progress:
+                    on_progress(f"Could not fetch NYT timing for: {title}")
+
+        fields: dict[str, Any] = {}
+
+        if new_meal and new_meal != old_meal:
+            fields["Meal"] = new_meal
+            summary.meal_changes += 1
+            summary.changes.append(
+                NytReclassifyChange(
+                    page_id=recipe.page_id,
+                    name=title,
+                    field="Meal",
+                    old_value=old_meal,
+                    new_value=new_meal,
+                )
+            )
+
+        effective_meal = fields.get("Meal", old_meal)
+        if weeknight_column:
+            new_weeknight = is_weeknight_friendly(
+                title,
+                meal=effective_meal,
+                total_minutes=total_minutes,
+            )
+            old_weeknight = bool(recipe.properties.get(weeknight_column))
+            if new_weeknight != old_weeknight:
+                fields[weeknight_column] = new_weeknight
+                if new_weeknight:
+                    summary.weeknight_set += 1
+                else:
+                    summary.weeknight_cleared += 1
+                summary.changes.append(
+                    NytReclassifyChange(
+                        page_id=recipe.page_id,
+                        name=title,
+                        field=weeknight_column,
+                        old_value=old_weeknight,
+                        new_value=new_weeknight,
+                    )
+                )
+
+        if fields:
+            if on_progress:
+                detail = ", ".join(f"{key}={value}" for key, value in fields.items())
+                on_progress(f"Update: {title} ({detail})")
+            if not dry_run:
+                db.update_recipe(recipe.page_id, fields)
+        else:
+            summary.unchanged += 1
+
+    return summary
+
+
+def format_reclassify_summary(summary: NytReclassifySummary) -> str:
+    lines = [
+        f"NYT reclassify — {summary.total} recipe(s)",
+        f"Meal changes: {summary.meal_changes}",
+        f"Weeknight friendly set: {summary.weeknight_set}",
+        f"Weeknight friendly cleared: {summary.weeknight_cleared}",
+        f"Unchanged: {summary.unchanged}",
+    ]
+    if summary.api_failures:
+        lines.append(f"NYT API timing failures: {summary.api_failures}")
+
+    notable = [change for change in summary.changes if change.field == "Meal"]
+    if notable:
+        lines.append("")
+        lines.append("Meal corrections:")
+        for change in notable[:30]:
+            lines.append(f"  {change.name}: {change.old_value} -> {change.new_value}")
+        if len(notable) > 30:
+            lines.append(f"  ... and {len(notable) - 30} more")
+
+    return "\n".join(lines)
+
+
 def apply_metadata_corrections(
     db: Any,
     corrections: list[dict[str, Any]],
@@ -615,6 +780,20 @@ def _absolute_url(url: str) -> str:
     if url.startswith("/"):
         return f"{SITE}{url}"
     return url
+
+
+def _fetch_nyt_total_minutes(
+    client: NYTCookingClient,
+    recipe_id: str,
+    url: str,
+) -> float | None:
+    resolved_id = recipe_id or _recipe_id_from_url(url) or ""
+    if not resolved_id:
+        return None
+    try:
+        return client.get_recipe(resolved_id).total_time_minutes
+    except NYTCookingError:
+        return None
 
 
 def _recipe_id_from_url(url: str) -> str | None:
@@ -646,6 +825,18 @@ def _ingredients_from_parts(parts: Any) -> list[str]:
     return lines
 
 
+def _parse_minutes(value: Any) -> float | None:
+    if not isinstance(value, dict):
+        return None
+    minutes = value.get("minutes")
+    if minutes is None:
+        return None
+    try:
+        return float(minutes)
+    except (TypeError, ValueError):
+        return None
+
+
 def _parse_recipe_payload(payload: dict[str, Any]) -> NytRecipe:
     byline = payload.get("byline")
     author = byline.strip().title() if isinstance(byline, str) and byline else None
@@ -655,4 +846,7 @@ def _parse_recipe_payload(payload: dict[str, Any]) -> NytRecipe:
         url=_absolute_url(str(payload.get("url", ""))),
         ingredients=_ingredients_from_parts(payload.get("parts")),
         author=author,
+        total_time_minutes=_parse_minutes(payload.get("cooking_time")),
+        prep_time_minutes=_parse_minutes(payload.get("prep_time")),
+        cook_time_minutes=_parse_minutes(payload.get("cook_time")),
     )
