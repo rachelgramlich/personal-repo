@@ -78,7 +78,7 @@ def test_prepare_ingredients_for_notion_strips_trailing_prep() -> None:
 
 
 def test_prepare_ingredients_for_notion_splits_and_drops_junk() -> None:
-    text = "2 sweet potatoes and 1 red onion\n" "sliced into half-moons\n" "remove: garlic\n"
+    text = "2 sweet potatoes and 1 red onion\nsliced into half-moons\nremove: garlic\n"
     prepared = prepare_ingredients_for_notion(text)
     lines = [line for line in prepared.splitlines() if line.strip()]
     assert any("sweet potatoes" in line for line in lines)

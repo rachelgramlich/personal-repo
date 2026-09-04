@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["DEFAULT_WEEKNIGHT_COLUMN", "WEEKNIGHT_MAX_MINUTES", "is_weeknight_friendly"]
+
 import re
 
 WEEKNIGHT_TITLE_PATTERN = re.compile(

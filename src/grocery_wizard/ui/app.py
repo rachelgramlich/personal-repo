@@ -479,7 +479,7 @@ def _render_recipe_field_editors(schema, fields: dict, *, key_prefix: str) -> di
         widget_key = f"{key_prefix}_{field_name}"
 
         if column and column.type in ("select", "status"):
-            options = [""] + column.options
+            options = ["", *column.options]
             current = value if value in column.options else ""
             edited[field_name] = st.selectbox(
                 field_name,

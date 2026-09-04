@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["ColumnInfo", "DatabaseSchema", "NotionRecipesDB", "Recipe"]
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -171,7 +173,7 @@ class NotionRecipesDB:
         properties = {
             name: self._to_notion_property(name, value)
             for name, value in field_values.items()
-            if value is not None and value != "" and value != []
+            if value is not None and value not in ("", [])
         }
         page = self._client.pages.create(
             parent={"database_id": self._database_id},

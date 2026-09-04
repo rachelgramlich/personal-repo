@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "build_grocery_list",
+    "format_grocery_item",
+    "format_meals_and_grocery_list",
+    "format_sync_message",
+    "run_grocery_list",
+]
+
 import difflib
 import json
 import sys
@@ -17,6 +25,7 @@ from src.grocery_wizard.ingredients.normalize import (
 )
 from src.grocery_wizard.ingredients.sync import (
     SyncSummary,
+    format_sync_summary,
     parse_ingredients_text,
     recipe_needs_empty_sync,
     run_sync_recipes,
@@ -218,9 +227,7 @@ def build_grocery_list(
     return grocery_items, excluded_pantry, sync_summary
 
 
-def format_sync_message(summary) -> str:
-    from src.grocery_wizard.ingredients.sync import format_sync_summary
-
+def format_sync_message(summary: SyncSummary) -> str:
     return format_sync_summary(summary)
 
 
@@ -258,12 +265,13 @@ def _get_ingredient_lines(recipe: Recipe) -> list[str]:
         )
         try:
             scraped = scrape_recipe(recipe.link)
-            return scraped.ingredients
         except Exception as exc:
             print(
                 f"Warning: failed to scrape '{recipe.name}' ({recipe.link}): {exc}",
                 file=sys.stderr,
             )
+        else:
+            return scraped.ingredients
     return []
 
 
@@ -288,8 +296,7 @@ def format_meals_and_grocery_list(
 
     lines.append("")
     lines.append("Grocery List")
-    for item in sort_grocery_items(grocery_items):
-        lines.append(f"- {item}")
+    lines.extend(f"- {item}" for item in sort_grocery_items(grocery_items))
 
     return "\n".join(lines)
 
@@ -336,10 +343,7 @@ def _item_already_present(name: str, seen: set[str], grocery_items: list[str]) -
     key = _normalized_item_key(name)
     if key in seen:
         return True
-    for item in grocery_items:
-        if _normalized_item_key(ingredient_name(item)) == key:
-            return True
-    return False
+    return any(_normalized_item_key(ingredient_name(item)) == key for item in grocery_items)
 
 
 def _collect_ingredient_line(
@@ -359,9 +363,9 @@ def _collect_ingredient_line(
         normalized, amount = parse_amount(part)
         if not normalized:
             continue
-        if amount and not amount.startswith(("head:", "clove:", "zest:")):
-            if not should_show_amount(amount, part):
-                amount = None
+        keeps_amount = amount and not amount.startswith(("head:", "clove:", "zest:"))
+        if keeps_amount and not should_show_amount(amount, part):
+            amount = None
         if exclude_pantry and is_pantry_item(normalized, pantry):
             if normalized not in excluded_pantry:
                 excluded_pantry.append(normalized)
@@ -393,8 +397,7 @@ def match_excluded_items(query: str, excluded: list[str]) -> list[str]:
     if substring:
         return substring
 
-    close = difflib.get_close_matches(query, excluded, n=5, cutoff=0.5)
-    return close
+    return difflib.get_close_matches(query, excluded, n=5, cutoff=0.5)
 
 
 def parse_readd_excluded(raw: str, excluded: list[str]) -> list[str]:

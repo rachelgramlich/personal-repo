@@ -1,3 +1,4 @@
+import pytest
 from bs4 import BeautifulSoup
 
 from src.grocery_wizard.recipes.scraper import (
@@ -536,14 +537,10 @@ def test_scrape_instagram_raises_when_no_ingredients(monkeypatch) -> None:
 
     monkeypatch.setattr("src.grocery_wizard.recipes.scraper.requests.get", fake_get)
 
-    try:
+    with pytest.raises(ScrapeError) as exc_info:
         _scrape_instagram("https://www.instagram.com/reel/example/")
-        raised = False
-    except ScrapeError as exc:
-        raised = True
-        assert "No ingredient lines found" in str(exc)
-        assert "Paste ingredients manually" in str(exc)
-    assert raised
+    assert "No ingredient lines found" in str(exc_info.value)
+    assert "Paste ingredients manually" in str(exc_info.value)
 
 
 def test_extract_json_ld_cook_time_minutes_from_total_time() -> None:

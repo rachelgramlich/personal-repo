@@ -69,9 +69,7 @@ def goodness_of_variance_fit(array, classes):
     sdcm = sum([np.sum((classified - classified.mean()) ** 2) for classified in array_sort])
 
     # goodness of variance fit
-    gvf = (sdam - sdcm) / sdam
-
-    return gvf
+    return (sdam - sdcm) / sdam
 
 
 # find optimum number of classes
@@ -98,10 +96,7 @@ for col in df.columns[1:3]:
 
 my_dict = {}
 for col in df.columns[1:3]:
-    results = []
-    for i in range(2, 10):
-        results.append(goodness_of_variance_fit(df[col].to_numpy(), i))
-    my_dict[col] = results
+    my_dict[col] = [goodness_of_variance_fit(df[col].to_numpy(), i) for i in range(2, 10)]
 plt.plot(range(2, 10), my_dict["visits"], label="visits")
 plt.plot(range(2, 10), my_dict["orders"], label="orders")
 plt.xlabel("Number of clusters")

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["classify_column", "classify_recipe"]
+
 import re
 from collections.abc import Iterable
 from typing import Any
@@ -315,14 +317,9 @@ def _is_dessert(text: str) -> bool:
         return True
 
     if DESSERT_PIE_TART_PATTERN.search(text):
-        if "pot" in text or "chicken" in text or "tomato" in text:
-            return False
-        return True
+        return "pot" not in text and "chicken" not in text and "tomato" not in text
 
-    if DESSERT_BARS_PATTERN.search(text) and not SAVORY_MEAL_BLOCKERS.search(text):
-        return True
-
-    return False
+    return bool(DESSERT_BARS_PATTERN.search(text) and not SAVORY_MEAL_BLOCKERS.search(text))
 
 
 def _resolve_meal_option(meal: str, allowed_options: list[str] | None) -> str | None:

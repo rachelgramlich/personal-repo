@@ -638,7 +638,7 @@ def cmd_nyt_sync(args: argparse.Namespace) -> int:
     from src.grocery_wizard.integrations.nyt_cooking import (
         NytAuthError,
         NYTCookingClient,
-        NytSyncCancelled,
+        NytSyncCancelledError,
         format_metadata_review,
         prompt_collection_choice,
         save_sync_report,
@@ -664,7 +664,7 @@ def cmd_nyt_sync(args: argparse.Namespace) -> int:
     except NytAuthError as exc:
         print(str(exc), file=sys.stderr)
         return 1
-    except NytSyncCancelled as exc:
+    except NytSyncCancelledError as exc:
         print(str(exc))
         return 0
 

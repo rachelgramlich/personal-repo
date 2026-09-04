@@ -2,6 +2,24 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "NYTCookingClient",
+    "NYTCookingError",
+    "NytAuthError",
+    "NytCollection",
+    "NytCreatedRecipe",
+    "NytCredentials",
+    "NytNetworkError",
+    "NytNotFoundError",
+    "NytRecipe",
+    "NytSavedRecipe",
+    "NytSyncCancelledError",
+    "NytSyncSummary",
+    "load_credentials",
+    "prompt_collection_choice",
+    "sync_saved_recipes_to_notion",
+]
+
 import json
 import os
 import re
@@ -47,17 +65,17 @@ class NytNetworkError(NYTCookingError):
     """The request could not be completed."""
 
 
-class NytSyncCancelled(NYTCookingError):
+class NytSyncCancelledError(NYTCookingError):
     """User cancelled an interactive NYT sync step."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class NytCredentials:
     nyt_s_cookie: str
     regi_id: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class NytSavedRecipe:
     id: str
     name: str
@@ -65,14 +83,14 @@ class NytSavedRecipe:
     author: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class NytCollection:
     id: str
     name: str
     recipe_count: int = 0
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class NytRecipe:
     id: str
     name: str
@@ -302,7 +320,7 @@ def prompt_collection_choice(
     """Interactively pick a recipe-box collection.
 
     Returns ``(collection_id, label)``. ``collection_id`` is ``None`` for the full recipe box.
-    Raises ``NytSyncCancelled`` when the user declines or enters an invalid choice.
+    Raises ``NytSyncCancelledError`` when the user declines or enters an invalid choice.
     """
     from src.grocery_wizard.lib.prompts import confirm_yes_default
 
@@ -321,15 +339,14 @@ def prompt_collection_choice(
         count_note = f" ({total} recipes)" if total is not None else ""
         info(f"Syncing full recipe box{count_note}.")
         if not confirm_yes_default("Continue?", prompt_fn=prompt_fn):
-            raise NytSyncCancelled("Sync cancelled.")
+            raise NytSyncCancelledError("Sync cancelled.")
         return None, "All saved recipes"
 
     total = _recipe_box_total_count(client)
     options: list[tuple[str | None, str, int | None]] = [
         (None, "All saved recipes", total),
+        *((c.id, c.name, c.recipe_count) for c in collections),
     ]
-    for collection in collections:
-        options.append((collection.id, collection.name, collection.recipe_count))
 
     info("Choose a recipe-box folder to sync:")
     for index, (_collection_id, label, count) in enumerate(options, start=1):
@@ -339,7 +356,7 @@ def prompt_collection_choice(
     while True:
         choice = prompt_fn("Folder [#]: ").strip()
         if not choice:
-            raise NytSyncCancelled("Sync cancelled.")
+            raise NytSyncCancelledError("Sync cancelled.")
         try:
             picked = int(choice)
         except ValueError:
@@ -488,9 +505,8 @@ def sync_saved_recipes_to_notion(
             if on_progress:
                 flag_note = f" [{'; '.join(flags)}]" if flags else ""
                 on_progress(f"Created: {result.name}{flag_note}")
-        else:
-            if on_progress:
-                on_progress(f"Skipped: {saved.name}")
+        elif on_progress:
+            on_progress(f"Skipped: {saved.name}")
 
     return summary
 
@@ -748,8 +764,10 @@ def format_reclassify_summary(summary: NytReclassifySummary) -> str:
     if notable:
         lines.append("")
         lines.append("Meal corrections:")
-        for change in notable[:30]:
-            lines.append(f"  {change.name}: {change.old_value} -> {change.new_value}")
+        lines.extend(
+            f"  {change.name}: {change.old_value} -> {change.new_value}"
+            for change in notable[:30]
+        )
         if len(notable) > 30:
             lines.append(f"  ... and {len(notable) - 30} more")
 

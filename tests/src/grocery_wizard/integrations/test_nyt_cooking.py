@@ -11,7 +11,7 @@ from src.grocery_wizard.integrations.nyt_cooking import (
     NytCollection,
     NYTCookingClient,
     NytCredentials,
-    NytSyncCancelled,
+    NytSyncCancelledError,
     _ingredients_from_parts,
     _parse_recipe_payload,
     credentials_status,
@@ -418,9 +418,8 @@ def test_prompt_collection_choice_cancelled(credentials: NytCredentials) -> None
         client,
         "list_saved_recipes",
         return_value={"collectables": [], "collectables_count": 2},
-    ):
-        with pytest.raises(NytSyncCancelled):
-            prompt_collection_choice(client, prompt_fn=lambda _msg: "")
+    ), pytest.raises(NytSyncCancelledError):
+        prompt_collection_choice(client, prompt_fn=lambda _msg: "")
 
 
 def test_cmd_nyt_sync_interactive_picks_folder(capsys: pytest.CaptureFixture[str]) -> None:

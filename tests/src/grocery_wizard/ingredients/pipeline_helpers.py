@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from src.grocery_wizard.ingredients.normalize import (
     aggregate_amounts,
     clean_ingredient_line_for_storage,
-    minimal_clean_for_storage,
     parse_amount,
     should_show_amount,
 )
+from src.grocery_wizard.ingredients.parsed import minimal_clean_for_storage
 from src.grocery_wizard.shopping.grocery_list import format_grocery_item
 
 

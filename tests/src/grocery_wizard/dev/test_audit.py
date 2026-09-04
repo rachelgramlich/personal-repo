@@ -12,7 +12,7 @@ def test_split_ingredient_lines_handles_br_tags() -> None:
 
 
 def test_looks_suspicious_detects_fragmented_lines() -> None:
-    text = "\n".join(["2", "tablespoons", "cocoa powder", "1", "cup", "sugar"])
+    text = "2\ntablespoons\ncocoa powder\n1\ncup\nsugar"
     assert looks_suspicious_ingredients(text)
 
 
