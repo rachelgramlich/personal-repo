@@ -11,6 +11,7 @@ from src.grocery_wizard.config import WEEK_PLAN_PATH, load_config
 from src.grocery_wizard.dev.audit import looks_suspicious_ingredients
 from src.grocery_wizard.ingredients.normalize import (
     is_junk_ingredient,
+    looks_like_merged_ingredient_line,
     normalize_ingredient,
 )
 from src.grocery_wizard.ingredients.sync import parse_ingredients_text
@@ -37,6 +38,7 @@ class PipelineRunReport:
     empty_normalize_lines: list[str] = field(default_factory=list)
     junk_lines: list[str] = field(default_factory=list)
     suspicious_normalized: list[str] = field(default_factory=list)
+    merged_grocery_items: list[str] = field(default_factory=list)
     missing_recipes: list[str] = field(default_factory=list)
     recipes_without_ingredients: list[str] = field(default_factory=list)
     suspicious_stored_ingredients: list[str] = field(default_factory=list)
@@ -144,6 +146,9 @@ def run_pipeline_validation(
         )
         run.grocery_item_count = len(grocery_items)
         run.sample_items = grocery_items[:15]
+        run.merged_grocery_items = [
+            item for item in grocery_items if looks_like_merged_ingredient_line(item)
+        ]
         validation.runs.append(run)
 
     return validation
@@ -216,6 +221,13 @@ def format_pipeline_report(report: PipelineValidationReport) -> str:
         lines.append(f"Suspicious normalized names ({len(run.suspicious_normalized)}):")
         if run.suspicious_normalized:
             lines.extend(f"  - {entry}" for entry in run.suspicious_normalized[:15])
+        else:
+            lines.append("  (none)")
+
+        lines.append("")
+        lines.append(f"Merged grocery list items ({len(run.merged_grocery_items)}):")
+        if run.merged_grocery_items:
+            lines.extend(f"  - {item}" for item in run.merged_grocery_items[:25])
         else:
             lines.append("  (none)")
 

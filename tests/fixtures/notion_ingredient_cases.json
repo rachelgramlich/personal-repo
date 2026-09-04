@@ -94,15 +94,15 @@
     "recipe": "Bibimbap",
     "raw_line": "Tuscan kale olive oil",
     "expect_normalized": "kale olive oil",
-    "notes": "edge",
-    "expect_after_prepare": "kale olive oil"
+    "notes": "merged line split at grocery list time",
+    "expect_after_prepare": "kale\nolive oil"
   },
   {
     "recipe": "Bibimbap",
     "raw_line": "Sesame oil gochujang kimchi",
     "expect_normalized": "sesame oil gochujang kimchi",
-    "notes": "edge",
-    "expect_after_prepare": null
+    "notes": "merged line split at grocery list time",
+    "expect_after_prepare": "Sesame oil\ngochujang\nkimchi"
   },
   {
     "recipe": "Brownie Pudding",
@@ -143,8 +143,8 @@
     "recipe": "Cauli, Three-Potato & White Bean Soup",
     "raw_line": "cauliflower white beans potatoes heavy cream",
     "expect_normalized": "cauliflower white beans potatoes heavy cream",
-    "notes": "edge",
-    "expect_after_prepare": null
+    "notes": "merged title bleed split",
+    "expect_after_prepare": "cauliflower white beans\npotatoes\nheavy cream"
   },
   {
     "recipe": "Celery Salad",

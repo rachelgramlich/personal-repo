@@ -14,6 +14,7 @@ from src.grocery_wizard.ingredients.normalize import (
     is_junk_ingredient,
     is_metadata_line,
     is_recipe_step_line,
+    looks_like_merged_ingredient_line,
     split_merged_ingredient_line,
 )
 from src.grocery_wizard.ingredients.parsed import (
@@ -162,6 +163,8 @@ def _merge_continuation_lines(lines: list[str]) -> list[str]:
 
 
 def _is_ingredient_continuation(previous: str, current: str) -> bool:
+    if looks_like_merged_ingredient_line(previous):
+        return False
     if previous.count("(") > previous.count(")"):
         return True
     stripped = current.strip()
@@ -171,6 +174,8 @@ def _is_ingredient_continuation(previous: str, current: str) -> bool:
         return False
     prev_words = previous.split()
     if len(prev_words) == 1 and prev_words[0][0].isupper():
+        return False
+    if looks_like_merged_ingredient_line(stripped) is False and len(stripped.split()) <= 4:
         return False
     return stripped[0].islower() and not re.match(r"^\d", stripped)
 

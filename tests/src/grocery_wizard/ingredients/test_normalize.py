@@ -14,6 +14,7 @@ from src.grocery_wizard.ingredients.normalize import (
     split_merged_ingredient_line,
     split_recipe_title_bleed,
 )
+from src.grocery_wizard.ingredients.sync import prepare_ingredients_for_notion
 
 
 @pytest.mark.parametrize(
@@ -278,6 +279,55 @@ def test_split_recipe_title_bleed() -> None:
         "veggie for gnocchi",
     ]
     assert split_recipe_title_bleed("cilantro and lime wedges") == ["cilantro and lime wedges"]
+
+
+def test_split_recipe_title_bleed_merged_nyt_artifacts() -> None:
+    """Regression: One-Pot Chermoula Shrimp and Orzo stored junk from bad reformat."""
+    assert split_recipe_title_bleed("3 cilantro flat leaves parsley olive oil cloves garlic") == [
+        "3 cilantro",
+        "flat leaves parsley",
+        "olive oil",
+        "cloves garlic",
+    ]
+    assert split_recipe_title_bleed(
+        "1 teaspoon fine sea salt, plus more to taste granulated sugar"
+    ) == [
+        "1 teaspoon fine sea salt, plus more to taste",
+        "granulated sugar",
+    ]
+    assert split_recipe_title_bleed("Kosher salt black pepper white rice") == [
+        "Kosher salt",
+        "black pepper",
+        "white rice",
+    ]
+    assert split_recipe_title_bleed("Sesame oil gochujang kimchi") == [
+        "Sesame oil",
+        "gochujang",
+        "kimchi",
+    ]
+
+
+def test_expand_ingredient_line_splits_merged_stored_lines() -> None:
+    expanded = expand_ingredient_line("3 cilantro flat leaves parsley olive oil cloves garlic")
+    joined = " ".join(expanded).lower()
+    assert "cilantro" in joined
+    assert "olive oil" in joined
+    assert "garlic" in joined
+    assert len(expanded) >= 3
+
+
+def test_prepare_ingredients_does_not_merge_ground_cumin_continuation() -> None:
+    stored = (
+        "2 lemons\n"
+        "3 cilantro flat leaves parsley olive oil cloves garlic\n"
+        "ground cumin\n"
+        "1 teaspoon fine sea salt, plus more to taste granulated sugar"
+    )
+    prepared = prepare_ingredients_for_notion(stored, force_full_format=True)
+    lines = prepared.splitlines()
+    assert "ground cumin" in lines
+    assert not any("ground cumin cloves" in line for line in lines)
+    assert any(line == "granulated sugar" for line in lines)
 
 
 @pytest.mark.parametrize(

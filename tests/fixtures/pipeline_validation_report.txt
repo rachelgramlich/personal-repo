@@ -5,24 +5,24 @@ Runs: 2
 --- Run 1 ---
 Plan source: suggest_meals (meals=5, seed=1)
 Recipes (5): Bibimbap, Sticky Harissa Tofu Tacos, Red Curry Lentils with Sweet Potatoes and Spinach, One-Pan Orzo With Spinach and Feta, Nonya Hokkien Stir-Fried Noodles
-Grocery items: 29
+Grocery items: 37
 
 Sample grocery items:
   - 1/2 limes
-  - 2 lemons
+  - 4 lemons
   - 1 bag spinach
   - 1 sweet potatoes
   - 1 yellow onions
   - 2 red onions
   - 3 shallots
+  - 4 scallions
+  - 8 corn
   - bean sprouts
   - cilantro
   - dill
+  - kale
   - mustard greens
   - oyster mushrooms
-  - 16 oz block of extra firm tofu
-  - shrimp
-  - 8 corn tortillas
 
 Missing from Notion (0):
   (none)
@@ -30,8 +30,11 @@ Missing from Notion (0):
 Recipes without ingredients (0):
   (none)
 
-Suspicious stored ingredient text (2):
+Suspicious stored ingredient text (5):
+  - Bibimbap
+  - Sticky Harissa Tofu Tacos
   - Red Curry Lentils with Sweet Potatoes and Spinach
+  - One-Pan Orzo With Spinach and Feta
   - Nonya Hokkien Stir-Fried Noodles
 
 Empty-normalize ingredient lines (0):
@@ -43,27 +46,30 @@ Junk lines in stored ingredients (0):
 Suspicious normalized names (0):
   (none)
 
+Merged grocery list items (0):
+  (none)
+
 --- Run 2 ---
 Plan source: suggest_meals (meals=5, seed=3)
 Recipes (5): Bibimbap, Sticky Harissa Tofu Tacos, One-Pan Orzo With Spinach and Feta, Red Curry Lentils with Sweet Potatoes and Spinach, Celery Salad
-Grocery items: 27
+Grocery items: 35
 
 Sample grocery items:
   - 1/2 limes
-  - 2 lemons
+  - 4 lemons
   - 1 bag spinach
   - 1 pint small tomatoes
   - 1 sweet potatoes
   - 1 yellow onions
   - 2 red onions
-  - 2 scallions
   - 6 celery
+  - 6 scallions
+  - 8 corn
   - basil
   - cilantro
   - dill
+  - kale
   - oyster mushrooms
-  - 16 oz block of extra firm tofu
-  - Parmigiano-Reggiano cheese
 
 Missing from Notion (0):
   (none)
@@ -71,7 +77,10 @@ Missing from Notion (0):
 Recipes without ingredients (0):
   (none)
 
-Suspicious stored ingredient text (2):
+Suspicious stored ingredient text (5):
+  - Bibimbap
+  - Sticky Harissa Tofu Tacos
+  - One-Pan Orzo With Spinach and Feta
   - Red Curry Lentils with Sweet Potatoes and Spinach
   - Celery Salad
 
@@ -82,4 +91,7 @@ Junk lines in stored ingredients (0):
   (none)
 
 Suspicious normalized names (0):
+  (none)
+
+Merged grocery list items (0):
   (none)

@@ -501,6 +501,39 @@ def test_build_grocery_list_splits_title_bleed(tmp_path: Path) -> None:
     assert "chimichurri zucchini orzo" not in items
 
 
+def test_build_grocery_list_splits_merged_chermoula_lines(tmp_path: Path) -> None:
+    """Regression: merged Notion lines must not become one grocery item."""
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe(
+            "One-Pot Chermoula Shrimp and Orzo",
+            "2 lemons\n"
+            "3 cilantro flat leaves parsley olive oil cloves garlic\n"
+            "ground cumin\n"
+            "1 teaspoon fine sea salt, plus more to taste granulated sugar",
+        ),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["One-Pot Chermoula Shrimp and Orzo"],
+        pantry_path=pantry_path,
+        exclude_pantry=False,
+    )
+
+    joined = " ".join(items).lower()
+    assert "cilantro flat leaves parsley olive oil cloves garlic" not in joined
+    assert "cilantro" in joined
+    assert "garlic" in joined
+    assert "olive oil" in joined
+    assert "ground cumin" in joined
+    assert "granulated sugar" in joined
+    assert "2 lemons" in items
+
+
 def test_build_grocery_list_aggregates_fractional_limes(tmp_path: Path) -> None:
     pantry_path = tmp_path / "pantry.txt"
     pantry_path.write_text("salt\n", encoding="utf-8")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 __all__ = [
     "clean_ingredient_line_for_storage",
+    "count_grocery_nouns",
     "drop_junk_ingredient_lines",
     "expand_ingredient_line",
     "ingredient_name",
@@ -11,6 +12,7 @@ __all__ = [
     "is_junk_ingredient",
     "is_metadata_line",
     "is_recipe_step_line",
+    "looks_like_merged_ingredient_line",
     "normalize_ingredient",
     "parse_amount",
     "split_compound_ingredients",
@@ -343,7 +345,7 @@ _CELERY_LEAVES_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Known grocery nouns for splitting recipe-title bleed (no qty/unit on the line).
+# Known grocery nouns for splitting merged ingredient lines.
 _GROCERY_NOUNS = frozenset(
     {
         "asparagus",
@@ -352,6 +354,8 @@ _GROCERY_NOUNS = frozenset(
         "beef",
         "bread",
         "broccoli",
+        "broth",
+        "butter",
         "carrots",
         "celery",
         "cheese",
@@ -359,15 +363,20 @@ _GROCERY_NOUNS = frozenset(
         "chickpeas",
         "chimichurri",
         "cilantro",
+        "coriander",
         "corn",
+        "cream",
         "cucumber",
+        "cumin",
         "eggs",
         "feta",
         "fish",
+        "flour",
         "garlic",
         "ginger",
         "gnocchi",
         "gochujang",
+        "harissa",
         "kale",
         "kimchi",
         "leeks",
@@ -375,30 +384,169 @@ _GROCERY_NOUNS = frozenset(
         "lemons",
         "lime",
         "limes",
+        "maple",
+        "miso",
         "mushrooms",
+        "noodles",
+        "oil",
         "onion",
         "onions",
         "orzo",
+        "paprika",
         "parsley",
         "pasta",
+        "peas",
         "pepper",
         "potatoes",
         "rice",
         "salmon",
+        "salt",
         "scallions",
         "shrimp",
         "spinach",
+        "stock",
+        "sugar",
+        "syrup",
+        "tahini",
         "tofu",
         "tomatoes",
         "tortellini",
+        "tortillas",
         "tuna",
         "turkey",
         "veggie",
+        "vinegar",
+        "yogurt",
         "zucchini",
     }
 )
 
-_RECIPE_TITLE_FILLER = frozenset({"sauce", "with", "w", "and", "for"})
+_OIL_PREFIXES = frozenset(
+    {
+        "canola",
+        "coconut",
+        "extra-virgin",
+        "neutral",
+        "olive",
+        "sesame",
+        "toasted",
+        "vegetable",
+    }
+)
+
+_VINEGAR_PREFIXES = frozenset(
+    {
+        "apple",
+        "balsamic",
+        "cider",
+        "red",
+        "rice",
+        "sherry",
+        "white",
+        "wine",
+    }
+)
+
+_STOCK_PREFIXES = frozenset(
+    {
+        "beef",
+        "bone",
+        "chicken",
+        "low-sodium",
+        "vegetable",
+    }
+)
+
+_CREAM_PREFIXES = frozenset({"heavy", "sour", "whipped", "whole-milk"})
+
+_COUNT_UNITS = frozenset(
+    {
+        "bag",
+        "bags",
+        "box",
+        "boxes",
+        "bunch",
+        "bunches",
+        "can",
+        "cans",
+        "clove",
+        "cloves",
+        "head",
+        "heads",
+        "jar",
+        "jars",
+        "leaf",
+        "leaves",
+        "package",
+        "packages",
+        "piece",
+        "pieces",
+        "pkg",
+        "slice",
+        "slices",
+        "sprig",
+        "sprigs",
+        "stalk",
+        "stalks",
+        "stick",
+        "sticks",
+    }
+)
+
+_MERGED_LINE_FILLER = frozenset(
+    {
+        "and",
+        "chopped",
+        "coarsely",
+        "finely",
+        "for",
+        "fresh",
+        "packed",
+        "sauce",
+        "with",
+        "w",
+    }
+)
+
+_NOUN_MODIFIERS = frozenset(
+    {
+        "baby",
+        "black",
+        "clove",
+        "cloves",
+        "extra-virgin",
+        "fine",
+        "flat",
+        "granulated",
+        "ground",
+        "head",
+        "heads",
+        "kosher",
+        "large",
+        "leaf",
+        "leaves",
+        "medium",
+        "red",
+        "sea",
+        "small",
+        "smoked",
+        "sprigs",
+        "stalk",
+        "stalks",
+        "sweet",
+        "tender",
+        "toasted",
+        "white",
+    }
+)
+
+_RECIPE_TITLE_FILLER = _MERGED_LINE_FILLER
+
+_TRAILING_APPENDED_INGREDIENT_RE = re.compile(
+    r"(.+?\b(?:to taste|as needed|optional|for garnish|for serving|for topping))\s+"
+    r"(?=\S)",
+    re.IGNORECASE,
+)
 
 # Standalone prep/cut instructions (often scraped as their own line).
 _INSTRUCTION_ONLY_RE = re.compile(
@@ -517,14 +665,152 @@ def expand_ingredient_line(line: str) -> list[str]:
     return _split_compound_parts_recursive(text)
 
 
+def _split_trailing_appended_ingredient(text: str) -> list[str]:
+    """Split a second ingredient accidentally appended after a trailing clause."""
+    match = _TRAILING_APPENDED_INGREDIENT_RE.match(text)
+    if match is None:
+        return [text]
+    left = match.group(1).strip()
+    right = text[match.end() :].strip()
+    if not left or not right or not _looks_like_ingredient(right):
+        return [text]
+    return [left, right]
+
+
+def _strip_leading_amount_prefix(text: str) -> tuple[str, str]:
+    """Return ``(qty_prefix, rest)`` for a stored ingredient line."""
+    rest = text.strip()
+    qty_prefix = ""
+    qty_match = _LEADING_QTY_RE.match(rest)
+    if qty_match:
+        qty_prefix = qty_match.group(1).strip()
+        rest = rest[qty_match.end() :].strip()
+    unit_match = re.match(r"^([A-Za-z]+)\s+", rest)
+    if unit_match and unit_match.group(1).lower() in _UNITS:
+        qty_prefix = f"{qty_prefix} {unit_match.group(1)}".strip()
+        rest = rest[unit_match.end() :].strip()
+    return qty_prefix, rest
+
+
+def _find_grocery_noun_positions(words: list[str]) -> list[int]:
+    positions: list[int] = []
+    for index, word in enumerate(words):
+        if word == "oil" and index > 0 and words[index - 1] in _OIL_PREFIXES:
+            if positions and positions[-1] == index - 1:
+                positions.pop()
+            positions.append(index)
+            continue
+        if word == "vinegar" and index > 0 and words[index - 1] in _VINEGAR_PREFIXES:
+            if positions and positions[-1] == index - 1:
+                positions.pop()
+            positions.append(index)
+            continue
+        if word in {"stock", "broth"} and index > 0 and words[index - 1] in _STOCK_PREFIXES:
+            if positions and positions[-1] == index - 1:
+                positions.pop()
+            positions.append(index)
+            continue
+        if word == "cream" and index > 0 and words[index - 1] in _CREAM_PREFIXES:
+            if positions and positions[-1] == index - 1:
+                positions.pop()
+            positions.append(index)
+            continue
+        if word == "cloves" and index + 1 < len(words) and words[index + 1] == "garlic":
+            continue
+        if word in _GROCERY_NOUNS:
+            positions.append(index)
+    return positions
+
+
+def _starts_with_measure_unit(words: list[str]) -> bool:
+    if not words:
+        return False
+    measure_units = _UNITS - _COUNT_UNITS
+    return words[0] in measure_units
+
+
+def _split_words_at_noun_positions(words: list[str], noun_positions: list[int]) -> list[str]:
+    parts: list[str] = []
+    start = 0
+    for position in noun_positions:
+        chunk_words = words[start : position + 1]
+        while chunk_words and chunk_words[0] in _MERGED_LINE_FILLER:
+            chunk_words.pop(0)
+        if chunk_words:
+            parts.append(" ".join(chunk_words))
+        start = position + 1
+
+    if start < len(words):
+        trailing = [word for word in words[start:] if word not in _MERGED_LINE_FILLER]
+        if trailing:
+            parts.append(" ".join(trailing))
+    return parts
+
+
+def _restore_split_casing(original: str, rest: str, parts: list[str]) -> list[str]:
+    """Map lowercase split parts back to the casing used in *original*."""
+    if not parts:
+        return parts
+    rest_lower = rest.lower()
+    restored: list[str] = []
+    cursor = 0
+    for part in parts:
+        needle = part.lower()
+        found = rest_lower.find(needle, cursor)
+        if found == -1:
+            restored.append(part)
+            continue
+        restored.append(rest[found : found + len(needle)])
+        cursor = found + len(needle)
+    return restored
+
+
+def count_grocery_nouns(text: str) -> int:
+    """Count distinct grocery noun anchors on a line (for merge detection)."""
+    _, rest = _strip_leading_amount_prefix(text.strip())
+    words = rest.lower().split()
+    return len(_find_grocery_noun_positions(words))
+
+
+def looks_like_merged_ingredient_line(text: str) -> bool:
+    """Return True when a stored line likely contains multiple ingredients."""
+    stripped = text.strip()
+    if not stripped or is_junk_ingredient(stripped):
+        return False
+    if _CONJUNCTION_SPLIT_RE.search(stripped):
+        return False
+    if looks_like_stored_ingredient_line(stripped) and "," in stripped:
+        appended = _split_trailing_appended_ingredient(stripped)
+        if len(appended) > 1:
+            return True
+    return count_grocery_nouns(stripped) >= 2
+
+
 def split_recipe_title_bleed(text: str) -> list[str]:
     """Split concatenated recipe-title artifacts into separate grocery items."""
     stripped = text.strip()
-    if not stripped or re.match(r"^[\d¼½¾⅓⅔⅛⅜⅝⅞]", stripped):
+    if not stripped:
         return [text]
+
+    appended = _split_trailing_appended_ingredient(stripped)
+    if len(appended) > 1:
+        expanded: list[str] = []
+        for part in appended:
+            expanded.extend(split_recipe_title_bleed(part))
+        return expanded
 
     # Real compound ingredients use conjunctions; title bleed does not.
     if _CONJUNCTION_SPLIT_RE.search(stripped):
+        return [text]
+
+    if "(" in stripped and ")" in stripped:
+        return [text]
+
+    if re.match(
+        r"^(?:chopped|fresh|sliced|diced|minced|grated|peeled|beaten|smashed|packed)\b",
+        stripped,
+        re.IGNORECASE,
+    ):
         return [text]
 
     # ``gnocchi sauce veggie for gnocchi`` → ``gnocchi``, ``veggie for gnocchi``
@@ -538,40 +824,25 @@ def split_recipe_title_bleed(text: str) -> list[str]:
         middle = repeat_match.group(2)
         return [noun, f"{middle} for {noun}"]
 
-    words = stripped.lower().split()
+    qty_prefix, rest = _strip_leading_amount_prefix(stripped)
+    words = rest.lower().split()
     if len(words) < 2:
         return [text]
 
-    if any(word in _UNITS for word in words):
+    if _starts_with_measure_unit(words):
         return [text]
 
-    # Only split when every token is a known noun or title filler — avoids
-    # breaking ``sesame oil gochujang kimchi`` or ``chopped fresh cilantro``.
-    if not all(word in _GROCERY_NOUNS or word in _RECIPE_TITLE_FILLER for word in words):
-        return [text]
-
-    noun_positions = [index for index, word in enumerate(words) if word in _GROCERY_NOUNS]
+    noun_positions = _find_grocery_noun_positions(words)
     if len(noun_positions) < 2:
         return [text]
 
-    parts: list[str] = []
-    start = 0
-    for position in noun_positions:
-        chunk_words = words[start : position + 1]
-        while chunk_words and chunk_words[0] in _RECIPE_TITLE_FILLER:
-            chunk_words.pop(0)
-        if chunk_words:
-            parts.append(" ".join(chunk_words))
-        start = position + 1
-
-    if start < len(words):
-        trailing = [word for word in words[start:] if word not in _RECIPE_TITLE_FILLER]
-        if trailing:
-            parts.append(" ".join(trailing))
-
+    parts = _split_words_at_noun_positions(words, noun_positions)
     if len(parts) < 2:
         return [text]
 
+    parts = _restore_split_casing(stripped, rest, parts)
+    if qty_prefix:
+        parts[0] = f"{qty_prefix} {parts[0]}".strip()
     return parts
 
 

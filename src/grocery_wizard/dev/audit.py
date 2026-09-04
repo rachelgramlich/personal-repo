@@ -13,6 +13,7 @@ __all__ = [
 import re
 from dataclasses import dataclass, field
 
+from src.grocery_wizard.ingredients.normalize import looks_like_merged_ingredient_line
 from src.grocery_wizard.integrations.notion import Recipe
 from src.grocery_wizard.recipes.scraper import has_merge_artifacts, looks_fragmented
 
@@ -50,6 +51,8 @@ def looks_suspicious_ingredients(text: str) -> bool:
     lines = split_ingredient_lines(text)
     if not lines:
         return False
+    if any(looks_like_merged_ingredient_line(line) for line in lines):
+        return True
     return looks_fragmented(lines) or has_merge_artifacts(lines)
 
 
