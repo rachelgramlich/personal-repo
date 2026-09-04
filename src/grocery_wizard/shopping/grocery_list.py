@@ -44,7 +44,7 @@ def run_grocery_list(
     pantry_path: Path | None = None,
     recurring_weekly_items_path: Path | None = None,
     recurring_weekly_items: list[str] | None = None,
-    include_recurring_weekly_items: bool | None = None,
+    include_recurring_weekly_items: bool = True,
     exclude_pantry: bool = True,
 ) -> int:
     """Generate a merged grocery list from week plan or explicit recipe names."""
@@ -98,9 +98,6 @@ def run_grocery_list(
     ]
 
     excluded_sorted = sorted(excluded_pantry, key=str.lower)
-    include_recurring = (
-        include_recurring_weekly_items if include_recurring_weekly_items is not None else not quiet
-    )
 
     if not quiet:
         _print_excluded_summary(excluded_sorted)
@@ -115,7 +112,7 @@ def run_grocery_list(
         recurring = _resolve_recurring_weekly_items(
             recurring_weekly_items=recurring_weekly_items,
             recurring_weekly_items_path=recurring_weekly_items_path,
-            include=include_recurring,
+            include=include_recurring_weekly_items,
             interactive=True,
         )
         _append_unique_items(grocery_items, seen, recurring)
@@ -138,7 +135,7 @@ def run_grocery_list(
         recurring = _resolve_recurring_weekly_items(
             recurring_weekly_items=recurring_weekly_items,
             recurring_weekly_items_path=recurring_weekly_items_path,
-            include=include_recurring,
+            include=include_recurring_weekly_items,
             interactive=False,
         )
         _append_unique_items(grocery_items, seen, recurring)
@@ -286,10 +283,10 @@ def _resolve_recurring_weekly_items(
     include: bool,
     interactive: bool,
 ) -> list[str]:
-    if recurring_weekly_items is not None:
-        return recurring_weekly_items
     if not include:
         return []
+    if recurring_weekly_items is not None:
+        return recurring_weekly_items
     return prompt_recurring_weekly_items(
         path=recurring_weekly_items_path,
         interactive=interactive,

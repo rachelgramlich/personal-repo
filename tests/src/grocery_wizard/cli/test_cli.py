@@ -42,7 +42,7 @@ def test_create_grocery_list_help_lists_new_flags(capsys: pytest.CaptureFixture[
     assert "--quiet" in output
     assert "--backfill-missing" in output
     assert "--include-staples" in output
-    assert "--include-recurring-weekly-items" in output
+    assert "--no-recurring-weekly-items" in output
     assert "--verbose" not in output
     assert "--sync-first" not in output
     assert "--include-pantry" not in output
@@ -56,7 +56,7 @@ def test_cmd_grocery_passes_new_flags() -> None:
         quiet=True,
         backfill_missing=True,
         include_staples=True,
-        include_recurring_weekly_items=True,
+        no_recurring_weekly_items=True,
     )
     with (
         patch("src.grocery_wizard.cli.main.load_config"),
@@ -72,7 +72,7 @@ def test_cmd_grocery_passes_new_flags() -> None:
     assert kwargs["quiet"] is True
     assert kwargs["backfill_missing"] is True
     assert kwargs["exclude_pantry"] is False
-    assert kwargs["include_recurring_weekly_items"] is True
+    assert kwargs["include_recurring_weekly_items"] is False
 
 
 def test_main_prompts_feedback_after_successful_prod_command() -> None:
