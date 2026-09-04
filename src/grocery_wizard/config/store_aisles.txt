@@ -3,7 +3,30 @@
 # Section headers: # --- aisle_id: Display label ---
 # Comment-only lines and blank lines are ignored.
 
-# --- produce: Produce ---
+# --- fruit: Fruit ---
+berry
+berries
+banana
+bananas
+apple
+apples
+avocado
+lime
+lemon
+orange
+grape
+melon
+mango
+pineapple
+peach
+pear
+plum
+fruit
+strawberry
+blueberry
+raspberry
+
+# --- vegetables: Vegetables ---
 bell pepper
 sweet potato
 green onion
@@ -43,18 +66,6 @@ jalapeño
 jalapeno
 serrano
 habanero
-lime
-lemon
-orange
-apple
-apples
-banana
-avocado
-berry
-berries
-strawberry
-blueberry
-raspberry
 corn
 peas
 bean sprouts
@@ -67,13 +78,6 @@ beet
 asparagus
 eggplant
 chard
-grape
-melon
-mango
-pineapple
-peach
-pear
-plum
 herb
 salad greens
 greens

@@ -23,9 +23,11 @@ from src.grocery_wizard.ingredients.sync import (
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
 from src.grocery_wizard.recipes.scraper import scrape_recipe
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
+from src.grocery_wizard.shopping.perpetual_items import prompt_perpetual_items
 from src.grocery_wizard.shopping.store_aisles import (
     aisle_label,
     group_grocery_items_by_aisle,
+    ingredient_name,
     sort_grocery_items,
 )
 
@@ -39,6 +41,8 @@ def run_grocery_list(
     staples: list[str] | None = None,
     week_plan_path: Path = WEEK_PLAN_PATH,
     pantry_path: Path | None = None,
+    perpetual_path: Path | None = None,
+    perpetual_items: list[str] | None = None,
     exclude_pantry: bool = True,
 ) -> int:
     """Generate a merged grocery list from week plan or explicit recipe names."""
@@ -103,6 +107,13 @@ def run_grocery_list(
                     grocery_items.append(item)
                     existing.add(item.lower())
 
+        weekly_perpetual = (
+            perpetual_items
+            if perpetual_items is not None
+            else prompt_perpetual_items(path=perpetual_path, interactive=True)
+        )
+        _append_unique_items(grocery_items, seen, weekly_perpetual)
+
         grocery_items = sort_grocery_items(grocery_items)
         _print_grocery_list(grocery_items, heading="Draft grocery list")
 
@@ -118,6 +129,12 @@ def run_grocery_list(
         grocery_items = _prompt_accept_or_edit(grocery_items)
         _print_grocery_list(grocery_items, heading="Final grocery list")
     else:
+        weekly_perpetual = (
+            perpetual_items
+            if perpetual_items is not None
+            else prompt_perpetual_items(path=perpetual_path, interactive=False)
+        )
+        _append_unique_items(grocery_items, seen, weekly_perpetual)
         for staple in staples or []:
             key = staple.lower()
             if key not in seen:
@@ -137,6 +154,9 @@ def build_grocery_list(
     staples: list[str] | None = None,
     week_plan_path: Path = WEEK_PLAN_PATH,
     pantry_path: Path | None = None,
+    perpetual_path: Path | None = None,
+    perpetual_items: list[str] | None = None,
+    include_perpetual: bool = False,
     exclude_pantry: bool = True,
 ) -> tuple[list[str], list[str], SyncSummary | None]:
     """Build grocery list items, excluded pantry items, and optional sync summary (for UI use)."""
@@ -179,6 +199,14 @@ def build_grocery_list(
         if key not in seen:
             seen.add(key)
             grocery_items.append(staple)
+
+    if include_perpetual:
+        weekly_perpetual = (
+            perpetual_items
+            if perpetual_items is not None
+            else prompt_perpetual_items(path=perpetual_path, interactive=False)
+        )
+        _append_unique_items(grocery_items, seen, weekly_perpetual)
 
     grocery_items = sort_grocery_items(grocery_items)
     excluded_pantry.sort(key=str.lower)
@@ -239,6 +267,33 @@ def format_grocery_item(name: str, amount: str | None) -> str:
     if amount is None:
         return name
     return f"{amount} {name}"
+
+
+def _append_unique_items(
+    grocery_items: list[str],
+    seen: set[str],
+    new_items: list[str],
+) -> None:
+    """Add items that are not already present on the list or in *seen*."""
+    for item in new_items:
+        cleaned = item.strip()
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if _item_already_present(cleaned, seen, grocery_items):
+            continue
+        seen.add(key)
+        grocery_items.append(cleaned)
+
+
+def _item_already_present(name: str, seen: set[str], grocery_items: list[str]) -> bool:
+    key = name.strip().lower()
+    if key in seen:
+        return True
+    for item in grocery_items:
+        if ingredient_name(item).lower() == key:
+            return True
+    return False
 
 
 def _collect_ingredient_line(

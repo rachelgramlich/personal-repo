@@ -213,6 +213,10 @@ def test_run_grocery_list_interactive_flow_order(
     inputs = iter(["", "eggs", "", ""])
     with (
         patch("src.grocery_wizard.shopping.grocery_list.input", side_effect=inputs),
+        patch(
+            "src.grocery_wizard.shopping.grocery_list.prompt_perpetual_items",
+            return_value=[],
+        ),
         patch("src.grocery_wizard.shopping.grocery_list._prompt_staples", return_value=["eggs"]),
         patch(
             "src.grocery_wizard.shopping.grocery_list._prompt_accept_or_edit",
@@ -465,3 +469,45 @@ def test_build_grocery_list_no_amount_fallback(tmp_path: Path) -> None:
     )
 
     assert "chicken breast" in items
+
+
+def test_build_grocery_list_includes_perpetual_items(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Soup", "1 lb chicken breast"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Soup"],
+        pantry_path=pantry_path,
+        perpetual_items=["berries", "bananas", "milk"],
+        include_perpetual=True,
+    )
+
+    assert "berries" in items
+    assert "bananas" in items
+    assert "milk" in items
+
+
+def test_build_grocery_list_skips_duplicate_perpetual_items(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Soup", "2 cups milk"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Soup"],
+        pantry_path=pantry_path,
+        perpetual_items=["milk"],
+        include_perpetual=True,
+    )
+
+    assert len([item for item in items if "milk" in item.lower()]) == 1

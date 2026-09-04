@@ -184,6 +184,7 @@ Committed config lives in the package; per-week data stays local:
 | Path | Committed? | Purpose |
 |------|------------|---------|
 | `src/grocery_wizard/config/pantry.txt` | yes | Pantry staples excluded from grocery lists |
+| `src/grocery_wizard/config/perpetual_items.txt` | yes | Weekly items added to every grocery list |
 | `src/grocery_wizard/config/store_aisles.txt` | yes | Store walk order, aisle labels, and ingredient keywords |
 | `src/grocery_wizard/config/__init__.py` | yes | Env vars, Notion IDs, file paths |
 | `.local/grocery_wizard/week_plan.json` | no | This week's planned recipes |
@@ -199,12 +200,20 @@ Committed config lives in the package; per-week data stays local:
 
 Matching uses phrase boundaries: `kosher salt` matches pantry item `salt`, but `beef` does not match `beef stock`.
 
+## Perpetual grocery items
+
+`config/perpetual_items.txt` lists items added every week (berries, bananas, milk, etc.). During `create-grocery-list`, you can accept, edit, or skip them for the current week — and optionally save edits back to the config file for future weeks.
+
 ## Grocery list aisle order
 
 `create-grocery-list` sorts items by store walk order and prints aisle section headers. Edit `src/grocery_wizard/config/store_aisles.txt` to change walk order, labels, or keywords — same section-header style as `pantry.txt`:
 
 ```text
-# --- produce: Produce ---
+# --- fruit: Fruit ---
+banana
+berries
+
+# --- vegetables: Vegetables ---
 onion
 garlic
 ...

@@ -1,0 +1,96 @@
+"""Perpetual grocery items — added to every week's list."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+from src.grocery_wizard.config import PERPETUAL_ITEMS_PATH
+
+
+def load_perpetual_items(path: Path | None = None) -> list[str]:
+    """Load perpetual items from a text file (one item per line, order preserved)."""
+    items_path = path or PERPETUAL_ITEMS_PATH
+    if not items_path.exists():
+        return []
+
+    items: list[str] = []
+    for raw_line in items_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if line and not line.startswith("#"):
+            items.append(line)
+    return items
+
+
+def write_perpetual_items(path: Path, items: list[str]) -> None:
+    """Write perpetual items back to disk, preserving a trailing newline."""
+    header = "# Perpetual grocery items — added to every week's list (one item per line).\n"
+    header += "# Lines starting with # are ignored.\n\n"
+    body = "\n".join(item.strip() for item in items if item.strip())
+    text = header + body
+    if text and not text.endswith("\n"):
+        text += "\n"
+    path.write_text(text, encoding="utf-8")
+
+
+def prompt_perpetual_items(
+    defaults: list[str] | None = None,
+    *,
+    path: Path | None = None,
+    interactive: bool = True,
+) -> list[str]:
+    """Show perpetual items and let the user accept, edit, or skip for this week."""
+    items_path = path or PERPETUAL_ITEMS_PATH
+    items = list(defaults if defaults is not None else load_perpetual_items(items_path))
+    if not interactive:
+        return items
+
+    while True:
+        print()
+        print("Weekly perpetual items")
+        print("-" * 40)
+        if items:
+            for index, item in enumerate(items, start=1):
+                print(f"  {index}. {item}")
+        else:
+            print("  (none)")
+        print()
+        print("[Enter] add to list  [e]dit  [s]kip")
+        try:
+            choice = input("> ").strip().lower()
+        except EOFError:
+            return items
+
+        if choice in ("", "a", "add", "y", "yes"):
+            return items
+        if choice in ("s", "skip", "n", "no"):
+            return []
+        if choice in ("e", "edit"):
+            items = _prompt_edit_lines(items)
+            try:
+                save = input("Save as defaults for future weeks? [y/N]: ").strip().lower()
+            except EOFError:
+                save = ""
+            if save in ("y", "yes"):
+                write_perpetual_items(items_path, items)
+                print(f"Saved {items_path}", file=sys.stderr)
+            continue
+
+        print("Press Enter to add, 'e' to edit, or 's' to skip.")
+
+
+def _prompt_edit_lines(items: list[str]) -> list[str]:
+    print("Edit list (one item per line; empty line when done):")
+    edited: list[str] = []
+    while True:
+        try:
+            line = input().strip()
+        except EOFError:
+            break
+        if not line:
+            break
+        if line.startswith(("- ", "* ", "• ")):
+            line = line[2:].strip()
+        if line:
+            edited.append(line)
+    return edited if edited or not items else items

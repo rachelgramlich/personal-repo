@@ -14,6 +14,7 @@ _PACKAGE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = Path(__file__).resolve().parent
 PANTRY_PATH = CONFIG_DIR / "pantry.txt"
 STORE_AISLES_PATH = CONFIG_DIR / "store_aisles.txt"
+PERPETUAL_ITEMS_PATH = CONFIG_DIR / "perpetual_items.txt"
 
 # Per-week local runtime data (gitignored via .local/).
 DATA_DIR = Path(".local/grocery_wizard")

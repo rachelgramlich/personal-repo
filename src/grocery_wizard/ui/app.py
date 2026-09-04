@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src.grocery_wizard.config import WEEK_PLAN_PATH, load_config
+from src.grocery_wizard.config import PERPETUAL_ITEMS_PATH, WEEK_PLAN_PATH, load_config
 from src.grocery_wizard.ingredients.sync import (
     find_recipes_needing_sync,
     format_sync_summary,
@@ -17,6 +17,7 @@ from src.grocery_wizard.shopping.grocery_list import (
     _load_week_plan_names,
     build_grocery_list,
 )
+from src.grocery_wizard.shopping.perpetual_items import load_perpetual_items, write_perpetual_items
 from src.grocery_wizard.shopping.store_aisles import (
     aisle_label,
     group_grocery_items_by_aisle,
@@ -232,10 +233,30 @@ def render_grocery_list() -> None:
     sync_first = st.checkbox("Sync ingredients first (scrape missing)")
     exclude_pantry = st.checkbox("Exclude pantry items", value=True)
 
+    default_perpetual = load_perpetual_items()
+    perpetual_text = st.text_area(
+        "Weekly perpetual items (one per line)",
+        value="\n".join(default_perpetual),
+        height=100,
+        help="These items are added every week. Edit here before generating your list.",
+    )
+    save_perpetual_defaults = st.checkbox(
+        "Save perpetual items as defaults for future weeks",
+        value=False,
+    )
+
     if st.button("Generate list", type="primary"):
         if not selected:
             st.warning("Select at least one recipe.")
             return
+
+        perpetual_items = [
+            line.strip().lstrip("-•* ").strip()
+            for line in perpetual_text.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        if save_perpetual_defaults:
+            write_perpetual_items(PERPETUAL_ITEMS_PATH, perpetual_items)
 
         with st.spinner("Building grocery list..."):
             items, excluded, sync_summary = build_grocery_list(
@@ -243,6 +264,8 @@ def render_grocery_list() -> None:
                 recipe_names=selected,
                 backfill_missing=sync_first,
                 exclude_pantry=exclude_pantry,
+                perpetual_items=perpetual_items,
+                include_perpetual=True,
             )
 
         if sync_summary is not None and sync_summary.failed:

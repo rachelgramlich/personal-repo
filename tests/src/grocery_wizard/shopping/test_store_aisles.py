@@ -40,21 +40,25 @@ def test_parse_store_aisles_file_reads_sections_and_keywords(tmp_path: Path) -> 
 
 def test_load_store_aisles_uses_committed_config() -> None:
     config = load_store_aisles()
-    assert "produce" in config.aisle_order
-    assert config.aisle_labels["produce"] == "Produce"
-    assert "onion" in config.aisle_keywords["produce"]
+    assert config.aisle_order.index("fruit") < config.aisle_order.index("vegetables")
+    assert config.aisle_labels["fruit"] == "Fruit"
+    assert "banana" in config.aisle_keywords["fruit"]
+    assert "onion" in config.aisle_keywords["vegetables"]
 
 
 @pytest.mark.parametrize(
     ("item", "expected_aisle"),
     [
         ("1 lb chicken breast", "other"),
-        ("onions", "produce"),
-        ("3 cloves garlic", "produce"),
+        ("onions", "vegetables"),
+        ("3 cloves garlic", "vegetables"),
+        ("bananas", "fruit"),
+        ("berries", "fruit"),
         ("2 cans white beans", "dry goods"),
         ("1 lb spaghetti", "dry goods"),
         ("eggs", "dairy/eggs"),
         ("2 eggs", "dairy/eggs"),
+        ("milk", "dairy/eggs"),
         ("shredded cheddar", "refrigerated"),
         ("frozen peas", "frozen"),
         ("coffee beans", "coffee"),
@@ -73,6 +77,7 @@ def test_sort_grocery_items_follows_store_walk_order() -> None:
     items = [
         "2 cans white beans",
         "onions",
+        "bananas",
         "eggs",
         "1 lb chicken breast",
         "shredded cheddar",
@@ -80,25 +85,34 @@ def test_sort_grocery_items_follows_store_walk_order() -> None:
     ]
     sorted_items = sort_grocery_items(items)
 
-    produce_index = sorted_items.index("onions")
+    fruit_index = sorted_items.index("bananas")
+    vegetables_index = sorted_items.index("onions")
     refrigerated_index = sorted_items.index("shredded cheddar")
     dairy_index = sorted_items.index("eggs")
     dry_goods_index = sorted_items.index("2 cans white beans")
     frozen_index = sorted_items.index("frozen peas")
     other_index = sorted_items.index("1 lb chicken breast")
 
-    assert produce_index < refrigerated_index < dairy_index < dry_goods_index < frozen_index
+    assert (
+        fruit_index
+        < vegetables_index
+        < refrigerated_index
+        < dairy_index
+        < dry_goods_index
+        < frozen_index
+    )
     assert other_index > frozen_index
 
 
 def test_group_grocery_items_by_aisle_omits_empty_aisles() -> None:
-    items = ["onions", "eggs", "2 cans white beans"]
+    items = ["onions", "apples", "eggs", "2 cans white beans"]
     groups = group_grocery_items_by_aisle(items)
 
-    assert [aisle for aisle, _ in groups] == ["produce", "dairy/eggs", "dry goods"]
-    assert groups[0][1] == ["onions"]
-    assert groups[1][1] == ["eggs"]
-    assert groups[2][1] == ["2 cans white beans"]
+    assert [aisle for aisle, _ in groups] == ["fruit", "vegetables", "dairy/eggs", "dry goods"]
+    assert groups[0][1] == ["apples"]
+    assert groups[1][1] == ["onions"]
+    assert groups[2][1] == ["eggs"]
+    assert groups[3][1] == ["2 cans white beans"]
 
 
 def test_sort_grocery_items_is_stable_within_aisle() -> None:
