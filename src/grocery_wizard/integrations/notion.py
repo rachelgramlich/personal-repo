@@ -41,6 +41,9 @@ class Recipe:
     properties: dict[str, Any]
 
 
+DEFAULT_NYT_SYNCED_COLUMN = "Synced from NYT recipe box"
+
+
 class NotionRecipesDB:
     def __init__(self, config: Config) -> None:
         self._client = Client(auth=config.notion_api_key)
@@ -132,6 +135,14 @@ class NotionRecipesDB:
             return "Ingredients"
         if "Ingredients" in all_columns:
             return "Ingredients"
+        return None
+
+    def nyt_synced_column_name(self) -> str | None:
+        """Return the NYT sync checkbox column if it exists in the database."""
+        name = self._config.nyt_synced_column or DEFAULT_NYT_SYNCED_COLUMN
+        column = self.schema.all_columns.get(name)
+        if column and column.type == "checkbox":
+            return name
         return None
 
     def query_recipes(self) -> list[Recipe]:

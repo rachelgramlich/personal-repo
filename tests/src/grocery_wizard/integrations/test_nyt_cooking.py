@@ -308,6 +308,7 @@ def test_sync_creates_missing_recipes(credentials: NytCredentials) -> None:
     args, kwargs = add_mock.call_args
     assert args[1][0] == ("Fresh Recipe", "https://cooking.nytimes.com/recipes/42-fresh", [])
     assert kwargs["include_ingredients"] is False
+    assert kwargs["mark_nyt_synced"] is True
 
 
 def test_prompt_collection_choice_picks_folder(credentials: NytCredentials) -> None:

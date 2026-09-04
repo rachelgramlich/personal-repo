@@ -15,6 +15,7 @@ from typing import Any
 import requests
 
 from src.grocery_wizard.config import NYT_LAST_SYNC_PATH
+from src.grocery_wizard.integrations.notion import DEFAULT_NYT_SYNCED_COLUMN
 
 SITE = "https://cooking.nytimes.com"
 API_HEADERS = {"x-cooking-api": "cooking-frontend", "accept": "*/*"}
@@ -409,6 +410,16 @@ def sync_saved_recipes_to_notion(
 
     summary = NytSyncSummary(collection_label=resolved_label)
 
+    nyt_column = db.nyt_synced_column_name()
+    if on_progress:
+        if nyt_column:
+            on_progress(f"Marking synced recipes with checkbox: {nyt_column}")
+        else:
+            on_progress(
+                f"Warning: checkbox column '{DEFAULT_NYT_SYNCED_COLUMN}' "
+                "not found in Notion — add it to tag NYT imports."
+            )
+
     for saved in client.iter_all_saved_recipes(collection_id=resolved_id):
         summary.total += 1
         url = saved.url
@@ -427,7 +438,7 @@ def sync_saved_recipes_to_notion(
 
         if dry_run:
             summary.dry_run += 1
-            metadata = _metadata_for_recipe(db, saved.name, url)
+            metadata = _metadata_for_recipe(db, saved.name, url, mark_nyt_synced=True)
             flags = flag_metadata_issues(saved.name, metadata)
             summary.created_recipes.append(
                 NytCreatedRecipe(
@@ -448,6 +459,7 @@ def sync_saved_recipes_to_notion(
             confirm=confirm,
             no_confirm=no_confirm,
             include_ingredients=False,
+            mark_nyt_synced=True,
         )
         if results:
             summary.created += 1
@@ -479,7 +491,13 @@ _TITLE_MEAL_HINTS: dict[str, list[str]] = {
 }
 
 
-def _metadata_for_recipe(db: Any, title: str, url: str) -> dict[str, Any]:
+def _metadata_for_recipe(
+    db: Any,
+    title: str,
+    url: str,
+    *,
+    mark_nyt_synced: bool = False,
+) -> dict[str, Any]:
     from src.grocery_wizard.recipes.classify import classify_recipe
 
     filter_columns = [(col.name, col.type, col.options) for col in db.schema.filter_columns]
@@ -489,6 +507,10 @@ def _metadata_for_recipe(db: Any, title: str, url: str) -> dict[str, Any]:
         db.schema.link_column: url,
     }
     metadata.update(inferred)
+    if mark_nyt_synced:
+        nyt_column = db.nyt_synced_column_name()
+        if nyt_column:
+            metadata[nyt_column] = True
     return _metadata_from_field_values(db, metadata)
 
 

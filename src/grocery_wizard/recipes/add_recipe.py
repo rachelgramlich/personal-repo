@@ -30,6 +30,7 @@ def add_prefetched_recipes(
     select_option: Callable[[str, list[str], str | None], str | None] | None = None,
     no_confirm: bool = False,
     include_ingredients: bool = True,
+    mark_nyt_synced: bool = False,
 ) -> list[PrefetchedCreateResult]:
     """Add recipes with title, URL, and optional ingredients already fetched."""
     prompt_fn = prompt or _default_prompt
@@ -61,6 +62,11 @@ def add_prefetched_recipes(
 
         for column_name, value in inferred.items():
             field_values[column_name] = value
+
+        if mark_nyt_synced:
+            nyt_column = db.nyt_synced_column_name()
+            if nyt_column:
+                field_values[nyt_column] = True
 
         if no_confirm:
             reviewed = field_values

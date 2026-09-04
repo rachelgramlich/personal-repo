@@ -89,7 +89,7 @@ uv run python -m src.grocery_wizard nyt saved         # list recipe box
 uv run python -m src.grocery_wizard nyt sync          # import to Notion (prompts for folder)
 ```
 
-NYT sync adds **name, link, and classified metadata** (Meal, Protein, Cuisine, etc.) — not ingredients. Fill ingredients later with `dev backfill-ingredients` or when ingredient parsing (#21) lands.
+NYT sync adds **name, link, classified metadata, and the "Synced from NYT recipe box" checkbox** — not ingredients. Add a **checkbox** column with that exact name in Notion (or set `GROCERY_WIZARD_NYT_SYNCED_COLUMN` if you name it differently). Fill ingredients later with `dev backfill-ingredients` or when ingredient parsing (#21) lands.
 
 **NYT sync flags:**
 
@@ -274,5 +274,6 @@ Key columns:
 | Cuisine | multi_select | Italian, Asian, Mexican, … |
 | Dinner Category | multi_select | Curry, Pasta, Bowl, … |
 | Dinner: Weeknight Friendly | checkbox | Meal-planning filter |
+| Synced from NYT recipe box | checkbox | Set automatically by `nyt sync` |
 
 Optional env overrides: `GROCERY_WIZARD_NAME_COLUMN`, `GROCERY_WIZARD_LINK_COLUMN`, `GROCERY_WIZARD_INGREDIENTS_COLUMN`.

@@ -37,6 +37,7 @@ class Config:
     name_column: str | None = None
     link_column: str | None = None
     ingredients_column: str | None = None
+    nyt_synced_column: str | None = None
 
 
 def load_config() -> Config:
@@ -61,6 +62,7 @@ def load_config() -> Config:
         name_column=_optional_env("GROCERY_WIZARD_NAME_COLUMN"),
         link_column=_optional_env("GROCERY_WIZARD_LINK_COLUMN"),
         ingredients_column=_optional_env("GROCERY_WIZARD_INGREDIENTS_COLUMN"),
+        nyt_synced_column=_optional_env("GROCERY_WIZARD_NYT_SYNCED_COLUMN"),
     )
 
 
