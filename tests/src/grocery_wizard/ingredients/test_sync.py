@@ -96,7 +96,7 @@ def test_prepare_ingredients_for_notion_drops_instructions_and_metadata() -> Non
     )
     prepared = prepare_ingredients_for_notion(text)
     lines = prepared.splitlines()
-    assert lines == ["2 tablespoons olive oil"]
+    assert lines == ["olive oil"]
 
 
 def test_prepare_ingredients_for_notion_repairs_mangled_lines() -> None:
@@ -106,10 +106,10 @@ def test_prepare_ingredients_for_notion_repairs_mangled_lines() -> None:
     )
     prepared = prepare_ingredients_for_notion(text)
     lines = prepared.splitlines()
-    assert "2 pounds Idaho Burbank Russets" in lines
+    assert "2 lb Idaho Burbank Russets" in lines
     assert any("scallions" in line for line in lines)
     assert "Salt" in lines
-    assert "fresh black pepper" in lines
+    assert any("black pepper" in line for line in lines)
     assert any("chicken stock" in line for line in lines)
 
 

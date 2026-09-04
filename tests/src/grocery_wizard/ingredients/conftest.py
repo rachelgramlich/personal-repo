@@ -8,6 +8,20 @@ from typing import Any
 
 import pytest
 
+
+def _ensure_nltk() -> None:
+    try:
+        import nltk
+
+        nltk.data.find("taggers/averaged_perceptron_tagger_eng")
+    except LookupError:
+        import nltk
+
+        nltk.download("averaged_perceptron_tagger_eng", quiet=True)
+
+
+_ensure_nltk()
+
 _FIXTURE_PATH = Path(__file__).resolve().parents[3] / "fixtures" / "notion_ingredient_cases.json"
 
 

@@ -9,13 +9,15 @@ from dataclasses import dataclass, field
 import requests
 
 from src.grocery_wizard.ingredients.normalize import (
-    clean_ingredient_line_for_storage,
     expand_ingredient_line,
+    format_ingredient_for_storage,
+    ingredient_name,
     is_instruction_line,
     is_junk_ingredient,
     is_metadata_line,
+    is_nyt_cooking_url,
     is_recipe_step_line,
-    normalize_ingredient,
+    minimal_clean_for_storage,
     split_merged_ingredient_line,
 )
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
@@ -188,7 +190,7 @@ def _truncate_at_instructions(lines: list[str]) -> list[str]:
     return kept
 
 
-def prepare_ingredients_for_notion(text: str) -> str:
+def prepare_ingredients_for_notion(text: str, *, source_url: str | None = None) -> str:
     """Clean, split, and normalize ingredient text before storing in Notion."""
     lines = _normalize_stored_lines(text)
     if not lines:
@@ -202,6 +204,7 @@ def prepare_ingredients_for_notion(text: str) -> str:
     if not split.strip():
         return ""
 
+    use_minimal_cleanup = is_nyt_cooking_url(source_url)
     kept: list[str] = []
     for line in split.splitlines():
         stripped = line.strip()
@@ -218,7 +221,12 @@ def prepare_ingredients_for_notion(text: str) -> str:
             continue
         if stripped.lower() == "recipe":
             continue
-        kept.append(clean_ingredient_line_for_storage(stripped))
+        if use_minimal_cleanup:
+            cleaned = minimal_clean_for_storage(stripped)
+        else:
+            cleaned = format_ingredient_for_storage(stripped)
+        if cleaned:
+            kept.append(cleaned)
     return ingredients_to_text(kept)
 
 
@@ -249,7 +257,7 @@ def refresh_ingredients_for_recipe(
         except Exception as exc:
             return RefreshResult(recipe.name, "failed", str(exc))
 
-    refreshed_text = prepare_ingredients_for_notion(source_text)
+    refreshed_text = prepare_ingredients_for_notion(source_text, source_url=recipe.link)
     ingredient_lines = [
         line for line in refreshed_text.splitlines() if line.strip() and not is_directive(line)
     ]
@@ -430,19 +438,19 @@ def parse_ingredients_text(text: str) -> tuple[list[str], list[str]]:
 
 
 def _normalized_set(lines: list[str]) -> set[str]:
-    return {norm for line in lines if (norm := normalize_ingredient(line))}
+    return {norm for line in lines if (norm := ingredient_name(line))}
 
 
 def _line_represented(line: str, normalized_names: set[str]) -> bool:
-    norm = normalize_ingredient(line)
+    norm = ingredient_name(line)
     if not norm:
         return False
     return norm in normalized_names
 
 
 def _matches_removal(line: str, removal_target: str) -> bool:
-    normalized = normalize_ingredient(line)
-    target_norm = normalize_ingredient(removal_target)
+    normalized = ingredient_name(line)
+    target_norm = ingredient_name(removal_target)
     if not normalized or not target_norm:
         return False
     if target_norm in normalized or normalized in target_norm:
@@ -471,7 +479,7 @@ def merge_ingredients(existing: str, scraped: str) -> str:
     for line in existing_lines:
         if _line_represented(line, merged_norms):
             continue
-        norm = normalize_ingredient(line)
+        norm = ingredient_name(line)
         if not norm:
             continue
         merged.append(line)
@@ -549,7 +557,7 @@ def sync_ingredients_for_recipe(
     except Exception as exc:
         return SyncResult(recipe.name, "failed", str(exc))
 
-    prepared_text = prepare_ingredients_for_notion(ingredients_text)
+    prepared_text = prepare_ingredients_for_notion(ingredients_text, source_url=recipe.link)
     ingredient_lines = [
         line for line in prepared_text.splitlines() if line.strip() and not is_directive(line)
     ]

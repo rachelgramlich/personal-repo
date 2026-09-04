@@ -75,7 +75,8 @@ def add_recipes_from_urls(
 
         if schema.ingredients_column and reviewed.get(schema.ingredients_column):
             reviewed[schema.ingredients_column] = prepare_ingredients_for_notion(
-                reviewed[schema.ingredients_column]
+                reviewed[schema.ingredients_column],
+                source_url=url,
             )
 
         recipe = db.create_recipe(reviewed)
