@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__all__ = ["ColumnInfo", "DatabaseSchema", "NotionRecipesDB", "Recipe"]
+__all__ = ["ColumnInfo", "DatabaseSchema", "NotionFieldValues", "NotionRecipesDB", "Recipe"]
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -10,6 +10,11 @@ from typing import Any
 from notion_client import Client
 
 from src.grocery_wizard.config import Config
+
+# Values accepted by ``create_recipe`` / ``update_recipe`` keyed by Notion column name.
+# Strings map to title/url/text/select/status; lists to multi_select; bool to checkbox;
+# int/float to number; ``None`` skips the field on create.
+type NotionFieldValues = dict[str, str | list[str] | bool | int | float | None]
 
 
 @dataclass
@@ -169,7 +174,7 @@ class NotionRecipesDB:
                 return recipe
         return None
 
-    def create_recipe(self, field_values: dict[str, Any]) -> Recipe:
+    def create_recipe(self, field_values: NotionFieldValues) -> Recipe:
         properties = {
             name: self._to_notion_property(name, value)
             for name, value in field_values.items()
@@ -181,7 +186,7 @@ class NotionRecipesDB:
         )
         return self._page_to_recipe(page)
 
-    def update_recipe(self, page_id: str, field_values: dict[str, Any]) -> Recipe:
+    def update_recipe(self, page_id: str, field_values: NotionFieldValues) -> Recipe:
         properties = {
             name: self._to_notion_property(name, value)
             for name, value in field_values.items()

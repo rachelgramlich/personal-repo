@@ -153,9 +153,7 @@ def _format_date_refactored(raw_date: str) -> datetime:
     return original_date_object.strftime("%m/%d/%Y")
 
 
-def _calculate_compensation_by_department_refactored(
-    salary_str: str, department: str
-) -> float:
+def _calculate_compensation_by_department_refactored(salary_str: str, department: str) -> float:
     """Calculate total compensation based on department."""
     department_bonus_rates = {
         "Engineering": 0.15,
@@ -188,9 +186,7 @@ def process_employee_data_refactored(
 
     formatted_date = _format_date_refactored(raw_date)
 
-    total_compensation = _calculate_compensation_by_department_refactored(
-        salary_str, department
-    )
+    total_compensation = _calculate_compensation_by_department_refactored(salary_str, department)
 
     return {
         "name": name,
@@ -303,9 +299,7 @@ def register_user(user_data, db_connection):
         return {"status": "error", "message": "User already exists"}
 
     # Create user (mocked DB call)
-    db_connection.execute(
-        f"INSERT INTO users (email, password) VALUES ('{email}', '{password}')"
-    )
+    db_connection.execute(f"INSERT INTO users (email, password) VALUES ('{email}', '{password}')")
 
     # Send welcome email (mocked network call)
     email_body = f"Welcome to our platform, {email}! We are glad to have you."
@@ -333,9 +327,7 @@ def _is_existing_user(email: str, db_connection) -> bool:
 
 def _create_user(email: str, password: str, db_connection) -> None:
     """Create a new user in the database."""
-    db_connection.execute(
-        f"INSERT INTO users (email, password) VALUES ('{email}', '{password}')"
-    )
+    db_connection.execute(f"INSERT INTO users (email, password) VALUES ('{email}', '{password}')")
 
 
 def _send_welcome_email(email: str) -> None:

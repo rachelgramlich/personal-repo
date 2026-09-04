@@ -80,11 +80,13 @@ Always include a comment explaining why the suppression is justified.
 # Bad
 def load_feedback(path: Path) -> list[dict[str, Any]]: ...
 
+
 # Good
 class FeedbackEntry(TypedDict):
     timestamp: str
     command: str
     feedback: str
+
 
 def load_feedback(path: Path) -> list[FeedbackEntry]: ...
 ```
@@ -128,6 +130,7 @@ Exception classes must end with `Error` (PEP 8 / ruff `N818`):
 ```python
 # Bad
 class NytSyncCancelled(Exception): ...
+
 
 # Good
 class NytSyncCancelledError(Exception): ...
@@ -181,10 +184,13 @@ Imports inside function bodies are only acceptable to break true circular import
 # Bad — use at top-level instead
 def format_sync_message(summary: SyncSummary) -> str:
     from src.grocery_wizard.ingredients.sync import format_sync_summary
+
     return format_sync_summary(summary)
+
 
 # Good
 from src.grocery_wizard.ingredients.sync import format_sync_summary
+
 
 def format_sync_message(summary: SyncSummary) -> str:
     return format_sync_summary(summary)

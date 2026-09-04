@@ -402,6 +402,7 @@ def cmd_dev_schema(_args: argparse.Namespace) -> int:
 
 def cmd_dev_backfill(args: argparse.Namespace) -> int:
     from src.grocery_wizard.ingredients.sync import (
+        SyncResult,
         categorize_recipes,
         format_recipe_progress,
         format_sync_summary,
@@ -420,7 +421,7 @@ def cmd_dev_backfill(args: argparse.Namespace) -> int:
         if count:
             print()
 
-    def on_recipe_done(index: int, total: int, result) -> None:
+    def on_recipe_done(index: int, total: int, result: SyncResult) -> None:
         print(format_recipe_progress(index, total, result))
         if args.verbose and result.ingredient_lines:
             for line in result.ingredient_lines:
@@ -464,6 +465,7 @@ def cmd_dev_reconcile(args: argparse.Namespace) -> int:
 
 def cmd_dev_refresh_all(args: argparse.Namespace) -> int:
     from src.grocery_wizard.ingredients.sync import (
+        RefreshResult,
         format_refresh_progress,
         format_refresh_summary,
         run_refresh_ingredients,
@@ -486,7 +488,7 @@ def cmd_dev_refresh_all(args: argparse.Namespace) -> int:
         if total:
             print()
 
-    def on_recipe_done(index: int, count: int, result) -> None:
+    def on_recipe_done(index: int, count: int, result: RefreshResult) -> None:
         print(format_refresh_progress(index, count, result))
         if args.verbose and result.ingredient_lines:
             for line in result.ingredient_lines:
