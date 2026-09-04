@@ -277,6 +277,26 @@ def format_grocery_item(name: str, amount: str | None) -> str:
     return f"{amount} {name}"
 
 
+def format_meals_and_grocery_list(
+    meals: list[tuple[str, str | None]],
+    grocery_items: list[str],
+) -> str:
+    """Format meals and grocery items as a single copy/pasteable block."""
+    lines = ["Meals"]
+    for name, link in meals:
+        if link:
+            lines.append(f"- {name} ({link})")
+        else:
+            lines.append(f"- {name}")
+
+    lines.append("")
+    lines.append("Grocery List")
+    for item in sort_grocery_items(grocery_items):
+        lines.append(f"- {item}")
+
+    return "\n".join(lines)
+
+
 def _resolve_recurring_weekly_items(
     *,
     recurring_weekly_items: list[str] | None,
