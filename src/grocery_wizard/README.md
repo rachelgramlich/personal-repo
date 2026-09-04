@@ -86,14 +86,15 @@ NYT_REGI_ID=12345678
 ```shell
 uv run python -m src.grocery_wizard nyt auth-status   # check env vars + live verification
 uv run python -m src.grocery_wizard nyt saved         # list recipe box
-uv run python -m src.grocery_wizard nyt sync          # import to Notion (skips duplicates)
+uv run python -m src.grocery_wizard nyt sync          # import to Notion (prompts for folder)
 ```
 
 **NYT sync flags:**
 
 | Flag | When to use it |
 |------|----------------|
-| `--collection "Folder Name"` | Sync only one NYT recipe-box folder (falls back to full box if not found) |
+| *(no flag)* | Interactive picker — choose full recipe box or a specific folder |
+| `--collection "Folder Name"` | Sync one NYT recipe-box folder without prompting (falls back to full box if not found) |
 | `--dry-run` | Preview what would be added without writing to Notion |
 | `--no-confirm` | Batch import without per-recipe review prompts |
 
@@ -109,7 +110,7 @@ Other NYT command: `nyt auth-status`.
 | `edit-pantry` | Edit what's always in your kitchen (won't appear on shopping list) |
 | `nyt auth-status` | Check NYT Cooking env credentials and verify session |
 | `nyt saved` | List recipes in your NYT recipe box |
-| `nyt sync` | Import saved NYT recipes into Notion (skips duplicates) |
+| `nyt sync` | Import saved NYT recipes into Notion (interactive folder picker; skips duplicates) |
 
 ### Dev / maintenance commands
 

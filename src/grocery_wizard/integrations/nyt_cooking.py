@@ -41,6 +41,10 @@ class NytNetworkError(NYTCookingError):
     """The request could not be completed."""
 
 
+class NytSyncCancelled(NYTCookingError):
+    """User cancelled an interactive NYT sync step."""
+
+
 @dataclass(frozen=True)
 class NytCredentials:
     nyt_s_cookie: str
@@ -272,6 +276,72 @@ class NYTCookingClient:
         )
 
 
+def _recipe_box_total_count(client: NYTCookingClient) -> int | None:
+    try:
+        payload = client.list_saved_recipes(page=1, per_page=1)
+    except NYTCookingError:
+        return None
+    return int(payload.get("collectables_count") or 0)
+
+
+def prompt_collection_choice(
+    client: NYTCookingClient,
+    *,
+    prompt_fn: Callable[[str], str] = input,
+    on_info: Callable[[str], None] | None = None,
+) -> tuple[str | None, str]:
+    """Interactively pick a recipe-box collection.
+
+    Returns ``(collection_id, label)``. ``collection_id`` is ``None`` for the full recipe box.
+    Raises ``NytSyncCancelled`` when the user declines or enters an invalid choice.
+    """
+    from src.grocery_wizard.lib.prompts import confirm_yes_default
+
+    info = on_info or (lambda _message: None)
+
+    collections: list[NytCollection] = []
+    try:
+        collections = client.list_collections()
+    except NytAuthError:
+        raise
+    except NYTCookingError as exc:
+        info(f"Could not load recipe-box folders ({exc}); full recipe box only.")
+
+    if not collections:
+        total = _recipe_box_total_count(client)
+        count_note = f" ({total} recipes)" if total is not None else ""
+        info(f"Syncing full recipe box{count_note}.")
+        if not confirm_yes_default("Continue?", prompt_fn=prompt_fn):
+            raise NytSyncCancelled("Sync cancelled.")
+        return None, "All saved recipes"
+
+    total = _recipe_box_total_count(client)
+    options: list[tuple[str | None, str, int | None]] = [
+        (None, "All saved recipes", total),
+    ]
+    for collection in collections:
+        options.append((collection.id, collection.name, collection.recipe_count))
+
+    info("Choose a recipe-box folder to sync:")
+    for index, (_collection_id, label, count) in enumerate(options, start=1):
+        count_note = f" ({count} recipes)" if count is not None else ""
+        info(f"  {index}. {label}{count_note}")
+
+    while True:
+        choice = prompt_fn("Folder [#]: ").strip()
+        if not choice:
+            raise NytSyncCancelled("Sync cancelled.")
+        try:
+            picked = int(choice)
+        except ValueError:
+            info("Enter a number from the list.")
+            continue
+        if 1 <= picked <= len(options):
+            collection_id, label, _count = options[picked - 1]
+            return collection_id, label
+        info(f"Enter a number between 1 and {len(options)}.")
+
+
 @dataclass
 class NytSyncSummary:
     total: int = 0
@@ -286,6 +356,8 @@ def sync_saved_recipes_to_notion(
     client: NYTCookingClient,
     *,
     collection_name: str | None = None,
+    collection_id: str | None = None,
+    collection_label: str | None = None,
     dry_run: bool = False,
     no_confirm: bool = False,
     confirm: Callable[[str], bool] | None = None,
@@ -295,9 +367,10 @@ def sync_saved_recipes_to_notion(
     from src.grocery_wizard.recipes.add_recipe import add_prefetched_recipes
 
     summary = NytSyncSummary()
-    collection_id: str | None = None
+    resolved_id = collection_id
+    resolved_label = collection_label
 
-    if collection_name:
+    if resolved_id is None and collection_name:
         collection = client.find_collection_by_name(collection_name)
         if collection is None:
             if on_progress:
@@ -305,13 +378,21 @@ def sync_saved_recipes_to_notion(
                     f"Collection '{collection_name}' not found; syncing full recipe box."
                 )
         else:
-            collection_id = collection.id
+            resolved_id = collection.id
+            resolved_label = collection.name
             if on_progress:
                 on_progress(
                     f"Syncing collection: {collection.name} ({collection.recipe_count} recipes)"
                 )
+    elif on_progress and resolved_label:
+        if resolved_id is not None:
+            on_progress(f"Syncing collection: {resolved_label}")
+        else:
+            total = _recipe_box_total_count(client)
+            count_note = f" ({total} recipes)" if total is not None else ""
+            on_progress(f"Syncing: {resolved_label}{count_note}")
 
-    for saved in client.iter_all_saved_recipes(collection_id=collection_id):
+    for saved in client.iter_all_saved_recipes(collection_id=resolved_id):
         summary.total += 1
         url = saved.url
         if not url:

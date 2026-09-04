@@ -219,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     nyt_sync_parser.add_argument(
         "--collection",
-        help="Sync only recipes from a specific NYT folder (falls back to full recipe box)",
+        help="Sync only recipes from a specific NYT folder (skips interactive picker)",
     )
     nyt_sync_parser.add_argument(
         "--dry-run",
@@ -524,6 +524,8 @@ def cmd_nyt_sync(args: argparse.Namespace) -> int:
     from src.grocery_wizard.integrations.nyt_cooking import (
         NytAuthError,
         NYTCookingClient,
+        NytSyncCancelled,
+        prompt_collection_choice,
         sync_saved_recipes_to_notion,
     )
 
@@ -534,11 +536,29 @@ def cmd_nyt_sync(args: argparse.Namespace) -> int:
     if args.dry_run:
         print("Dry run — no recipes will be written to Notion.\n")
 
+    collection_id: str | None = None
+    collection_label: str | None = None
+
+    try:
+        if args.collection:
+            pass
+        else:
+            collection_id, collection_label = prompt_collection_choice(client, on_info=print)
+            print()
+    except NytAuthError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    except NytSyncCancelled as exc:
+        print(str(exc))
+        return 0
+
     try:
         summary = sync_saved_recipes_to_notion(
             db,
             client,
             collection_name=args.collection,
+            collection_id=collection_id,
+            collection_label=collection_label,
             dry_run=args.dry_run,
             no_confirm=args.no_confirm,
             on_progress=print,
