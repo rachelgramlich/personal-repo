@@ -410,9 +410,7 @@ def sync_saved_recipes_to_notion(
         collection = client.find_collection_by_name(collection_name)
         if collection is None:
             if on_progress:
-                on_progress(
-                    f"Collection '{collection_name}' not found; syncing full recipe box."
-                )
+                on_progress(f"Collection '{collection_name}' not found; syncing full recipe box.")
         else:
             resolved_id = collection.id
             resolved_label = collection.name
@@ -533,9 +531,7 @@ def _metadata_for_recipe(
 
     filter_columns = [(col.name, col.type, col.options) for col in db.schema.filter_columns]
     weeknight_column = (
-        DEFAULT_WEEKNIGHT_COLUMN
-        if DEFAULT_WEEKNIGHT_COLUMN in db.schema.all_columns
-        else None
+        DEFAULT_WEEKNIGHT_COLUMN if DEFAULT_WEEKNIGHT_COLUMN in db.schema.all_columns else None
     )
     inferred = classify_recipe(
         title,
@@ -765,8 +761,7 @@ def format_reclassify_summary(summary: NytReclassifySummary) -> str:
         lines.append("")
         lines.append("Meal corrections:")
         lines.extend(
-            f"  {change.name}: {change.old_value} -> {change.new_value}"
-            for change in notable[:30]
+            f"  {change.name}: {change.old_value} -> {change.new_value}" for change in notable[:30]
         )
         if len(notable) > 30:
             lines.append(f"  ... and {len(notable) - 30} more")

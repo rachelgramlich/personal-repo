@@ -18,7 +18,12 @@ import streamlit.components.v1 as components
 
 from src.grocery_wizard.config import RECURRING_WEEKLY_ITEMS_PATH, WEEK_PLAN_PATH, load_config
 from src.grocery_wizard.ingredients.sync import prepare_ingredients_for_notion
-from src.grocery_wizard.integrations.notion import ColumnInfo, NotionRecipesDB
+from src.grocery_wizard.integrations.notion import (
+    ColumnInfo,
+    DatabaseSchema,
+    NotionFieldValues,
+    NotionRecipesDB,
+)
 from src.grocery_wizard.planning.meal_planner import (
     MealPlanFilters,
     default_filters,
@@ -384,7 +389,7 @@ def render_add_recipe() -> None:
         _render_recipe_review(db, schema, preview, index)
 
 
-def _ordered_recipe_field_names(schema) -> list[str]:
+def _ordered_recipe_field_names(schema: DatabaseSchema) -> list[str]:
     names = [schema.name_column, schema.link_column]
     if schema.ingredients_column:
         names.append(schema.ingredients_column)
@@ -401,14 +406,14 @@ def _guess_recipe_name_from_url(url: str) -> str:
 
 
 def _base_recipe_fields(
-    schema,
+    schema: DatabaseSchema,
     *,
     url: str = "",
     name: str = "",
     ingredients: str = "",
-    inferred: dict | None = None,
-) -> dict:
-    fields: dict = {
+    inferred: NotionFieldValues | None = None,
+) -> NotionFieldValues:
+    fields: NotionFieldValues = {
         schema.name_column: name,
         schema.link_column: url,
     }
@@ -423,8 +428,8 @@ def _base_recipe_fields(
 
 def _render_recipe_review(
     db: NotionRecipesDB,
-    schema,
-    preview: dict,
+    schema: DatabaseSchema,
+    preview: dict[str, object],
     index: int,
 ) -> None:
     status = preview.get("status", "ready")
@@ -469,8 +474,13 @@ def _render_recipe_review(
             st.rerun()
 
 
-def _render_recipe_field_editors(schema, fields: dict, *, key_prefix: str) -> dict:
-    edited: dict = {}
+def _render_recipe_field_editors(
+    schema: DatabaseSchema,
+    fields: NotionFieldValues,
+    *,
+    key_prefix: str,
+) -> NotionFieldValues:
+    edited: NotionFieldValues = {}
     for field_name in _ordered_recipe_field_names(schema):
         if field_name not in fields and field_name not in schema.all_columns:
             continue
@@ -561,9 +571,7 @@ def _preview_recipes(db: NotionRecipesDB, urls: list[str]) -> list[dict]:
 
         filter_columns = [(col.name, col.type, col.options) for col in schema.filter_columns]
         weeknight_column = (
-            DEFAULT_WEEKNIGHT_COLUMN
-            if DEFAULT_WEEKNIGHT_COLUMN in schema.all_columns
-            else None
+            DEFAULT_WEEKNIGHT_COLUMN if DEFAULT_WEEKNIGHT_COLUMN in schema.all_columns else None
         )
         inferred = classify_recipe(
             scraped.title,

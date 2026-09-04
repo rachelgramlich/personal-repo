@@ -88,12 +88,7 @@ def test_prepare_ingredients_for_notion_splits_and_drops_junk() -> None:
 
 
 def test_prepare_ingredients_for_notion_drops_instructions_and_metadata() -> None:
-    text = (
-        "Recipe serves 2\n"
-        "2 tablespoons olive oil\n"
-        "1.\tHeat the olive oil\n"
-        "stir to combine."
-    )
+    text = "Recipe serves 2\n2 tablespoons olive oil\n1.\tHeat the olive oil\nstir to combine."
     prepared = prepare_ingredients_for_notion(text)
     lines = prepared.splitlines()
     assert lines == ["olive oil"]

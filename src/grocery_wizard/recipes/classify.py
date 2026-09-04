@@ -6,8 +6,8 @@ __all__ = ["classify_column", "classify_recipe"]
 
 import re
 from collections.abc import Iterable
-from typing import Any
 
+from src.grocery_wizard.integrations.notion import NotionFieldValues
 from src.grocery_wizard.recipes.weeknight import is_weeknight_friendly
 
 # Column name (lowercase) -> option -> keywords
@@ -176,6 +176,7 @@ BREAKFAST_PATTERN = re.compile(
 SANDWICH_PATTERN = re.compile(r"\bsandwich(?:es)?\b", re.IGNORECASE)
 SALAD_PATTERN = re.compile(r"\bsalad\b", re.IGNORECASE)
 
+
 def classify_column(
     column_name: str,
     title: str,
@@ -215,9 +216,9 @@ def classify_recipe(
     *,
     total_minutes: float | None = None,
     weeknight_column: str | None = None,
-) -> dict[str, Any]:
+) -> NotionFieldValues:
     """Return inferred values for each filter column (name, type, options)."""
-    results: dict[str, Any] = {}
+    results: NotionFieldValues = {}
     meal_options: list[str] | None = None
 
     for column_name, column_type, options in filter_columns:
