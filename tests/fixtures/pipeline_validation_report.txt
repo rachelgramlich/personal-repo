@@ -1,0 +1,83 @@
+Pipeline validation report
+Recipes in Notion: 71
+Runs: 2
+
+--- Run 1 ---
+Plan source: suggest_meals (meals=5, seed=1)
+Recipes (5): Bibimbap, Sticky Harissa Tofu Tacos, Red Curry Lentils with Sweet Potatoes and Spinach, Grilled Chimichurri Chicken w/ zucchini and orzo, Celery Salad
+Grocery items: 34
+
+Sample grocery items:
+  - 1/2 limes
+  - 2 lemons
+  - 1 pint small tomatoes
+  - 1 sweet potatoes
+  - 1 yellow onions
+  - 1/4 cup thinly sliced red onions
+  - 2 red onions
+  - 6 celery stalks
+  - 8 corn tortillas
+  - basil
+  - celery
+  - cilantro
+  - oyster mushrooms
+  - red cabbage
+  - spinach
+
+Missing from Notion (0):
+  (none)
+
+Recipes without ingredients (0):
+  (none)
+
+Suspicious stored ingredient text (0):
+  (none)
+
+Empty-normalize ingredient lines (0):
+  (none)
+
+Junk lines in stored ingredients (0):
+  (none)
+
+Suspicious normalized names (0):
+  (none)
+
+--- Run 2 ---
+Plan source: suggest_meals (meals=5, seed=3)
+Recipes (5): Bibimbap, Sticky Harissa Tofu Tacos, Grilled Chimichurri Chicken w/ zucchini and orzo, Red Curry Lentils with Sweet Potatoes and Spinach, Homemade Sushi
+Grocery items: 31
+
+Sample grocery items:
+  - 1/2 limes
+  - 2 lemons
+  - avocados
+  - 1 sweet potatoes
+  - 1 yellow onions
+  - 2 red onions
+  - 8 corn tortillas
+  - cilantro
+  - edamame
+  - mini cucumbers
+  - oyster mushrooms
+  - red cabbage
+  - scallions
+  - spinach
+  - zucchini
+
+Missing from Notion (0):
+  (none)
+
+Recipes without ingredients (0):
+  (none)
+
+Suspicious stored ingredient text (0):
+  (none)
+
+Empty-normalize ingredient lines (0):
+  (none)
+
+Junk lines in stored ingredients (0):
+  (none)
+
+Suspicious normalized names (0):
+  (none)

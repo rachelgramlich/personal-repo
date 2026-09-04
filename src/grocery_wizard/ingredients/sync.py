@@ -9,9 +9,14 @@ from dataclasses import dataclass, field
 import requests
 
 from src.grocery_wizard.ingredients.normalize import (
+    clean_ingredient_line_for_storage,
     expand_ingredient_line,
+    is_instruction_line,
     is_junk_ingredient,
+    is_metadata_line,
+    is_recipe_step_line,
     normalize_ingredient,
+    split_merged_ingredient_line,
 )
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
 from src.grocery_wizard.recipes.scraper import (
@@ -22,6 +27,7 @@ from src.grocery_wizard.recipes.scraper import (
 
 _REMOVAL_PREFIX_RE = re.compile(r"^remove\s*:?\s*(.+)$", re.IGNORECASE)
 _REMOVAL_DASH_RE = re.compile(r"^-\s+(.+)$")
+_BR_SPLIT = re.compile(r"<br\s*/?>", re.IGNORECASE)
 
 
 @dataclass
@@ -93,9 +99,106 @@ def split_ingredients_text(text: str) -> str:
     return ingredients_to_text(output_lines)
 
 
+def _normalize_stored_lines(text: str) -> list[str]:
+    """Normalize bullets, HTML breaks, and unicode from stored ingredient text."""
+    if not text or not text.strip():
+        return []
+
+    normalized = _BR_SPLIT.sub("\n", text)
+    lines: list[str] = []
+    for raw_line in normalized.splitlines():
+        line = raw_line.strip()
+        line = re.sub(r"^[▢•*]\s*", "", line)
+        line = re.sub(r"^\\[ \\]\s*▢?", "", line).strip()
+        line = re.sub(r"^\d+\.\s*(?:\[\s*\]\s*)", "", line).strip()
+        if line.startswith(("- ", "* ")):
+            line = line[2:].strip()
+        elif len(line) > 1 and line[0] == "-" and line[1].isdigit():
+            line = line[1:].strip()
+        if line:
+            lines.append(line)
+    return lines
+
+
+def _repair_mangled_lines(lines: list[str]) -> list[str]:
+    """Split merged scrape artifacts into one ingredient per line."""
+    repaired: list[str] = []
+    for line in lines:
+        if is_directive(line):
+            repaired.append(line)
+            continue
+        repaired.extend(split_merged_ingredient_line(line))
+    return repaired
+
+
+def _merge_continuation_lines(lines: list[str]) -> list[str]:
+    """Join ingredient lines broken across rows (e.g. unclosed parentheses)."""
+    merged: list[str] = []
+    for line in lines:
+        if is_directive(line):
+            merged.append(line)
+            continue
+        stripped = line.strip()
+        if (
+            is_junk_ingredient(stripped)
+            or is_instruction_line(stripped)
+            or is_metadata_line(stripped)
+        ):
+            merged.append(stripped)
+            continue
+        if (
+            merged
+            and not is_directive(merged[-1])
+            and _is_ingredient_continuation(merged[-1], stripped)
+        ):
+            merged[-1] = f"{merged[-1]} {stripped}"
+        else:
+            merged.append(stripped)
+    return merged
+
+
+def _is_ingredient_continuation(previous: str, current: str) -> bool:
+    if previous.count("(") > previous.count(")"):
+        return True
+    stripped = current.strip()
+    if not stripped:
+        return False
+    if len(stripped.split()) == 1 and not is_junk_ingredient(stripped):
+        return False
+    prev_words = previous.split()
+    if len(prev_words) == 1 and prev_words[0][0].isupper():
+        return False
+    if stripped[0].islower() and not re.match(r"^\d", stripped):
+        return True
+    return False
+
+
+def _truncate_at_instructions(lines: list[str]) -> list[str]:
+    """Drop recipe steps and everything after the first numbered instruction."""
+    kept: list[str] = []
+    for line in lines:
+        if is_directive(line):
+            kept.append(line)
+            continue
+        if is_recipe_step_line(line):
+            break
+        if is_metadata_line(line) or is_instruction_line(line):
+            continue
+        kept.append(line)
+    return kept
+
+
 def prepare_ingredients_for_notion(text: str) -> str:
-    """Split compound lines and drop junk before storing ingredients in Notion."""
-    split = split_ingredients_text(text)
+    """Clean, split, and normalize ingredient text before storing in Notion."""
+    lines = _normalize_stored_lines(text)
+    if not lines:
+        return ""
+
+    lines = _repair_mangled_lines(lines)
+    lines = _merge_continuation_lines(lines)
+    lines = _truncate_at_instructions(lines)
+
+    split = split_ingredients_text(ingredients_to_text(lines))
     if not split.strip():
         return ""
 
@@ -107,9 +210,15 @@ def prepare_ingredients_for_notion(text: str) -> str:
         if is_directive(stripped):
             kept.append(stripped)
             continue
-        if is_junk_ingredient(stripped):
+        if (
+            is_metadata_line(stripped)
+            or is_instruction_line(stripped)
+            or is_junk_ingredient(stripped)
+        ):
             continue
-        kept.append(stripped)
+        if stripped.lower() == "recipe":
+            continue
+        kept.append(clean_ingredient_line_for_storage(stripped))
     return ingredients_to_text(kept)
 
 
@@ -140,7 +249,7 @@ def refresh_ingredients_for_recipe(
         except Exception as exc:
             return RefreshResult(recipe.name, "failed", str(exc))
 
-    refreshed_text = split_ingredients_text(source_text)
+    refreshed_text = prepare_ingredients_for_notion(source_text)
     ingredient_lines = [
         line for line in refreshed_text.splitlines() if line.strip() and not is_directive(line)
     ]
@@ -269,7 +378,13 @@ def is_removal_directive(line: str) -> bool:
         return False
     if _REMOVAL_PREFIX_RE.match(stripped):
         return True
-    return bool(_REMOVAL_DASH_RE.match(stripped))
+    match = _REMOVAL_DASH_RE.match(stripped)
+    if not match:
+        return False
+    target = match.group(1).strip()
+    if re.match(r"^\d", target):
+        return False
+    return True
 
 
 def is_directive(line: str) -> bool:
@@ -434,8 +549,9 @@ def sync_ingredients_for_recipe(
     except Exception as exc:
         return SyncResult(recipe.name, "failed", str(exc))
 
+    prepared_text = prepare_ingredients_for_notion(ingredients_text)
     ingredient_lines = [
-        line for line in ingredients_text.splitlines() if line.strip() and not is_directive(line)
+        line for line in prepared_text.splitlines() if line.strip() and not is_directive(line)
     ]
     if not ingredient_lines:
         return SyncResult(recipe.name, "failed", "no ingredients found on page")
@@ -450,7 +566,7 @@ def sync_ingredients_for_recipe(
 
     db.update_recipe(
         recipe.page_id,
-        {db.schema.ingredients_column: ingredients_text},
+        {db.schema.ingredients_column: prepared_text},
     )
     return SyncResult(
         recipe.name,

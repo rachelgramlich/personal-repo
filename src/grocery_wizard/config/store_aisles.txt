@@ -107,6 +107,7 @@ tempeh
 miso paste
 kimchi
 sauerkraut
+chimichurri
 
 # --- canned drinks: Canned drinks ---
 sparkling water
@@ -140,6 +141,7 @@ sausage
 chicken breast
 chicken thigh
 chicken wing
+chicken
 ground chicken
 ground beef
 ground turkey
@@ -185,6 +187,11 @@ roll
 croissant
 
 # --- dry goods: Dry goods / cans / cereal / rice ---
+avocado oil
+olive oil
+vegetable oil
+canola oil
+sesame oil
 chicken broth
 beef broth
 vegetable broth
