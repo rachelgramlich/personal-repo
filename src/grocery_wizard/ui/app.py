@@ -454,8 +454,10 @@ def _render_recipe_review(
                 return
 
             if schema.ingredients_column:
+                source_url = cleaned.get(schema.link_column) or preview.get("url")
                 cleaned[schema.ingredients_column] = prepare_ingredients_for_notion(
-                    cleaned[schema.ingredients_column]
+                    cleaned[schema.ingredients_column],
+                    source_url=source_url,
                 )
                 if not cleaned[schema.ingredients_column].strip():
                     st.warning("Add ingredients before saving (one per line).")

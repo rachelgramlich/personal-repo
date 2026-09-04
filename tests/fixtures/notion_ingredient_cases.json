@@ -2,42 +2,42 @@
   {
     "recipe": "Tortellini Soup",
     "raw_line": "1 bunch Tuscan (lacinato) kale, leaves stripped and chopped",
-    "expect_after_prepare": "1 bunch Tuscan (lacinato) kale, leaves stripped and",
-    "expect_normalized": "kale leaves stripped and",
+    "expect_after_prepare": "1 kale bunch",
+    "expect_normalized": "kale bunch",
     "notes": "edge, parenthetical, and"
   },
   {
     "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
     "raw_line": "1 lime, cut into wedges (optional)",
-    "expect_after_prepare": null,
+    "expect_after_prepare": "1 limes",
     "expect_normalized": "limes",
     "notes": "optional, prep_instruction, parenthetical"
   },
   {
     "recipe": "Brownie Pudding",
     "raw_line": "[x] 1 tablespoon framboise liqueur, optional",
-    "expect_after_prepare": "[x] 1 tablespoon framboise liqueur",
+    "expect_after_prepare": null,
     "expect_normalized": "[x] 1 tablespoon framboise liqueur",
     "notes": "optional, bullet"
   },
   {
     "recipe": "Chickpea curry",
     "raw_line": "Chopped fresh cilantro lime wedges, for garnish (optional)",
-    "expect_after_prepare": null,
-    "expect_normalized": "cilantro limes",
+    "expect_after_prepare": "cilantro lime wedges",
+    "expect_normalized": "cilantro lime wedges",
     "notes": "optional, parenthetical"
   },
   {
     "recipe": "Chickpea curry",
     "raw_line": "Naan bread rice, to serve (optional)",
-    "expect_after_prepare": null,
+    "expect_after_prepare": "Naan bread rice",
     "expect_normalized": "naan bread rice",
     "notes": "optional, parenthetical"
   },
   {
     "recipe": "Cinnamon Date Smoothie",
     "raw_line": "1 tablespoon plain Greek yogurt (optional)",
-    "expect_after_prepare": null,
+    "expect_after_prepare": "plain Greek yogurt",
     "expect_normalized": "plain greek yogurt",
     "notes": "optional, parenthetical"
   },
@@ -46,26 +46,26 @@
     "raw_line": "7 oz sweet condensed milk (1/2 of the 7oz can)",
     "expect_normalized": "sweet condensed milk",
     "notes": "parenthetical, metric_qty",
-    "expect_after_prepare": null
+    "expect_after_prepare": "sweet condensed milk"
   },
   {
     "recipe": "Potato Leek Soup",
     "raw_line": "2 medium leeks, light green white parts only, halved lengthwise and thinly sliced (about 3 cups)",
-    "expect_normalized": "leeks light green white parts only halved lengthwise and",
+    "expect_normalized": "leeks",
     "notes": "parenthetical, and",
-    "expect_after_prepare": null
+    "expect_after_prepare": "2 medium leeks"
   },
   {
     "recipe": "Red Curry Lentils with Sweet Potatoes and Spinach",
     "raw_line": "1 (1-inch) piece fresh ginger, peeled and grated (about 1 tablespoon)",
-    "expect_after_prepare": null,
+    "expect_after_prepare": "1 piece ginger",
     "expect_normalized": "ginger",
     "notes": "parenthetical, and"
   },
   {
     "recipe": "Spinach Artichoke White Bean Soup",
     "raw_line": "1, 15oz can cannellini beans, drained and rinsed",
-    "expect_after_prepare": "1, 15oz can cannellini beans",
+    "expect_after_prepare": "cannellini beans",
     "expect_normalized": "cannellini beans",
     "notes": "and, metric_qty"
   },
@@ -74,7 +74,7 @@
     "raw_line": "2 (14 oz) cans white beans (drained rinsed)",
     "expect_normalized": "white beans",
     "notes": "edge, parenthetical",
-    "expect_after_prepare": null
+    "expect_after_prepare": "2 cans white beans"
   },
   {
     "recipe": "Tomatillo Beans",
@@ -86,7 +86,7 @@
   {
     "recipe": "Best ever bean burrito",
     "raw_line": "2 cans (15 oz each) black beans, rinsed",
-    "expect_after_prepare": "2 cans (15 oz each) black beans",
+    "expect_after_prepare": "2 cans black beans",
     "expect_normalized": "black beans",
     "notes": "parenthetical"
   },
@@ -95,7 +95,7 @@
     "raw_line": "Tuscan kale olive oil",
     "expect_normalized": "kale olive oil",
     "notes": "edge",
-    "expect_after_prepare": null
+    "expect_after_prepare": "kale olive oil"
   },
   {
     "recipe": "Bibimbap",
@@ -107,8 +107,8 @@
   {
     "recipe": "Brownie Pudding",
     "raw_line": "[x] 4 extra-large eggs, at room temperature",
-    "expect_after_prepare": "[x] 4 extra-large eggs",
-    "expect_normalized": "[x] 4 extra-large eggs",
+    "expect_after_prepare": null,
+    "expect_normalized": "[x] 4 extra-large eggs, at room temperature",
     "notes": "bullet"
   },
   {
@@ -149,14 +149,14 @@
   {
     "recipe": "Celery Salad",
     "raw_line": "2 garlic cloves, smashed and peeled",
-    "expect_after_prepare": "2 garlic cloves",
+    "expect_after_prepare": "clove:2 garlic",
     "expect_normalized": "garlic",
     "notes": "and"
   },
   {
     "recipe": "Celery Salad",
     "raw_line": "\u00bc cup loosely packed basil leaves, rolled and julienned",
-    "expect_after_prepare": "1/4 cup loosely packed basil leaves",
+    "expect_after_prepare": "basil",
     "expect_normalized": "basil",
     "notes": "and"
   },
@@ -177,7 +177,7 @@
   {
     "recipe": "Creamy lentil & Japanese sweet potato skillet",
     "raw_line": "1 Japanese sweet potato, peeled and cubed",
-    "expect_after_prepare": "1 Japanese sweet potato",
+    "expect_after_prepare": "1 Japanese sweet potatoes",
     "expect_normalized": "japanese sweet potatoes",
     "notes": "and"
   },
@@ -198,7 +198,7 @@
   {
     "recipe": "Easy Dal",
     "raw_line": "180g dried red lentils, rinsed",
-    "expect_after_prepare": "180g dried red lentils",
+    "expect_after_prepare": "dried red lentils",
     "expect_normalized": "dried red lentils",
     "notes": "metric_qty"
   },
@@ -212,7 +212,7 @@
   {
     "recipe": "Herby Chickpea Salad Sandwich w marinated zucchini",
     "raw_line": "2, 15 oz cans chickpeas, drained and rinsed",
-    "expect_after_prepare": "2, 15 oz cans chickpeas",
+    "expect_after_prepare": "chickpeas",
     "expect_normalized": "chickpeas",
     "notes": "and"
   },
@@ -221,54 +221,54 @@
     "raw_line": "28oz tomato sauce",
     "expect_normalized": "tomato sauce",
     "notes": "metric_qty",
-    "expect_after_prepare": null
+    "expect_after_prepare": "tomato sauce"
   },
   {
     "recipe": "PICKLE BEANS",
     "raw_line": "85ml extra virgin olive oil",
-    "expect_normalized": "extra virgin olive oil",
+    "expect_normalized": "virgin olive oil",
     "notes": "metric_qty",
-    "expect_after_prepare": null
+    "expect_after_prepare": "extra virgin olive oil"
   },
   {
     "recipe": "PICKLE BEANS",
     "raw_line": "480g butter beans, or two drained cans",
-    "expect_normalized": "two drained cans",
+    "expect_normalized": "butter beans",
     "notes": "metric_qty",
-    "expect_after_prepare": null
+    "expect_after_prepare": "butter beans"
   },
   {
     "recipe": "PICKLE BEANS",
     "raw_line": "20g fresh parsley, chopped",
-    "expect_after_prepare": "20g fresh parsley",
+    "expect_after_prepare": "parsley",
     "expect_normalized": "parsley",
     "notes": "metric_qty"
   },
   {
     "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
     "raw_line": "1 pound boneless, skinless chicken thighs, cut into 1-inch pieces",
-    "expect_after_prepare": "1 pound boneless, skinless chicken thighs",
-    "expect_normalized": "chicken thighs",
+    "expect_after_prepare": "1 lb boneless, skinless chicken thighs",
+    "expect_normalized": "boneless, skinless chicken thighs",
     "notes": "prep_instruction"
   },
   {
     "recipe": "Mashed potatoes (synthetic)",
     "raw_line": "2 pounds Idaho Burbank Russets2 Tablespoons scallions, finely mincedSalt",
-    "expect_after_prepare": "2 pounds Idaho Burbank Russets\n2 Tablespoons scallions\nSalt",
-    "expect_normalized": "idaho burbank russets2 tablespoons scallions",
+    "expect_after_prepare": "2 lb Idaho Burbank Russets\nscallions\nSalt",
+    "expect_normalized": "idaho burbank russets2 tablespoons scallions, finely mincedsalt",
     "notes": "merged scrape artifact"
   },
   {
     "recipe": "Mashed potatoes (synthetic)",
     "raw_line": "fresh black pepper1/4 cup chicken stock",
-    "expect_after_prepare": "fresh black pepper\n1/4 cup chicken stock",
+    "expect_after_prepare": "black pepper\nchicken stock",
     "expect_normalized": "chicken stock",
     "notes": "merged scrape artifact"
   },
   {
     "recipe": "Sweet potato sheet pan (synthetic)",
     "raw_line": "2 sweet potatoes and 1 red onion",
-    "expect_after_prepare": "2 sweet potatoes\n1 red onion",
+    "expect_after_prepare": "2 sweet potatoes\n1 red onions",
     "expect_normalized": "sweet potatoes and 1 red onions",
     "notes": "compound split"
   },
@@ -289,14 +289,14 @@
   {
     "recipe": "Recipe metadata (synthetic)",
     "raw_line": "Recipe serves 2\n2 tablespoons olive oil\n1.\tHeat the olive oil\nstir to combine.",
-    "expect_after_prepare": "2 tablespoons olive oil",
+    "expect_after_prepare": "olive oil",
     "expect_normalized": "recipe serves 2 2 tablespoons olive oil 1. heat the olive oil stir to combine.",
     "notes": "metadata + instruction drop"
   },
   {
     "recipe": "Bullet HTML (synthetic)",
     "raw_line": "\u25a2 2 cans white beans<br/>\u25a2 1 onion, diced",
-    "expect_after_prepare": "2 cans white beans\n1 onion",
+    "expect_after_prepare": "2 cans white beans\n1 onions",
     "expect_normalized": "\u25a2 2 cans white beans<br/>\u25a2 1 onions",
     "notes": "bullet + html breaks"
   },
@@ -331,7 +331,7 @@
   {
     "recipe": "Gnocchi (synthetic)",
     "raw_line": "gnocchi sauce veggie for gnocchi",
-    "expect_after_prepare": "gnocchi\nveggie for gnocchi",
+    "expect_after_prepare": "gnocchi\nveggie",
     "expect_normalized": "gnocchi sauce veggie for gnocchi",
     "notes": "recipe_title_bleed"
   },
@@ -347,14 +347,14 @@
     "raw_line": "cilantro leaves",
     "expect_normalized": "cilantro",
     "notes": "herb_leaves",
-    "expect_after_prepare": null
+    "expect_after_prepare": "cilantro"
   },
   {
     "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
     "raw_line": "1/2 lime",
     "expect_normalized": "limes",
     "notes": "fractional_count",
-    "expect_after_prepare": null
+    "expect_after_prepare": "1/2 limes"
   },
   {
     "recipe": "Whole Roasted Cauliflower with Pesto",

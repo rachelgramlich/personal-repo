@@ -91,7 +91,7 @@ def run_grocery_list(
 
     seen: set[str] = set(collected.keys())
     grocery_items: list[str] = [
-        format_grocery_item(display_name, aggregate_amounts(amounts))
+        format_grocery_item(display_name, aggregate_amounts(amounts, name=display_name))
         for display_name, amounts in collected.values()
     ]
 
@@ -192,7 +192,7 @@ def build_grocery_list(
 
     seen: set[str] = set(collected.keys())
     grocery_items: list[str] = [
-        format_grocery_item(display_name, aggregate_amounts(amounts))
+        format_grocery_item(display_name, aggregate_amounts(amounts, name=display_name))
         for display_name, amounts in collected.values()
     ]
 
@@ -359,8 +359,9 @@ def _collect_ingredient_line(
         normalized, amount = parse_amount(part)
         if not normalized:
             continue
-        if not should_show_amount(amount, part):
-            amount = None
+        if amount and not amount.startswith(("head:", "clove:", "zest:")):
+            if not should_show_amount(amount, part):
+                amount = None
         if exclude_pantry and is_pantry_item(normalized, pantry):
             if normalized not in excluded_pantry:
                 excluded_pantry.append(normalized)

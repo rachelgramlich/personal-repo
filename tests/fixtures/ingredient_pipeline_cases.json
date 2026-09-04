@@ -1,0 +1,189 @@
+[
+  {
+    "label": "Lemon juice + zest + whole (issue #21)",
+    "raw_lines": [
+      "juice of half a lemon",
+      "zest of 1 lemon",
+      "2 lemons"
+    ],
+    "aggregate": true,
+    "expect_aggregate_grocery": "3 lemons",
+    "issue_21": true
+  },
+  {
+    "label": "Chicken thighs with weight parenthetical",
+    "raw_line": "10 boneless, skinless chicken thighs (2½ to 3 pounds)",
+    "expect_stored": "10 boneless, skinless chicken thighs",
+    "expect_grocery": "10 boneless, skinless chicken thighs",
+    "issue_21": true
+  },
+  {
+    "label": "Fresh ginger with prep",
+    "raw_line": "1 tablespoon fresh ginger, peeled and grated",
+    "expect_stored": "ginger",
+    "expect_grocery": "ginger",
+    "issue_21": true
+  },
+  {
+    "label": "Celery stalk range (or)",
+    "raw_line": "4 large or 6 small celery stalks",
+    "expect_stored": "6 celery stalks",
+    "issue_21": true
+  },
+  {
+    "label": "Optional sherry vinegar",
+    "raw_line": "Optional: 1/2 cup sherry vinegar, more as needed",
+    "expect_stored": "sherry vinegar",
+    "expect_grocery": "sherry vinegar",
+    "issue_21": true
+  },
+  {
+    "label": "Dual measure flour",
+    "raw_line": "1 cup/110 grams all-purpose flour",
+    "expect_stored": "flour",
+    "expect_grocery": "flour",
+    "issue_21": true
+  },
+  {
+    "label": "Bare ingredient (chimichurri)",
+    "raw_line": "chimichurri",
+    "expect_stored": "chimichurri",
+    "expect_grocery": "chimichurri",
+    "issue_21": true
+  },
+  {
+    "label": "NYT-style: minimal clean (structured line)",
+    "raw_line": "2 tablespoons extra-virgin olive oil, plus more for drizzling",
+    "nyt": true,
+    "expect_stored": "2 tablespoons extra-virgin olive oil, plus more for drizzling",
+    "expect_grocery": "extra-virgin olive oil"
+  },
+  {
+    "label": "NYT-style: onion with prep kept",
+    "raw_line": "1 medium yellow onion, finely diced",
+    "nyt": true,
+    "expect_stored": "1 medium yellow onion, finely diced",
+    "expect_grocery": "1 yellow onions"
+  },
+  {
+    "label": "Volume-only olive oil",
+    "raw_line": "2 tbsp olive oil, plus more for drizzling",
+    "expect_stored": "olive oil",
+    "expect_grocery": "olive oil"
+  },
+  {
+    "label": "Volume-only kosher salt",
+    "raw_line": "kosher salt",
+    "expect_stored": "kosher salt",
+    "expect_grocery": "kosher salt"
+  },
+  {
+    "label": "Compound cans: diced tomatoes",
+    "raw_line": "2 (15-ounce) cans diced tomatoes",
+    "expect_stored": "2 cans diced tomatoes",
+    "expect_grocery": "diced tomatoes"
+  },
+  {
+    "label": "Lemon variant aggregation (juice + 1 + zest)",
+    "raw_lines": [
+      "juice of half a lemon",
+      "1 lemon",
+      "zest of 1 lemon"
+    ],
+    "aggregate": true,
+    "expect_aggregate_grocery": "3 lemons"
+  },
+  {
+    "label": "Optional ground meat alternatives",
+    "raw_line": "Optional: 1 lb ground chicken, turkey, or beef",
+    "expect_stored": "1 lb ground chicken",
+    "expect_grocery": "1 lb ground chicken"
+  },
+  {
+    "label": "Parenthetical substitution preserved",
+    "raw_line": "1 chicken bouillon cube (or substitute 2 cups chicken broth for the water bouillon)",
+    "expect_stored": "1 chicken bouillon cube (or substitute 2 cups chicken broth for the water bouillon)",
+    "expect_grocery": "chicken bouillon cube"
+  },
+  {
+    "label": "Garlic cloves with prep",
+    "raw_line": "3 cloves garlic, minced",
+    "expect_stored": "clove:3 garlic",
+    "expect_grocery": "garlic"
+  },
+  {
+    "label": "Multi-recipe garlic aggregation",
+    "raw_lines": [
+      "3 cloves garlic, minced",
+      "2 cloves garlic, smashed and peeled"
+    ],
+    "aggregate": true,
+    "expect_aggregate_grocery": "garlic"
+  },
+  {
+    "label": "Many garlic cloves aggregation",
+    "raw_lines": [
+      "6 cloves garlic, minced",
+      "6 cloves garlic, smashed and peeled"
+    ],
+    "aggregate": true,
+    "expect_aggregate_grocery": "2 garlic"
+  },
+  {
+    "label": "Explicit head garlic",
+    "raw_line": "1 head garlic",
+    "expect_stored": "1 head garlic",
+    "expect_grocery": "1 garlic"
+  },
+  {
+    "label": "Mixed clove and head garlic",
+    "raw_lines": [
+      "3 cloves garlic, minced",
+      "1 head garlic"
+    ],
+    "aggregate": true,
+    "expect_aggregate_grocery": "1 garlic"
+  },
+  {
+    "label": "Many cloves plus explicit head garlic",
+    "raw_lines": [
+      "12 cloves garlic, minced",
+      "1 head garlic"
+    ],
+    "aggregate": true,
+    "expect_aggregate_grocery": "2 garlic"
+  },
+  {
+    "label": "Multi-recipe onion aggregation",
+    "raw_lines": [
+      "1 medium onion, diced",
+      "2 small yellow onions, sliced"
+    ],
+    "aggregate": true,
+    "expect_aggregate_grocery": "3 onions"
+  },
+  {
+    "label": "Weight-only chicken breast",
+    "raw_line": "1 lb boneless skinless chicken breast",
+    "expect_stored": "1 lb boneless skinless chicken breast",
+    "expect_grocery": "1 lb boneless skinless chicken breast"
+  },
+  {
+    "label": "Crushed red pepper (preserved product)",
+    "raw_line": "Crushed red pepper",
+    "expect_stored": "crushed red pepper",
+    "expect_grocery": "crushed red pepper"
+  },
+  {
+    "label": "To taste preserved raw",
+    "raw_line": "Salt and pepper to taste",
+    "expect_stored": "Salt and pepper to taste",
+    "expect_grocery": "Salt and pepper"
+  },
+  {
+    "label": "Frozen spinach with oz",
+    "raw_line": "10 oz frozen spinach",
+    "expect_stored": "frozen spinach",
+    "expect_grocery": "frozen spinach"
+  }
+]
