@@ -193,27 +193,15 @@ def main(argv: list[str] | None = None) -> int:
 
     nyt_parser = subparsers.add_parser(
         "nyt",
-        help="NYT Cooking integration (auth, saved recipes, sync to Notion)",
+        help="NYT Cooking integration (saved recipes, sync to Notion)",
     )
     nyt_subparsers = nyt_parser.add_subparsers(dest="nyt_command", required=True)
 
-    nyt_auth_parser = nyt_subparsers.add_parser(
-        "auth",
-        help="Store and verify NYT-S cookie + regi_id",
-    )
-    nyt_auth_parser.set_defaults(func=cmd_nyt_auth)
-
     nyt_auth_status_parser = nyt_subparsers.add_parser(
         "auth-status",
-        help="Check whether NYT Cooking credentials are configured",
+        help="Check whether NYT Cooking credentials are configured (env vars)",
     )
     nyt_auth_status_parser.set_defaults(func=cmd_nyt_auth_status)
-
-    nyt_logout_parser = nyt_subparsers.add_parser(
-        "logout",
-        help="Clear stored NYT Cooking credentials",
-    )
-    nyt_logout_parser.set_defaults(func=cmd_nyt_logout)
 
     nyt_saved_parser = nyt_subparsers.add_parser(
         "saved",
@@ -469,47 +457,6 @@ def cmd_dev_list_feedback(_args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_nyt_auth(_args: argparse.Namespace) -> int:
-    from src.grocery_wizard.config import NYT_CREDENTIALS_PATH
-    from src.grocery_wizard.integrations.nyt_cooking import (
-        NytAuthError,
-        NYTCookingClient,
-        NytCredentials,
-        parse_regi_id,
-        save_credentials,
-    )
-
-    print("NYT Cooking authentication")
-    print("1. Log into https://cooking.nytimes.com")
-    print("2. DevTools → Application → Cookies → cooking.nytimes.com")
-    print("3. Copy the NYT-S cookie value")
-    print("4. Copy regi_id from regi_cookie (or paste the full cookie)\n")
-
-    cookie = input("NYT-S cookie: ").strip()
-    if not cookie:
-        print("NYT-S cookie is required.", file=sys.stderr)
-        return 1
-
-    regi_raw = input("regi_id (or full regi_cookie): ").strip()
-    if not regi_raw:
-        print("regi_id is required.", file=sys.stderr)
-        return 1
-
-    regi_id = parse_regi_id(regi_raw)
-    credentials = NytCredentials(nyt_s_cookie=cookie, regi_id=regi_id)
-    client = NYTCookingClient(credentials)
-
-    try:
-        client.verify_auth()
-    except NytAuthError as exc:
-        print(f"Authentication failed: {exc}", file=sys.stderr)
-        return 1
-
-    save_credentials(credentials, NYT_CREDENTIALS_PATH)
-    print(f"Credentials verified and saved to {NYT_CREDENTIALS_PATH}")
-    return 0
-
-
 def cmd_nyt_auth_status(_args: argparse.Namespace) -> int:
     from src.grocery_wizard.integrations.nyt_cooking import (
         NytAuthError,
@@ -520,13 +467,11 @@ def cmd_nyt_auth_status(_args: argparse.Namespace) -> int:
     status = credentials_status()
     if not status["configured"]:
         print("NYT Cooking credentials: not configured")
-        print(f"Credentials file: {status['path']}")
-        print("Run: uv run python -m src.grocery_wizard nyt auth")
+        print("Set NYT_S_COOKIE and NYT_REGI_ID (or NYT_USER_ID) in your environment.")
+        print("See README for how to copy values from browser DevTools.")
         return 1
 
-    source = "environment + file" if status["from_env"] else "file"
-    print(f"NYT Cooking credentials: configured ({source})")
-    print(f"Credentials file: {status['path']}")
+    print("NYT Cooking credentials: configured (environment)")
     print(f"regi_id: {status['regi_id']}")
 
     client = NYTCookingClient()
@@ -537,15 +482,6 @@ def cmd_nyt_auth_status(_args: argparse.Namespace) -> int:
         return 1
 
     print("Verification: OK")
-    return 0
-
-
-def cmd_nyt_logout(_args: argparse.Namespace) -> int:
-    from src.grocery_wizard.config import NYT_CREDENTIALS_PATH
-    from src.grocery_wizard.integrations.nyt_cooking import clear_credentials
-
-    clear_credentials(NYT_CREDENTIALS_PATH)
-    print(f"Cleared NYT credentials at {NYT_CREDENTIALS_PATH}")
     return 0
 
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 from collections.abc import Callable, Iterator
@@ -84,55 +83,29 @@ def parse_regi_id(value: str) -> str:
     return stripped
 
 
-def load_credentials(path: Path = NYT_CREDENTIALS_PATH) -> NytCredentials | None:
-    """Load stored credentials, with optional env overrides."""
+def load_credentials() -> NytCredentials | None:
+    """Load credentials from environment variables."""
     cookie = os.getenv("NYT_S_COOKIE", "").strip()
     regi_id = os.getenv("NYT_REGI_ID", "").strip() or os.getenv("NYT_USER_ID", "").strip()
-
-    if path.exists():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            data = {}
-        if not cookie:
-            cookie = str(data.get("nyt_s_cookie", "")).strip()
-        if not regi_id:
-            regi_id = str(data.get("regi_id", "")).strip()
 
     if cookie and regi_id:
         return NytCredentials(nyt_s_cookie=cookie, regi_id=regi_id)
     return None
 
 
-def save_credentials(
-    credentials: NytCredentials,
-    path: Path = NYT_CREDENTIALS_PATH,
-) -> None:
-    """Persist credentials to disk."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "nyt_s_cookie": credentials.nyt_s_cookie,
-        "regi_id": credentials.regi_id,
-    }
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-
-
-def clear_credentials(path: Path = NYT_CREDENTIALS_PATH) -> None:
-    """Remove stored credentials."""
+def clear_legacy_credentials_file(path: Path = NYT_CREDENTIALS_PATH) -> bool:
+    """Remove a legacy nyt_credentials.json file, if present."""
     if path.exists():
         path.unlink()
+        return True
+    return False
 
 
-def credentials_status(path: Path = NYT_CREDENTIALS_PATH) -> dict[str, Any]:
-    """Return whether credentials are configured (file and/or env)."""
-    creds = load_credentials(path)
-    from_env = bool(os.getenv("NYT_S_COOKIE", "").strip()) or bool(
-        os.getenv("NYT_REGI_ID", "").strip() or os.getenv("NYT_USER_ID", "").strip()
-    )
+def credentials_status() -> dict[str, Any]:
+    """Return whether credentials are configured via environment variables."""
+    creds = load_credentials()
     return {
         "configured": creds is not None,
-        "from_env": from_env,
-        "path": str(path),
         "regi_id": creds.regi_id if creds else None,
     }
 
@@ -144,11 +117,9 @@ class NYTCookingClient:
         self,
         credentials: NytCredentials | None = None,
         *,
-        credentials_path: Path = NYT_CREDENTIALS_PATH,
         session: requests.Session | None = None,
     ) -> None:
-        self._credentials_path = credentials_path
-        self._credentials = credentials or load_credentials(credentials_path)
+        self._credentials = credentials or load_credentials()
         self._http = session or requests.Session()
         self._http.headers["User-Agent"] = USER_AGENT
         if self._credentials:
@@ -165,8 +136,8 @@ class NYTCookingClient:
     def _require_credentials(self) -> NytCredentials:
         if self._credentials is None:
             raise NytAuthError(
-                "NYT Cooking credentials are not configured. Run: "
-                "uv run python -m src.grocery_wizard nyt auth"
+                "NYT Cooking credentials are not configured. Set NYT_S_COOKIE and "
+                "NYT_REGI_ID (or NYT_USER_ID) in your environment."
             )
         return self._credentials
 

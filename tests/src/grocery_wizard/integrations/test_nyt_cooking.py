@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,11 +12,9 @@ from src.grocery_wizard.integrations.nyt_cooking import (
     NytCredentials,
     _ingredients_from_parts,
     _parse_recipe_payload,
-    clear_credentials,
     credentials_status,
     load_credentials,
     parse_regi_id,
-    save_credentials,
     sync_saved_recipes_to_notion,
 )
 
@@ -28,8 +25,9 @@ def credentials() -> NytCredentials:
 
 
 @pytest.fixture
-def credentials_path(tmp_path: Path) -> Path:
-    return tmp_path / "nyt_credentials.json"
+def env_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NYT_S_COOKIE", "test-cookie")
+    monkeypatch.setenv("NYT_REGI_ID", "12345678")
 
 
 def test_parse_regi_id_from_cookie() -> None:
@@ -37,27 +35,39 @@ def test_parse_regi_id_from_cookie() -> None:
     assert parse_regi_id("87654321") == "87654321"
 
 
-def test_save_and_load_credentials(credentials: NytCredentials, credentials_path: Path) -> None:
-    save_credentials(credentials, credentials_path)
-    loaded = load_credentials(credentials_path)
-    assert loaded == credentials
+def test_load_credentials_from_env(env_credentials: None) -> None:
+    loaded = load_credentials()
+    assert loaded == NytCredentials(nyt_s_cookie="test-cookie", regi_id="12345678")
 
 
-def test_clear_credentials(credentials: NytCredentials, credentials_path: Path) -> None:
-    save_credentials(credentials, credentials_path)
-    clear_credentials(credentials_path)
-    assert not credentials_path.exists()
-    assert load_credentials(credentials_path) is None
+def test_load_credentials_accepts_nyt_user_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NYT_S_COOKIE", "test-cookie")
+    monkeypatch.setenv("NYT_USER_ID", "87654321")
+    monkeypatch.delenv("NYT_REGI_ID", raising=False)
+
+    loaded = load_credentials()
+    assert loaded == NytCredentials(nyt_s_cookie="test-cookie", regi_id="87654321")
 
 
-def test_credentials_status_not_configured(credentials_path: Path) -> None:
-    status = credentials_status(credentials_path)
+def test_load_credentials_missing_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("NYT_S_COOKIE", raising=False)
+    monkeypatch.delenv("NYT_REGI_ID", raising=False)
+    monkeypatch.delenv("NYT_USER_ID", raising=False)
+
+    assert load_credentials() is None
+
+
+def test_credentials_status_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("NYT_S_COOKIE", raising=False)
+    monkeypatch.delenv("NYT_REGI_ID", raising=False)
+    monkeypatch.delenv("NYT_USER_ID", raising=False)
+
+    status = credentials_status()
     assert status["configured"] is False
 
 
-def test_credentials_status_configured(credentials: NytCredentials, credentials_path: Path) -> None:
-    save_credentials(credentials, credentials_path)
-    status = credentials_status(credentials_path)
+def test_credentials_status_configured(env_credentials: None) -> None:
+    status = credentials_status()
     assert status["configured"] is True
     assert status["regi_id"] == "12345678"
 
@@ -304,7 +314,7 @@ def test_cli_nyt_auth_status_not_configured(capsys: pytest.CaptureFixture[str]) 
 
     with patch(
         "src.grocery_wizard.integrations.nyt_cooking.credentials_status",
-        return_value={"configured": False, "path": "/tmp/nyt.json", "from_env": False},
+        return_value={"configured": False, "regi_id": None},
     ):
         code = cmd_nyt_auth_status(argparse_namespace())
 

@@ -117,7 +117,7 @@ def test_nyt_help_lists_subcommands(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit):
         main(["nyt", "--help"])
     output = capsys.readouterr().out
-    assert "auth" in output
+    assert "auth-status" in output
     assert "sync" in output
 
 

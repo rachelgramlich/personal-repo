@@ -59,22 +59,34 @@ Edit `src/grocery_wizard/config/pantry.txt` — items here won't show up on your
 
 ### I want to sync my NYT Cooking recipe box to Notion
 
-One-time auth (interactive — paste cookie values from your browser):
+NYT credentials come from environment variables only (no `nyt auth` command).
+
+#### Get credentials from your browser
+
+1. Log into [NYT Cooking](https://cooking.nytimes.com).
+2. Open DevTools → **Application** (Chrome) or **Storage** (Firefox) → **Cookies** → `cooking.nytimes.com`.
+3. Copy the **NYT-S** cookie value → set as `NYT_S_COOKIE`.
+4. Copy **regi_id** from the **regi_cookie** value (or paste the full cookie; the numeric id is extracted automatically) → set as `NYT_REGI_ID`.
+
+#### Set environment variables
+
+**Local** — add to `.env` in the repo root (see `.env.example`):
 
 ```shell
-uv run python -m src.grocery_wizard nyt auth
+NYT_S_COOKIE=your-nyt-s-cookie-value
+NYT_REGI_ID=12345678
 ```
 
-List saved recipes:
+`NYT_USER_ID` is accepted as an alias for `NYT_REGI_ID`.
+
+**Cloud Agent / dashboard** — add the same names as Secrets (`NYT_S_COOKIE`, `NYT_REGI_ID` or `NYT_USER_ID`).
+
+#### Verify and use
 
 ```shell
-uv run python -m src.grocery_wizard nyt saved
-```
-
-Sync to Notion (skips recipes already in Notion by link):
-
-```shell
-uv run python -m src.grocery_wizard nyt sync
+uv run python -m src.grocery_wizard nyt auth-status   # check env vars + live verification
+uv run python -m src.grocery_wizard nyt saved         # list recipe box
+uv run python -m src.grocery_wizard nyt sync          # import to Notion (skips duplicates)
 ```
 
 **NYT sync flags:**
@@ -85,9 +97,7 @@ uv run python -m src.grocery_wizard nyt sync
 | `--dry-run` | Preview what would be added without writing to Notion |
 | `--no-confirm` | Batch import without per-recipe review prompts |
 
-Other NYT commands: `nyt auth-status`, `nyt logout`.
-
-Credentials are stored in `.local/grocery_wizard/nyt_credentials.json` (gitignored). Optional env overrides: `NYT_S_COOKIE`, `NYT_REGI_ID`.
+Other NYT command: `nyt auth-status`.
 
 ## Command cheat sheet
 
@@ -97,7 +107,7 @@ Credentials are stored in `.local/grocery_wizard/nyt_credentials.json` (gitignor
 | `plan-recipes` | Pick dinners for the week (saves week_plan.json) |
 | `create-grocery-list` | Build your shopping list from this week's plan |
 | `edit-pantry` | Edit what's always in your kitchen (won't appear on shopping list) |
-| `nyt auth` | Store NYT Cooking session (NYT-S cookie + regi_id) |
+| `nyt auth-status` | Check NYT Cooking env credentials and verify session |
 | `nyt saved` | List recipes in your NYT recipe box |
 | `nyt sync` | Import saved NYT recipes into Notion (skips duplicates) |
 
@@ -159,8 +169,7 @@ Same subfolders as source — e.g. `recipes/test_scraper.py` tests `recipes/scra
 | Path | Purpose |
 |------|---------|
 | `.local/grocery_wizard/week_plan.json` | This week's planned recipe names |
-| `.local/grocery_wizard/nyt_credentials.json` | NYT Cooking session (from `nyt auth`) |
-| `.env` | `NOTION_API_KEY`, `NOTION_DATABASE_ID` (see `.env.example`) |
+| `.env` | `NOTION_API_KEY`, `NOTION_DATABASE_ID`, NYT credentials (see `.env.example`) |
 
 ### Entry points
 
