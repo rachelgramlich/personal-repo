@@ -1,0 +1,5 @@
+{
+  "name": "personal-repo (Grocery Wizard)",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh"
+}
