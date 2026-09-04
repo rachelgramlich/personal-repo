@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 import requests
 
 from src.grocery_wizard.ingredients.normalize import (
+    clean_ingredient_line_for_storage,
     expand_ingredient_line,
     is_instruction_line,
     is_junk_ingredient,
@@ -162,6 +163,8 @@ def _is_ingredient_continuation(previous: str, current: str) -> bool:
     stripped = current.strip()
     if not stripped:
         return False
+    if len(stripped.split()) == 1 and not is_junk_ingredient(stripped):
+        return False
     prev_words = previous.split()
     if len(prev_words) == 1 and prev_words[0][0].isupper():
         return False
@@ -215,7 +218,7 @@ def prepare_ingredients_for_notion(text: str) -> str:
             continue
         if stripped.lower() == "recipe":
             continue
-        kept.append(stripped)
+        kept.append(clean_ingredient_line_for_storage(stripped))
     return ingredients_to_text(kept)
 
 

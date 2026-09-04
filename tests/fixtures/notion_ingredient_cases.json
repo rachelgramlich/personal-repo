@@ -2,7 +2,7 @@
   {
     "recipe": "Tortellini Soup",
     "raw_line": "1 bunch Tuscan (lacinato) kale, leaves stripped and chopped",
-    "expect_after_prepare": null,
+    "expect_after_prepare": "1 bunch Tuscan (lacinato) kale, leaves stripped and",
     "expect_normalized": "kale leaves stripped and",
     "notes": "edge, parenthetical, and"
   },
@@ -16,7 +16,7 @@
   {
     "recipe": "Brownie Pudding",
     "raw_line": "[x] 1 tablespoon framboise liqueur, optional",
-    "expect_after_prepare": null,
+    "expect_after_prepare": "[x] 1 tablespoon framboise liqueur",
     "expect_normalized": "[x] 1 tablespoon framboise liqueur",
     "notes": "optional, bullet"
   },
@@ -44,37 +44,37 @@
   {
     "recipe": "Coconut limeade",
     "raw_line": "7 oz sweet condensed milk (1/2 of the 7oz can)",
-    "expect_after_prepare": null,
     "expect_normalized": "sweet condensed milk",
-    "notes": "parenthetical, metric_qty"
+    "notes": "parenthetical, metric_qty",
+    "expect_after_prepare": null
   },
   {
     "recipe": "Potato Leek Soup",
     "raw_line": "2 medium leeks, light green white parts only, halved lengthwise and thinly sliced (about 3 cups)",
-    "expect_after_prepare": null,
     "expect_normalized": "leeks light green white parts only halved lengthwise and",
+    "notes": "parenthetical, and",
+    "expect_after_prepare": null
+  },
+  {
+    "recipe": "Red Curry Lentils with Sweet Potatoes and Spinach",
+    "raw_line": "1 (1-inch) piece fresh ginger, peeled and grated (about 1 tablespoon)",
+    "expect_after_prepare": null,
+    "expect_normalized": "ginger",
     "notes": "parenthetical, and"
   },
-    {
-        "recipe": "Red Curry Lentils with Sweet Potatoes and Spinach",
-        "raw_line": "1 (1-inch) piece fresh ginger, peeled and grated (about 1 tablespoon)",
-        "expect_after_prepare": null,
-        "expect_normalized": "ginger",
-        "notes": "parenthetical, and"
-    },
-    {
-        "recipe": "Spinach Artichoke White Bean Soup",
-        "raw_line": "1, 15oz can cannellini beans, drained and rinsed",
-        "expect_after_prepare": null,
-        "expect_normalized": "cannellini beans",
-        "notes": "and, metric_qty"
-    },
+  {
+    "recipe": "Spinach Artichoke White Bean Soup",
+    "raw_line": "1, 15oz can cannellini beans, drained and rinsed",
+    "expect_after_prepare": "1, 15oz can cannellini beans",
+    "expect_normalized": "cannellini beans",
+    "notes": "and, metric_qty"
+  },
   {
     "recipe": "Tomatillo Beans",
     "raw_line": "2 (14 oz) cans white beans (drained rinsed)",
-    "expect_after_prepare": null,
     "expect_normalized": "white beans",
-    "notes": "edge, parenthetical"
+    "notes": "edge, parenthetical",
+    "expect_after_prepare": null
   },
   {
     "recipe": "Tomatillo Beans",
@@ -86,80 +86,80 @@
   {
     "recipe": "Best ever bean burrito",
     "raw_line": "2 cans (15 oz each) black beans, rinsed",
-    "expect_after_prepare": null,
+    "expect_after_prepare": "2 cans (15 oz each) black beans",
     "expect_normalized": "black beans",
     "notes": "parenthetical"
   },
   {
     "recipe": "Bibimbap",
     "raw_line": "Tuscan kale olive oil",
-    "expect_after_prepare": null,
     "expect_normalized": "kale olive oil",
-    "notes": "edge"
+    "notes": "edge",
+    "expect_after_prepare": null
   },
   {
     "recipe": "Bibimbap",
     "raw_line": "Sesame oil gochujang kimchi",
-    "expect_after_prepare": null,
     "expect_normalized": "sesame oil gochujang kimchi",
-    "notes": "edge"
+    "notes": "edge",
+    "expect_after_prepare": null
   },
   {
     "recipe": "Brownie Pudding",
     "raw_line": "[x] 4 extra-large eggs, at room temperature",
-    "expect_after_prepare": null,
+    "expect_after_prepare": "[x] 4 extra-large eggs",
     "expect_normalized": "[x] 4 extra-large eggs",
     "notes": "bullet"
   },
   {
     "recipe": "Brownie Pudding",
     "raw_line": "[x] 2 cups sugar",
-    "expect_after_prepare": null,
     "expect_normalized": "[x] 2 cups sugar",
-    "notes": "bullet"
+    "notes": "bullet",
+    "expect_after_prepare": null
   },
   {
     "recipe": "Brownie Pudding",
     "raw_line": "[x] 3/4 cup good cocoa powder",
-    "expect_after_prepare": null,
     "expect_normalized": "[x] 3/4 cup good cocoa powder",
-    "notes": "bullet"
+    "notes": "bullet",
+    "expect_after_prepare": null
   },
   {
     "recipe": "Brownie Pudding",
     "raw_line": "[x] 1/2 cup all-purpose flour",
-    "expect_after_prepare": null,
     "expect_normalized": "[x] 1/2 cup all-purpose flour",
-    "notes": "bullet"
+    "notes": "bullet",
+    "expect_after_prepare": null
   },
   {
     "recipe": "Brownie Pudding",
     "raw_line": "[x] Seeds scraped from 1 vanilla bean",
-    "expect_after_prepare": null,
     "expect_normalized": "[x] seeds scraped from 1 vanilla bean",
-    "notes": "bullet"
+    "notes": "bullet",
+    "expect_after_prepare": null
   },
   {
     "recipe": "Cauli, Three-Potato & White Bean Soup",
     "raw_line": "cauliflower white beans potatoes heavy cream",
-    "expect_after_prepare": null,
     "expect_normalized": "cauliflower white beans potatoes heavy cream",
-    "notes": "edge"
+    "notes": "edge",
+    "expect_after_prepare": null
   },
-    {
-        "recipe": "Celery Salad",
-        "raw_line": "2 garlic cloves, smashed and peeled",
-        "expect_after_prepare": null,
-        "expect_normalized": "garlic",
-        "notes": "and"
-    },
-    {
-        "recipe": "Celery Salad",
-        "raw_line": "¼ cup loosely packed basil leaves, rolled and julienned",
-        "expect_after_prepare": "1/4 cup loosely packed basil leaves, rolled and julienned",
-        "expect_normalized": "basil",
-        "notes": "and"
-    },
+  {
+    "recipe": "Celery Salad",
+    "raw_line": "2 garlic cloves, smashed and peeled",
+    "expect_after_prepare": "2 garlic cloves",
+    "expect_normalized": "garlic",
+    "notes": "and"
+  },
+  {
+    "recipe": "Celery Salad",
+    "raw_line": "\u00bc cup loosely packed basil leaves, rolled and julienned",
+    "expect_after_prepare": "1/4 cup loosely packed basil leaves",
+    "expect_normalized": "basil",
+    "notes": "and"
+  },
   {
     "recipe": "Chickpea curry",
     "raw_line": "and pepper, to taste",
@@ -174,13 +174,13 @@
     "expect_normalized": "salt",
     "notes": "to_taste"
   },
-    {
-        "recipe": "Creamy lentil & Japanese sweet potato skillet",
-        "raw_line": "1 Japanese sweet potato, peeled and cubed",
-        "expect_after_prepare": null,
-        "expect_normalized": "japanese sweet potatoes",
-        "notes": "and"
-    },
+  {
+    "recipe": "Creamy lentil & Japanese sweet potato skillet",
+    "raw_line": "1 Japanese sweet potato, peeled and cubed",
+    "expect_after_prepare": "1 Japanese sweet potato",
+    "expect_normalized": "japanese sweet potatoes",
+    "notes": "and"
+  },
   {
     "recipe": "Creamy lentil & Japanese sweet potato skillet",
     "raw_line": "1/2 tsp sea salt, more to taste",
@@ -198,7 +198,7 @@
   {
     "recipe": "Easy Dal",
     "raw_line": "180g dried red lentils, rinsed",
-    "expect_after_prepare": null,
+    "expect_after_prepare": "180g dried red lentils",
     "expect_normalized": "dried red lentils",
     "notes": "metric_qty"
   },
@@ -209,52 +209,52 @@
     "expect_normalized": "juice of 1/2 lemons",
     "notes": "to_taste"
   },
-    {
-        "recipe": "Herby Chickpea Salad Sandwich w marinated zucchini",
-        "raw_line": "2, 15 oz cans chickpeas, drained and rinsed",
-        "expect_after_prepare": null,
-        "expect_normalized": "chickpeas",
-        "notes": "and"
-    },
+  {
+    "recipe": "Herby Chickpea Salad Sandwich w marinated zucchini",
+    "raw_line": "2, 15 oz cans chickpeas, drained and rinsed",
+    "expect_after_prepare": "2, 15 oz cans chickpeas",
+    "expect_normalized": "chickpeas",
+    "notes": "and"
+  },
   {
     "recipe": "Lasagna Soup",
     "raw_line": "28oz tomato sauce",
-    "expect_after_prepare": null,
     "expect_normalized": "tomato sauce",
-    "notes": "metric_qty"
+    "notes": "metric_qty",
+    "expect_after_prepare": null
   },
   {
     "recipe": "PICKLE BEANS",
     "raw_line": "85ml extra virgin olive oil",
-    "expect_after_prepare": null,
     "expect_normalized": "extra virgin olive oil",
-    "notes": "metric_qty"
+    "notes": "metric_qty",
+    "expect_after_prepare": null
   },
   {
     "recipe": "PICKLE BEANS",
     "raw_line": "480g butter beans, or two drained cans",
-    "expect_after_prepare": null,
     "expect_normalized": "two drained cans",
-    "notes": "metric_qty"
+    "notes": "metric_qty",
+    "expect_after_prepare": null
   },
   {
     "recipe": "PICKLE BEANS",
     "raw_line": "20g fresh parsley, chopped",
-    "expect_after_prepare": null,
+    "expect_after_prepare": "20g fresh parsley",
     "expect_normalized": "parsley",
     "notes": "metric_qty"
   },
-    {
-        "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
-        "raw_line": "1 pound boneless, skinless chicken thighs, cut into 1-inch pieces",
-        "expect_after_prepare": null,
-        "expect_normalized": "chicken thighs",
-        "notes": "prep_instruction"
-    },
+  {
+    "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
+    "raw_line": "1 pound boneless, skinless chicken thighs, cut into 1-inch pieces",
+    "expect_after_prepare": "1 pound boneless, skinless chicken thighs",
+    "expect_normalized": "chicken thighs",
+    "notes": "prep_instruction"
+  },
   {
     "recipe": "Mashed potatoes (synthetic)",
     "raw_line": "2 pounds Idaho Burbank Russets2 Tablespoons scallions, finely mincedSalt",
-    "expect_after_prepare": "2 pounds Idaho Burbank Russets\n2 Tablespoons scallions, finely minced\nSalt",
+    "expect_after_prepare": "2 pounds Idaho Burbank Russets\n2 Tablespoons scallions\nSalt",
     "expect_normalized": "idaho burbank russets2 tablespoons scallions",
     "notes": "merged scrape artifact"
   },
@@ -282,9 +282,9 @@
   {
     "recipe": "Sweet potato sheet pan (synthetic)",
     "raw_line": "remove: garlic",
-    "expect_after_prepare": null,
     "expect_normalized": "remove: garlic",
-    "notes": "removal directive"
+    "notes": "removal directive",
+    "expect_after_prepare": null
   },
   {
     "recipe": "Recipe metadata (synthetic)",
@@ -295,9 +295,9 @@
   },
   {
     "recipe": "Bullet HTML (synthetic)",
-    "raw_line": "▢ 2 cans white beans<br/>▢ 1 onion, diced",
-    "expect_after_prepare": "2 cans white beans\n1 onion, diced",
-    "expect_normalized": "▢ 2 cans white beans<br/>▢ 1 onions",
+    "raw_line": "\u25a2 2 cans white beans<br/>\u25a2 1 onion, diced",
+    "expect_after_prepare": "2 cans white beans\n1 onion",
+    "expect_normalized": "\u25a2 2 cans white beans<br/>\u25a2 1 onions",
     "notes": "bullet + html breaks"
   },
   {
@@ -310,50 +310,57 @@
   {
     "recipe": "Best ever bean burrito",
     "raw_line": "1 chicken bouillon cube (or substitute 2 cups chicken broth for the water bouillon)",
-    "expect_after_prepare": null,
     "expect_normalized": "chicken bouillon cube",
-    "notes": "manual addition preserved"
+    "notes": "manual addition preserved",
+    "expect_after_prepare": null
   },
-    {
-        "recipe": "Spinach Artichoke White Bean Soup",
-        "raw_line": "5 oz fresh spinach (or frozen, see notes below)",
-        "expect_after_prepare": null,
-        "expect_normalized": "spinach",
-        "notes": "manual addition preserved"
-    },
-    {
-        "recipe": "Grilled Chimichurri Chicken w/ zucchini and orzo",
-        "raw_line": "chimichurri zucchini orzo",
-        "expect_after_prepare": "chimichurri\nzucchini\norzo",
-        "expect_normalized": "chimichurri zucchini orzo",
-        "notes": "recipe_title_bleed"
-    },
-    {
-        "recipe": "Gnocchi (synthetic)",
-        "raw_line": "gnocchi sauce veggie for gnocchi",
-        "expect_after_prepare": "gnocchi\nveggie for gnocchi",
-        "expect_normalized": "gnocchi sauce veggie for gnocchi",
-        "notes": "recipe_title_bleed"
-    },
-    {
-        "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
-        "raw_line": "asparagus trimmed thinly sliced on an angle",
-        "expect_after_prepare": null,
-        "expect_normalized": "asparagus",
-        "notes": "prep_instruction"
-    },
-    {
-        "recipe": "Chickpea curry",
-        "raw_line": "cilantro leaves",
-        "expect_after_prepare": null,
-        "expect_normalized": "cilantro",
-        "notes": "herb_leaves"
-    },
-    {
-        "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
-        "raw_line": "1/2 lime",
-        "expect_after_prepare": null,
-        "expect_normalized": "limes",
-        "notes": "fractional_count"
-    }
+  {
+    "recipe": "Spinach Artichoke White Bean Soup",
+    "raw_line": "5 oz fresh spinach (or frozen, see notes below)",
+    "expect_normalized": "spinach",
+    "notes": "manual addition preserved",
+    "expect_after_prepare": null
+  },
+  {
+    "recipe": "Grilled Chimichurri Chicken w/ zucchini and orzo",
+    "raw_line": "chimichurri zucchini orzo",
+    "expect_after_prepare": "chimichurri\nzucchini\norzo",
+    "expect_normalized": "chimichurri zucchini orzo",
+    "notes": "recipe_title_bleed"
+  },
+  {
+    "recipe": "Gnocchi (synthetic)",
+    "raw_line": "gnocchi sauce veggie for gnocchi",
+    "expect_after_prepare": "gnocchi\nveggie for gnocchi",
+    "expect_normalized": "gnocchi sauce veggie for gnocchi",
+    "notes": "recipe_title_bleed"
+  },
+  {
+    "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
+    "raw_line": "asparagus trimmed thinly sliced on an angle",
+    "expect_after_prepare": "asparagus",
+    "expect_normalized": "asparagus",
+    "notes": "prep_instruction"
+  },
+  {
+    "recipe": "Chickpea curry",
+    "raw_line": "cilantro leaves",
+    "expect_normalized": "cilantro",
+    "notes": "herb_leaves",
+    "expect_after_prepare": null
+  },
+  {
+    "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
+    "raw_line": "1/2 lime",
+    "expect_normalized": "limes",
+    "notes": "fractional_count",
+    "expect_after_prepare": null
+  },
+  {
+    "recipe": "Whole Roasted Cauliflower with Pesto",
+    "raw_line": "2 small yellow onions, sliced 1/4 inch thick lengthwise",
+    "expect_after_prepare": "2 small yellow onions",
+    "expect_normalized": "yellow onions",
+    "notes": "prep_instruction, dimension_cut"
+  }
 ]

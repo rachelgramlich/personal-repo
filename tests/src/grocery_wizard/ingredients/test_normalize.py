@@ -2,6 +2,7 @@ import pytest
 
 from src.grocery_wizard.ingredients.normalize import (
     aggregate_amounts,
+    clean_ingredient_line_for_storage,
     expand_ingredient_line,
     is_instruction_line,
     is_junk_ingredient,
@@ -38,6 +39,22 @@ from src.grocery_wizard.ingredients.normalize import (
 )
 def test_normalize_ingredient(raw: str, expected: str) -> None:
     assert normalize_ingredient(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("2 small yellow onions, sliced 1/4 inch thick lengthwise", "2 small yellow onions"),
+        ("1 onion, diced", "1 onion"),
+        ("3 cloves garlic, minced", "3 cloves garlic"),
+        (
+            "1 chicken bouillon cube (or substitute 2 cups chicken broth for the water bouillon)",
+            "1 chicken bouillon cube (or substitute 2 cups chicken broth for the water bouillon)",
+        ),
+    ],
+)
+def test_clean_ingredient_line_for_storage(raw: str, expected: str) -> None:
+    assert clean_ingredient_line_for_storage(raw) == expected
 
 
 @pytest.mark.parametrize(

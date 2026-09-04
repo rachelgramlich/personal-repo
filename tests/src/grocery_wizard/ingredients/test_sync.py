@@ -71,6 +71,12 @@ def test_is_directive() -> None:
     assert not is_directive("2 cups rice")
 
 
+def test_prepare_ingredients_for_notion_strips_trailing_prep() -> None:
+    text = "2 small yellow onions, sliced 1/4 inch thick lengthwise"
+    prepared = prepare_ingredients_for_notion(text)
+    assert prepared == "2 small yellow onions"
+
+
 def test_prepare_ingredients_for_notion_splits_and_drops_junk() -> None:
     text = "2 sweet potatoes and 1 red onion\n" "sliced into half-moons\n" "remove: garlic\n"
     prepared = prepare_ingredients_for_notion(text)

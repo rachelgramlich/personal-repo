@@ -279,7 +279,8 @@ _TRAILING_CUT_INSTRUCTION_RE = re.compile(
     r"(?:thinly|thickly|finely|roughly)\s+"
     r"(?:sliced|cut|diced|chopped|minced|julienned)(?:\s+on\s+an\s+angle)?|"
     r"(?:sliced|diced|chopped|minced|julienned|halved|quartered|peeled|seeded)"
-    r"(?:\s+into)?(?:\s+(?:\d+[- ]inch\s+)?pieces?)?"
+    r"(?:\s+into)?(?:\s+(?:\d+[- ]inch\s+)?pieces?)?|"
+    r"sliced\s+\d+(?:/\d+)?\s*inch\s+(?:thick|thin)\s+(?:lengthwise|crosswise)"
     r")\s*$",
     re.IGNORECASE,
 )
@@ -363,6 +364,16 @@ _INSTRUCTION_ONLY_RE = re.compile(
     r"bite[- ]size(?:\s+pieces?)?|\d+[- ]inch(?:\s+pieces?)?|small\s+pieces?|"
     r"thin\s+slices?|thick\s+slices?)"
     r")?"
+    r"\s*$",
+    re.IGNORECASE,
+)
+
+# Comma-separated prep with dimensions: ``sliced 1/4 inch thick lengthwise``.
+_DIMENSION_PREP_SEGMENT_RE = re.compile(
+    r"^(?:(?:thinly|thickly|finely|roughly)\s+)?"
+    r"(?:sliced|cut|diced|chopped|minced|julienned|halved|quartered|peeled|seeded|trimmed|grated|shredded|crushed)"
+    r"(?:\s+(?:\d+(?:/\d+)?\s*)?(?:-| )?(?:inch|inches|in|cm|mm))?"
+    r"(?:\s+(?:thick|thin|lengthwise|crosswise|diagonally|wide|long))+"
     r"\s*$",
     re.IGNORECASE,
 )
@@ -674,6 +685,70 @@ _STANDALONE_INGREDIENT_WORDS = frozenset(
 )
 
 
+_STORAGE_KEEP_SEGMENTS = frozenset(
+    {
+        "to taste",
+        "optional",
+        "for garnish",
+        "to serve",
+        "as needed",
+        "if needed",
+        "for serving",
+        "for topping",
+    }
+)
+
+
+def clean_ingredient_line_for_storage(line: str) -> str:
+    """Strip prep/instruction segments from an ingredient line for Notion storage.
+
+    Keeps quantities, units, product descriptors, and substitution notes in
+    parentheses. Does not pluralize or otherwise normalize to grocery-list names.
+    """
+    text = _normalize_unicode_fractions(_normalize_unicode_dashes(line.strip()))
+    if not text:
+        return ""
+
+    text = _storage_ingredient_base_text(text)
+    text = _strip_trailing_cut_instructions(text)
+    text = _strip_trailing_prep(text)
+    text = _strip_incomplete_prep_suffix(text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _is_storage_prep_only_segment(segment: str) -> bool:
+    """Prep-only comma segments for storage, preserving serving/note phrases."""
+    cleaned = re.sub(r"\([^)]*\)", "", segment).strip().lower()
+    if cleaned in _STORAGE_KEEP_SEGMENTS:
+        return False
+    return _is_prep_only_segment(segment)
+
+
+def _storage_ingredient_base_text(text: str) -> str:
+    """Drop comma-separated trailing prep while keeping parenthetical notes."""
+    segments = [segment.strip() for segment in text.split(",") if segment.strip()]
+    if len(segments) <= 1:
+        return text.strip()
+
+    def _segment_without_parens(segment: str) -> str:
+        return re.sub(r"\([^)]*\)", "", segment).strip()
+
+    trailing = segments[1:]
+    if all(_is_storage_prep_only_segment(segment) for segment in trailing):
+        return segments[0]
+    if all(_is_alternative_segment(_segment_without_parens(segment)) for segment in trailing):
+        return segments[0]
+
+    kept = [segments[0]]
+    for segment in trailing:
+        if _is_storage_prep_only_segment(segment):
+            break
+        kept.append(segment)
+    if len(kept) == 1:
+        return segments[0]
+    return ", ".join(kept)
+
+
 def normalize_ingredient(line: str) -> str:
     """Reduce a recipe ingredient line to a grocery-store item name."""
     text = _normalize_unicode_dashes(line.strip().lower())
@@ -916,6 +991,8 @@ def _is_prep_only_segment(segment: str) -> bool:
     if segment in _JUNK_ONLY_PHRASES:
         return True
     if _INSTRUCTION_ONLY_RE.match(segment):
+        return True
+    if _DIMENSION_PREP_SEGMENT_RE.match(segment):
         return True
     if _is_prep_alternative_phrase(segment):
         return True
