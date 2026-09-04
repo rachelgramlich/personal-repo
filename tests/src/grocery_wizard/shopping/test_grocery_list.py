@@ -214,7 +214,7 @@ def test_run_grocery_list_interactive_flow_order(
     with (
         patch("src.grocery_wizard.shopping.grocery_list.input", side_effect=inputs),
         patch(
-            "src.grocery_wizard.shopping.grocery_list.prompt_perpetual_items",
+            "src.grocery_wizard.shopping.grocery_list.prompt_recurring_weekly_items",
             return_value=[],
         ),
         patch("src.grocery_wizard.shopping.grocery_list._prompt_staples", return_value=["eggs"]),
@@ -471,7 +471,7 @@ def test_build_grocery_list_no_amount_fallback(tmp_path: Path) -> None:
     assert "chicken breast" in items
 
 
-def test_build_grocery_list_includes_perpetual_items(tmp_path: Path) -> None:
+def test_build_grocery_list_includes_recurring_weekly_items(tmp_path: Path) -> None:
     pantry_path = tmp_path / "pantry.txt"
     pantry_path.write_text("salt\n", encoding="utf-8")
 
@@ -484,8 +484,8 @@ def test_build_grocery_list_includes_perpetual_items(tmp_path: Path) -> None:
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
-        perpetual_items=["berries", "bananas", "milk"],
-        include_perpetual=True,
+        recurring_weekly_items=["berries", "bananas", "milk"],
+        include_recurring_weekly_items=True,
     )
 
     assert "berries" in items
@@ -493,7 +493,7 @@ def test_build_grocery_list_includes_perpetual_items(tmp_path: Path) -> None:
     assert "milk" in items
 
 
-def test_build_grocery_list_skips_duplicate_perpetual_items(tmp_path: Path) -> None:
+def test_build_grocery_list_skips_duplicate_recurring_weekly_items(tmp_path: Path) -> None:
     pantry_path = tmp_path / "pantry.txt"
     pantry_path.write_text("salt\n", encoding="utf-8")
 
@@ -506,8 +506,8 @@ def test_build_grocery_list_skips_duplicate_perpetual_items(tmp_path: Path) -> N
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
-        perpetual_items=["milk"],
-        include_perpetual=True,
+        recurring_weekly_items=["milk"],
+        include_recurring_weekly_items=True,
     )
 
     assert len([item for item in items if "milk" in item.lower()]) == 1

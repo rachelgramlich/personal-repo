@@ -1,0 +1,7 @@
+# Recurring weekly items — added to every grocery list (one item per line).
+# Lines starting with # are ignored.
+
+berries
+bananas
+fruit
+milk
