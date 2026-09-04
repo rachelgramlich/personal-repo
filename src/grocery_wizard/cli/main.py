@@ -227,11 +227,27 @@ def main(argv: list[str] | None = None) -> int:
         help="Preview recipes that would be added without writing to Notion",
     )
     nyt_sync_parser.add_argument(
-        "--no-confirm",
+        "--confirm",
         action="store_true",
-        help="Batch import without per-recipe review prompts",
+        help="Review and confirm each recipe before creating (default: batch import)",
     )
     nyt_sync_parser.set_defaults(func=cmd_nyt_sync)
+
+    nyt_review_parser = nyt_subparsers.add_parser(
+        "review-metadata",
+        help="Show metadata assigned during the last NYT sync",
+    )
+    nyt_review_parser.set_defaults(func=cmd_nyt_review_metadata)
+
+    nyt_apply_parser = nyt_subparsers.add_parser(
+        "apply-metadata",
+        help="Apply metadata corrections from a JSON file",
+    )
+    nyt_apply_parser.add_argument(
+        "corrections_file",
+        help='JSON file: [{"page_id": "...", "fields": {"Meal": "Dessert"}}]',
+    )
+    nyt_apply_parser.set_defaults(func=cmd_nyt_apply_metadata)
 
     args = parser.parse_args(argv)
     exit_code = args.func(args)
@@ -525,7 +541,9 @@ def cmd_nyt_sync(args: argparse.Namespace) -> int:
         NytAuthError,
         NYTCookingClient,
         NytSyncCancelled,
+        format_metadata_review,
         prompt_collection_choice,
+        save_sync_report,
         sync_saved_recipes_to_notion,
     )
 
@@ -560,12 +578,15 @@ def cmd_nyt_sync(args: argparse.Namespace) -> int:
             collection_id=collection_id,
             collection_label=collection_label,
             dry_run=args.dry_run,
-            no_confirm=args.no_confirm,
+            no_confirm=not args.confirm,
             on_progress=print,
         )
     except NytAuthError as exc:
         print(str(exc), file=sys.stderr)
         return 1
+
+    if not args.dry_run and summary.created_recipes:
+        save_sync_report(summary)
 
     print()
     print(
@@ -575,6 +596,63 @@ def cmd_nyt_sync(args: argparse.Namespace) -> int:
         f"{summary.dry_run} would add, "
         f"{summary.failed} failed."
     )
+
+    if summary.created_recipes:
+        print()
+        report = {
+            "synced_at": "",
+            "collection": summary.collection_label,
+            "created": [
+                {
+                    "page_id": r.page_id,
+                    "name": r.name,
+                    "url": r.url,
+                    "metadata": r.metadata,
+                    "flags": r.flags,
+                }
+                for r in summary.created_recipes
+            ],
+        }
+        print(format_metadata_review(report))
+        if not args.dry_run and summary.created:
+            print("Ask your agent to review flagged recipes, or run: nyt review-metadata")
+    return 0
+
+
+def cmd_nyt_review_metadata(_args: argparse.Namespace) -> int:
+    from src.grocery_wizard.integrations.nyt_cooking import (
+        format_metadata_review,
+        load_sync_report,
+    )
+
+    report = load_sync_report()
+    if report is None:
+        print("No NYT sync report found. Run `nyt sync` first.")
+        return 1
+    print(format_metadata_review(report))
+    return 0
+
+
+def cmd_nyt_apply_metadata(args: argparse.Namespace) -> int:
+    import json
+    from pathlib import Path
+
+    from src.grocery_wizard.integrations.nyt_cooking import apply_metadata_corrections
+
+    path = Path(args.corrections_file)
+    if not path.exists():
+        print(f"File not found: {path}", file=sys.stderr)
+        return 1
+
+    corrections = json.loads(path.read_text())
+    if not isinstance(corrections, list):
+        print("Corrections file must be a JSON array.", file=sys.stderr)
+        return 1
+
+    config = load_config()
+    db = NotionRecipesDB(config)
+    updated = apply_metadata_corrections(db, corrections)
+    print(f"Updated {updated} recipe(s).")
     return 0
 
 

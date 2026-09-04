@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from html import unescape
+from pathlib import Path
 from typing import Any
 
 import requests
+
+from src.grocery_wizard.config import NYT_LAST_SYNC_PATH
 
 SITE = "https://cooking.nytimes.com"
 API_HEADERS = {"x-cooking-api": "cooking-frontend", "accept": "*/*"}
@@ -343,12 +348,23 @@ def prompt_collection_choice(
 
 
 @dataclass
+class NytCreatedRecipe:
+    page_id: str
+    name: str
+    url: str
+    metadata: dict[str, Any]
+    flags: list[str] = field(default_factory=list)
+
+
+@dataclass
 class NytSyncSummary:
     total: int = 0
     skipped_existing: int = 0
     created: int = 0
     failed: int = 0
     dry_run: int = 0
+    collection_label: str | None = None
+    created_recipes: list[NytCreatedRecipe] = field(default_factory=list)
 
 
 def sync_saved_recipes_to_notion(
@@ -359,14 +375,13 @@ def sync_saved_recipes_to_notion(
     collection_id: str | None = None,
     collection_label: str | None = None,
     dry_run: bool = False,
-    no_confirm: bool = False,
+    no_confirm: bool = True,
     confirm: Callable[[str], bool] | None = None,
     on_progress: Callable[[str], None] | None = None,
 ) -> NytSyncSummary:
     """Sync NYT saved recipes to Notion, skipping duplicates by link."""
     from src.grocery_wizard.recipes.add_recipe import add_prefetched_recipes
 
-    summary = NytSyncSummary()
     resolved_id = collection_id
     resolved_label = collection_label
 
@@ -392,6 +407,8 @@ def sync_saved_recipes_to_notion(
             count_note = f" ({total} recipes)" if total is not None else ""
             on_progress(f"Syncing: {resolved_label}{count_note}")
 
+    summary = NytSyncSummary(collection_label=resolved_label)
+
     for saved in client.iter_all_saved_recipes(collection_id=resolved_id):
         summary.total += 1
         url = saved.url
@@ -410,26 +427,162 @@ def sync_saved_recipes_to_notion(
 
         if dry_run:
             summary.dry_run += 1
+            metadata = _metadata_for_recipe(db, saved.name, url)
+            flags = flag_metadata_issues(saved.name, metadata)
+            summary.created_recipes.append(
+                NytCreatedRecipe(
+                    page_id="",
+                    name=saved.name,
+                    url=url,
+                    metadata=metadata,
+                    flags=flags,
+                )
+            )
             if on_progress:
                 on_progress(f"Would add: {saved.name}")
             continue
 
-        created_ids = add_prefetched_recipes(
+        results = add_prefetched_recipes(
             db,
             [(saved.name, url, [])],
             confirm=confirm,
             no_confirm=no_confirm,
             include_ingredients=False,
         )
-        if created_ids:
+        if results:
             summary.created += 1
+            result = results[0]
+            metadata = _metadata_from_field_values(db, result.field_values)
+            flags = flag_metadata_issues(result.name, metadata)
+            entry = NytCreatedRecipe(
+                page_id=result.page_id,
+                name=result.name,
+                url=result.url,
+                metadata=metadata,
+                flags=flags,
+            )
+            summary.created_recipes.append(entry)
             if on_progress:
-                on_progress(f"Created: {saved.name}")
+                flag_note = f" [{'; '.join(flags)}]" if flags else ""
+                on_progress(f"Created: {result.name}{flag_note}")
         else:
             if on_progress:
                 on_progress(f"Skipped: {saved.name}")
 
     return summary
+
+
+_TITLE_MEAL_HINTS: dict[str, list[str]] = {
+    "Dessert": ["cake", "cookie", "brownie", "pie", "pudding", "tart", "muffin"],
+    "Breakfast": ["pancake", "waffle", "oatmeal", "frittata", "omelet", "omelette"],
+    "Drink": ["smoothie", "cocktail", "lemonade", "limeade", "mocktail"],
+}
+
+
+def _metadata_for_recipe(db: Any, title: str, url: str) -> dict[str, Any]:
+    from src.grocery_wizard.recipes.classify import classify_recipe
+
+    filter_columns = [(col.name, col.type, col.options) for col in db.schema.filter_columns]
+    inferred = classify_recipe(title, [], filter_columns)
+    metadata: dict[str, Any] = {
+        db.schema.name_column: title,
+        db.schema.link_column: url,
+    }
+    metadata.update(inferred)
+    return _metadata_from_field_values(db, metadata)
+
+
+def _metadata_from_field_values(db: Any, field_values: dict[str, Any]) -> dict[str, Any]:
+    schema = db.schema
+    skip = {schema.name_column, schema.link_column}
+    if schema.ingredients_column:
+        skip.add(schema.ingredients_column)
+    return {
+        key: value
+        for key, value in field_values.items()
+        if key not in skip and value not in (None, "", [])
+    }
+
+
+def flag_metadata_issues(name: str, metadata: dict[str, Any]) -> list[str]:
+    """Return human-readable flags when title and assigned metadata look inconsistent."""
+    title = name.lower()
+    meal = metadata.get("Meal")
+    if isinstance(meal, str):
+        for suggested_meal, keywords in _TITLE_MEAL_HINTS.items():
+            if any(keyword in title for keyword in keywords) and meal != suggested_meal:
+                return [f"title suggests {suggested_meal} but Meal={meal}"]
+    missing = [column for column, value in metadata.items() if value in (None, "", [])]
+    if len(missing) >= 2:
+        return [f"missing metadata: {', '.join(sorted(missing))}"]
+    return []
+
+
+def save_sync_report(summary: NytSyncSummary, path: Path = NYT_LAST_SYNC_PATH) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "synced_at": datetime.now(UTC).isoformat(),
+        "collection": summary.collection_label,
+        "created": [asdict(recipe) for recipe in summary.created_recipes],
+        "counts": {
+            "total": summary.total,
+            "skipped_existing": summary.skipped_existing,
+            "created": summary.created,
+            "dry_run": summary.dry_run,
+            "failed": summary.failed,
+        },
+    }
+    path.write_text(json.dumps(payload, indent=2))
+
+
+def load_sync_report(path: Path = NYT_LAST_SYNC_PATH) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
+
+
+def format_metadata_review(report: dict[str, Any]) -> str:
+    lines: list[str] = []
+    collection = report.get("collection") or "recipe box"
+    lines.append(f"NYT sync review — {collection}")
+    lines.append(f"Synced at: {report.get('synced_at', 'unknown')}")
+    lines.append("")
+
+    created = report.get("created", [])
+    if not created:
+        lines.append("No recipes to review.")
+        return "\n".join(lines)
+
+    for index, recipe in enumerate(created, start=1):
+        lines.append(f"{index}. {recipe.get('name', '?')}")
+        metadata = recipe.get("metadata", {})
+        if metadata:
+            for key, value in sorted(metadata.items()):
+                lines.append(f"   {key}: {value}")
+        flags = recipe.get("flags") or []
+        if flags:
+            lines.append(f"   ⚠ {flags[0]}")
+        lines.append("")
+
+    flagged = sum(1 for recipe in created if recipe.get("flags"))
+    lines.append(f"{len(created)} recipe(s), {flagged} flagged for review.")
+    return "\n".join(lines)
+
+
+def apply_metadata_corrections(
+    db: Any,
+    corrections: list[dict[str, Any]],
+) -> int:
+    """Apply metadata updates. Each item: ``{"page_id": "...", "fields": {...}}``."""
+    updated = 0
+    for item in corrections:
+        page_id = item.get("page_id")
+        fields = item.get("fields")
+        if not page_id or not fields:
+            continue
+        db.update_recipe(page_id, fields)
+        updated += 1
+    return updated
 
 
 def _absolute_url(url: str) -> str:

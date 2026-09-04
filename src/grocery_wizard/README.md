@@ -98,9 +98,11 @@ NYT sync adds **name, link, and classified metadata** (Meal, Protein, Cuisine, e
 | *(no flag)* | Interactive picker — choose full recipe box or a specific folder |
 | `--collection "Folder Name"` | Sync one NYT recipe-box folder without prompting (falls back to full box if not found) |
 | `--dry-run` | Preview what would be added without writing to Notion |
-| `--no-confirm` | Batch import without per-recipe review prompts |
+| `--confirm` | Review each recipe before creating (default: batch import with auto-classified metadata) |
 
-Other NYT command: `nyt auth-status`.
+After sync, a metadata review prints automatically. Run `nyt review-metadata` anytime, or ask your agent to fix flagged recipes.
+
+Other NYT commands: `nyt auth-status`, `nyt review-metadata`, `nyt apply-metadata`.
 
 ## Command cheat sheet
 

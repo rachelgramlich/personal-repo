@@ -15,11 +15,14 @@ from src.grocery_wizard.integrations.nyt_cooking import (
     _ingredients_from_parts,
     _parse_recipe_payload,
     credentials_status,
+    flag_metadata_issues,
+    format_metadata_review,
     load_credentials,
     parse_regi_id,
     prompt_collection_choice,
     sync_saved_recipes_to_notion,
 )
+from src.grocery_wizard.recipes.add_recipe import PrefetchedCreateResult
 
 
 @pytest.fixture
@@ -289,9 +292,16 @@ def test_sync_creates_missing_recipes(credentials: NytCredentials) -> None:
 
     with patch(
         "src.grocery_wizard.recipes.add_recipe.add_prefetched_recipes",
-        return_value=["page-1"],
+        return_value=[
+            PrefetchedCreateResult(
+                page_id="page-1",
+                name="Fresh Recipe",
+                url="https://cooking.nytimes.com/recipes/42-fresh",
+                field_values={"Name": "Fresh Recipe", "Link": "https://cooking.nytimes.com/recipes/42-fresh"},
+            )
+        ],
     ) as add_mock:
-        summary = sync_saved_recipes_to_notion(db, client, no_confirm=True)
+        summary = sync_saved_recipes_to_notion(db, client)
 
     assert summary.created == 1
     add_mock.assert_called_once()
@@ -420,10 +430,12 @@ def test_cmd_nyt_sync_interactive_picks_folder(capsys: pytest.CaptureFixture[str
                 created=2,
                 dry_run=0,
                 failed=0,
+                collection_label="Weeknight",
+                created_recipes=[],
             ),
         ) as sync_mock,
     ):
-        code = cmd_nyt_sync(argparse_namespace(collection=None, dry_run=False, no_confirm=True))
+        code = cmd_nyt_sync(argparse_namespace(collection=None, dry_run=False, confirm=False))
 
     assert code == 0
     prompt_mock.assert_called_once()
@@ -432,6 +444,32 @@ def test_cmd_nyt_sync_interactive_picks_folder(capsys: pytest.CaptureFixture[str
     assert kwargs["collection_id"] == "10"
     assert kwargs["collection_label"] == "Weeknight"
     assert kwargs["collection_name"] is None
+
+
+def test_flag_metadata_issues_detects_dessert_mismatch() -> None:
+    flags = flag_metadata_issues(
+        "World's Best Chocolate Cake",
+        {"Meal": "Dinner", "Protein": "Dairy"},
+    )
+    assert flags
+    assert "Dessert" in flags[0]
+
+
+def test_format_metadata_review_lists_recipes() -> None:
+    report = {
+        "collection": "Weeknight",
+        "synced_at": "2026-01-01T00:00:00Z",
+        "created": [
+            {
+                "name": "Pasta",
+                "metadata": {"Meal": "Dinner"},
+                "flags": [],
+            }
+        ],
+    }
+    text = format_metadata_review(report)
+    assert "Pasta" in text
+    assert "Meal: Dinner" in text
 
 
 def test_cli_nyt_auth_status_not_configured(capsys: pytest.CaptureFixture[str]) -> None:

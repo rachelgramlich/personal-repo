@@ -127,4 +127,4 @@ def test_nyt_sync_help_lists_flags(capsys: pytest.CaptureFixture[str]) -> None:
     output = capsys.readouterr().out
     assert "--collection" in output
     assert "--dry-run" in output
-    assert "--no-confirm" in output
+    assert "--confirm" in output

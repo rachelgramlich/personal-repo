@@ -4,12 +4,21 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from src.grocery_wizard.integrations.notion import NotionRecipesDB
 from src.grocery_wizard.lib.prompts import confirm_no_default
 from src.grocery_wizard.recipes.classify import classify_recipe
 from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text, scrape_recipe
+
+
+@dataclass(frozen=True)
+class PrefetchedCreateResult:
+    page_id: str
+    name: str
+    url: str
+    field_values: dict[str, Any]
 
 
 def add_prefetched_recipes(
@@ -21,13 +30,13 @@ def add_prefetched_recipes(
     select_option: Callable[[str, list[str], str | None], str | None] | None = None,
     no_confirm: bool = False,
     include_ingredients: bool = True,
-) -> list[str]:
+) -> list[PrefetchedCreateResult]:
     """Add recipes with title, URL, and optional ingredients already fetched."""
     prompt_fn = prompt or _default_prompt
     confirm_fn = confirm or confirm_no_default
     select_fn = select_option or _default_select_option
 
-    created_ids: list[str] = []
+    created: list[PrefetchedCreateResult] = []
     schema = db.schema
 
     for title, url, ingredients in recipes:
@@ -73,10 +82,17 @@ def add_prefetched_recipes(
             continue
 
         recipe = db.create_recipe(reviewed)
-        created_ids.append(recipe.page_id)
+        created.append(
+            PrefetchedCreateResult(
+                page_id=recipe.page_id,
+                name=recipe.name,
+                url=url,
+                field_values=reviewed,
+            )
+        )
         print(f"Created: {recipe.name}")
 
-    return created_ids
+    return created
 
 
 def add_recipes_from_urls(

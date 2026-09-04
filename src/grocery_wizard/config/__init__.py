@@ -22,6 +22,7 @@ LEGACY_DATA_DIR = Path(".grocery_wizard")
 WEEK_PLAN_PATH = DATA_DIR / "week_plan.json"
 LEGACY_WEEK_PLAN_PATH = LEGACY_DATA_DIR / "week_plan.json"
 FEEDBACK_PATH = DATA_DIR / "feedback.json"
+NYT_LAST_SYNC_PATH = DATA_DIR / "nyt_last_sync.json"
 
 # Load repo-root .env regardless of process cwd (Cloud Agent, pytest, etc.).
 load_dotenv(_REPO_ROOT / ".env")
