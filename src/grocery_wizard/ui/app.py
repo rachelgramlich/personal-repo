@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src.grocery_wizard.config import WEEK_PLAN_PATH, load_config
+from src.grocery_wizard.config import RECURRING_WEEKLY_ITEMS_PATH, WEEK_PLAN_PATH, load_config
 from src.grocery_wizard.ingredients.sync import (
     find_recipes_needing_sync,
     format_sync_summary,
@@ -17,6 +17,25 @@ from src.grocery_wizard.shopping.grocery_list import (
     _load_week_plan_names,
     build_grocery_list,
 )
+from src.grocery_wizard.shopping.recurring_weekly_items import (
+    load_recurring_weekly_items,
+    write_recurring_weekly_items,
+)
+from src.grocery_wizard.shopping.store_aisles import (
+    aisle_label,
+    group_grocery_items_by_aisle,
+    sort_grocery_items,
+)
+
+
+def _format_aisle_grouped_list(items: list[str]) -> str:
+    lines: list[str] = []
+    for aisle, aisle_items in group_grocery_items_by_aisle(items):
+        if lines:
+            lines.append("")
+        lines.append(aisle_label(aisle))
+        lines.extend(aisle_items)
+    return "\n".join(lines)
 
 
 @st.cache_resource
@@ -217,10 +236,32 @@ def render_grocery_list() -> None:
     sync_first = st.checkbox("Sync ingredients first (scrape missing)")
     exclude_pantry = st.checkbox("Exclude pantry items", value=True)
 
+    default_recurring = load_recurring_weekly_items()
+    recurring_text = st.text_area(
+        "Recurring weekly items (one per line)",
+        value="\n".join(default_recurring),
+        height=100,
+        help="These items are added every week. Edit here before generating your list.",
+    )
+    if st.button("Save recurring defaults"):
+        recurring_defaults = [
+            line.strip().lstrip("-•* ").strip()
+            for line in recurring_text.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        write_recurring_weekly_items(RECURRING_WEEKLY_ITEMS_PATH, recurring_defaults)
+        st.success("Saved recurring weekly defaults.")
+
     if st.button("Generate list", type="primary"):
         if not selected:
             st.warning("Select at least one recipe.")
             return
+
+        recurring_weekly_items = [
+            line.strip().lstrip("-•* ").strip()
+            for line in recurring_text.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
 
         with st.spinner("Building grocery list..."):
             items, excluded, sync_summary = build_grocery_list(
@@ -228,6 +269,8 @@ def render_grocery_list() -> None:
                 recipe_names=selected,
                 backfill_missing=sync_first,
                 exclude_pantry=exclude_pantry,
+                recurring_weekly_items=recurring_weekly_items,
+                include_recurring_weekly_items=True,
             )
 
         if sync_summary is not None and sync_summary.failed:
@@ -256,11 +299,11 @@ def render_grocery_list() -> None:
             if item.lower() not in existing:
                 draft_items.append(item)
                 existing.add(item.lower())
-        draft_items.sort(key=str.lower)
+        draft_items = sort_grocery_items(draft_items)
 
         if draft_items:
             st.write("**Draft grocery list**")
-            st.text("\n".join(draft_items))
+            st.text(_format_aisle_grouped_list(draft_items))
 
         staples_text = st.text_area(
             "Additional items (one per line)",
@@ -280,11 +323,11 @@ def render_grocery_list() -> None:
             if item.lower() not in existing:
                 final_items.append(item)
                 existing.add(item.lower())
-        final_items.sort(key=str.lower)
+        final_items = sort_grocery_items(final_items)
 
         if final_items:
             st.write("**Final grocery list**")
-            list_text = "\n".join(final_items)
+            list_text = _format_aisle_grouped_list(final_items)
             st.text_area("Copy-ready list", value=list_text, height=300)
         elif not excluded:
             st.warning("No grocery items found.")

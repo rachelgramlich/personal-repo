@@ -101,6 +101,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Don't exclude pantry staples (salt, oil, etc.) from the list",
     )
+    grocery_parser.add_argument(
+        "--no-recurring-weekly-items",
+        action="store_true",
+        help="Omit recurring weekly items (berries, milk, etc.) from the list",
+    )
     grocery_parser.set_defaults(func=cmd_grocery)
 
     pantry_parser = subparsers.add_parser(
@@ -242,6 +247,7 @@ def cmd_grocery(args: argparse.Namespace) -> int:
         quiet=args.quiet,
         backfill_missing=args.backfill_missing,
         exclude_pantry=not args.include_staples,
+        include_recurring_weekly_items=not args.no_recurring_weekly_items,
     )
 
 

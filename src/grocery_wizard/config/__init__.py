@@ -13,6 +13,8 @@ _PACKAGE_DIR = Path(__file__).resolve().parent.parent
 # Committed package configuration (pantry staples, etc.).
 CONFIG_DIR = Path(__file__).resolve().parent
 PANTRY_PATH = CONFIG_DIR / "pantry.txt"
+STORE_AISLES_PATH = CONFIG_DIR / "store_aisles.txt"
+RECURRING_WEEKLY_ITEMS_PATH = CONFIG_DIR / "recurring_weekly_items.txt"
 
 # Per-week local runtime data (gitignored via .local/).
 DATA_DIR = Path(".local/grocery_wizard")
