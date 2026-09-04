@@ -178,6 +178,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     refresh_parser.set_defaults(func=cmd_dev_refresh_all)
 
+    reformat_parser = dev_subparsers.add_parser(
+        "reformat-ingredients",
+        help="Clean up stored ingredient text (split compounds, drop junk)",
+    )
+    reformat_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would change without writing to Notion",
+    )
+    reformat_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show ingredient lines for each recipe",
+    )
+    reformat_parser.set_defaults(func=cmd_dev_reformat)
+
     audit_parser = dev_subparsers.add_parser(
         "audit-recipes",
         help="Show which recipes need attention",
@@ -402,6 +418,12 @@ def cmd_dev_refresh_all(args: argparse.Namespace) -> int:
         )
     )
     return 0
+
+
+def cmd_dev_reformat(args: argparse.Namespace) -> int:
+    """Re-run ingest cleanup on stored Notion ingredients without re-scraping."""
+    args.split_only = True
+    return cmd_dev_refresh_all(args)
 
 
 def cmd_dev_audit(_args: argparse.Namespace) -> int:

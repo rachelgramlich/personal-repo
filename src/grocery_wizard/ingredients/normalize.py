@@ -222,18 +222,33 @@ _HIDE_AMOUNT_UNITS_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Prep words that can appear as alternatives: "minced or grated".
+_PREP_ALTERNATIVE_RE = re.compile(
+    r"^(?:"
+    + "|".join(re.escape(word) for word in sorted(_PREP_WORDS, key=len, reverse=True))
+    + r")"
+    r"(?:\s+or\s+(?:"
+    + "|".join(re.escape(word) for word in sorted(_PREP_WORDS, key=len, reverse=True))
+    + r"))+$",
+    re.IGNORECASE,
+)
+
+_GROUND_MEATS = frozenset({"beef", "turkey", "pork", "chicken", "lamb", "veal", "sausage", "bison"})
+
+_TOMATO_PREP_FORMS = frozenset(
+    {"diced", "crushed", "stewed", "fire-roasted", "whole", "whole peeled"}
+)
+
 _PRESERVED_PRODUCTS = (
-    "diced tomatoes",
-    "crushed tomatoes",
-    "stewed tomatoes",
-    "ground beef",
-    "ground turkey",
-    "ground pork",
-    "ground chicken",
-    "ground lamb",
-    "frozen peas",
-    "frozen corn",
-    "frozen berries",
+    "crushed red pepper",
+    "red pepper flakes",
+    "tomato paste",
+    "tomato sauce",
+    "coconut milk",
+    "chicken broth",
+    "chicken stock",
+    "vegetable broth",
+    "vegetable stock",
 )
 
 _TRAILING_CLAUSE_RE = re.compile(
@@ -257,6 +272,31 @@ _INSTRUCTION_ONLY_RE = re.compile(
 )
 
 _CONJUNCTION_SPLIT_RE = re.compile(r"\s+(?:and|&)\s+", re.IGNORECASE)
+
+# Recipe-step lines and cooking instructions (not grocery items).
+_RECIPE_STEP_RE = re.compile(r"^\d+\.(?:\s|\t)")
+_CHECKLIST_ITEM_RE = re.compile(r"^\d+\.\s*(?:\[\s*\]\s*)")
+_INSTRUCTION_VERB_RE = re.compile(
+    r"^(?:combine|meanwhile|when ready|for a |clean and|grill|cut |spoon|serve|"
+    r"transfer|brush|arrange|heat |reduce |bring |pat |whisk |cover|open |add |stir|"
+    r"taste|season|let |simmer|dissolve|return|remove|place|preheat|bake|roast|"
+    r"cook|mix|fold|pour|drain|rinse|slice|chop|dice|mince|grate|peel|mash)\b",
+    re.IGNORECASE,
+)
+_METADATA_LINE_RE = re.compile(
+    r"^(?:recipe\s+)?serves?\s+\d+|^serves?\s+\d+|yield:?\s+\d+|makes?\s+\d+",
+    re.IGNORECASE,
+)
+# Split merged scrape artifacts: ``Russets2 Tablespoons`` or ``pepper1/4 cup``.
+_MERGED_QTY_SPLIT_RE = re.compile(
+    r"(?<=[A-Za-z)\]])"
+    r"(?=(?:\d+(?:\s+\d+/\d+)?|\d+/\d+|\d+(?:\.\d+)?)(?:\s*-\s*\d+)?\s*"
+    r"(?:pounds?|tablespoons?|tbsp|teaspoons?|tsp|cups?|ounces?|oz|grams?|g|"
+    r"milliliters?|ml|liters?|l|cloves?|cans?|bunch(?:es)?|heads?|sticks?|"
+    r"packages?|pkg|pinch(?:es)?|dash(?:es)?)\b)",
+    re.IGNORECASE,
+)
+_MERGED_CAMEL_SPLIT_RE = re.compile(r"(?<=[a-z])(?=[A-Z])")
 
 # Compound phrases that should stay together despite containing "and" or "&".
 _UNSPLIT_AND_PHRASES = frozenset(
@@ -384,9 +424,89 @@ def drop_junk_ingredient_lines(lines: list[str]) -> list[str]:
     return [line for line in lines if line.strip() and not is_junk_ingredient(line)]
 
 
+def is_metadata_line(line: str) -> bool:
+    """Return True for yield/serves headers, not grocery items."""
+    return bool(_METADATA_LINE_RE.match(line.strip()))
+
+
+def is_instruction_line(line: str) -> bool:
+    """Return True when a line is a cooking step, not a grocery item."""
+    stripped = line.strip()
+    if not stripped:
+        return True
+    if _RECIPE_STEP_RE.match(stripped):
+        return True
+    if is_metadata_line(stripped):
+        return True
+    if _INSTRUCTION_VERB_RE.match(stripped):
+        return True
+    if _INSTRUCTION_ONLY_RE.match(stripped):
+        return True
+    if len(stripped) > 100 and _INSTRUCTION_VERB_RE.search(stripped):
+        return True
+    return False
+
+
+def is_recipe_step_line(line: str) -> bool:
+    """Return True for numbered recipe steps (truncate remaining lines after)."""
+    stripped = line.strip()
+    if _CHECKLIST_ITEM_RE.match(stripped):
+        return False
+    return bool(_RECIPE_STEP_RE.match(stripped))
+
+
+def split_merged_ingredient_line(line: str) -> list[str]:
+    """Split scrape artifacts where multiple ingredients were joined on one line."""
+    text = _normalize_unicode_dashes(line.strip())
+    if not text:
+        return []
+
+    parts: list[str] = []
+    for segment in _MERGED_CAMEL_SPLIT_RE.split(text):
+        segment = segment.strip()
+        if not segment:
+            continue
+        for piece in _MERGED_QTY_SPLIT_RE.split(segment):
+            piece = piece.strip()
+            if not piece:
+                continue
+            parts.extend(_split_leading_capitalized_ingredient(piece))
+    return parts or [text]
+
+
+def _split_leading_capitalized_ingredient(piece: str) -> list[str]:
+    """``Salt fresh black pepper`` → ``Salt`` + ``fresh black pepper``."""
+    words = piece.split(None, 1)
+    if len(words) != 2:
+        return [piece]
+    first, rest = words
+    if first[0].isupper() and rest[0].islower() and first.lower() in _STANDALONE_INGREDIENT_WORDS:
+        return [first, rest]
+    return [piece]
+
+
+_STANDALONE_INGREDIENT_WORDS = frozenset(
+    {
+        "salt",
+        "pepper",
+        "sugar",
+        "flour",
+        "butter",
+        "eggs",
+        "milk",
+        "water",
+        "oil",
+    }
+)
+
+
 def normalize_ingredient(line: str) -> str:
     """Reduce a recipe ingredient line to a grocery-store item name."""
     text = _normalize_unicode_dashes(line.strip().lower())
+    if not text:
+        return ""
+
+    text = _strip_optional_prefix(text)
     if not text:
         return ""
 
@@ -400,7 +520,7 @@ def normalize_ingredient(line: str) -> str:
 
     preserved_product = _match_preserved_product(text)
 
-    text = _QUANTITY_RE.sub("", text).strip()
+    text = _strip_leading_amount(text)
     words = text.split()
     changed = True
     while changed and words:
@@ -437,7 +557,31 @@ def _ingredient_base_text(text: str) -> str:
         return without_parens
     if all(_is_prep_only_segment(segment) for segment in segments[1:]):
         return segments[0]
+    if all(_is_alternative_segment(segment) for segment in segments[1:]):
+        return segments[0]
     return " ".join(segments)
+
+
+def _strip_optional_prefix(text: str) -> str:
+    return re.sub(r"^optional:\s*", "", text, flags=re.IGNORECASE).strip()
+
+
+def _strip_leading_amount(text: str) -> str:
+    """Remove leading quantities, including dual measures like ``1 cup/110 grams``."""
+    text = re.sub(r"^\d+\s+\w+/\d+\s+\w+\s+", "", text, flags=re.IGNORECASE)
+    return _QUANTITY_RE.sub("", text).strip()
+
+
+def _is_alternative_segment(segment: str) -> bool:
+    """Comma-separated protein alternatives: ``turkey``, ``or beef``."""
+    cleaned = segment.strip().lower()
+    if cleaned.startswith("or "):
+        cleaned = cleaned[3:].strip()
+    elif len(cleaned.split()) > 2:
+        return False
+    if not cleaned or _is_prep_only_segment(cleaned):
+        return False
+    return len(cleaned.split()) <= 2
 
 
 def _match_preserved_product(text: str) -> str | None:
@@ -445,6 +589,21 @@ def _match_preserved_product(text: str) -> str | None:
     for product in sorted(_PRESERVED_PRODUCTS, key=len, reverse=True):
         if product in lowered:
             return product
+
+    ground_match = re.search(r"\bground\s+([a-z]+)", lowered)
+    if ground_match and ground_match.group(1) in _GROUND_MEATS:
+        return f"ground {ground_match.group(1)}"
+
+    for form in sorted(_TOMATO_PREP_FORMS, key=len, reverse=True):
+        if re.search(rf"\b{re.escape(form)}\s+tomatoes?\b", lowered):
+            if form == "whole peeled":
+                return "whole peeled tomatoes"
+            return f"{form} tomatoes"
+
+    frozen_match = re.search(r"\bfrozen\s+([a-z]+(?:\s+[a-z]+)?)", lowered)
+    if frozen_match:
+        return f"frozen {frozen_match.group(1)}"
+
     return None
 
 
@@ -503,11 +662,27 @@ def _strip_leading_prep(text: str) -> str:
 
 def _simplify_ingredient_name(text: str) -> str:
     if " or " in text:
-        text = text.split(" or ")[-1].strip()
+        left, _, right = text.partition(" or ")
+        right_clean = right.strip()
+        left_clean = left.strip()
+        if _PREP_ALTERNATIVE_RE.match(right_clean) or _PREP_ALTERNATIVE_RE.match(
+            f"{left_clean.split()[-1]} or {right_clean}" if left_clean else right_clean
+        ):
+            text = left_clean
+        elif _is_prep_alternative_phrase(right_clean):
+            text = left_clean
+        elif _is_prep_alternative_phrase(text):
+            return ""
+        else:
+            text = right_clean
     words = text.split()
     if len(words) >= 2 and words[0] in _DESCRIPTOR_WORDS:
         text = " ".join(words[1:])
     return text.strip()
+
+
+def _is_prep_alternative_phrase(text: str) -> bool:
+    return bool(_PREP_ALTERNATIVE_RE.match(text.strip()))
 
 
 def _is_prep_only_segment(segment: str) -> bool:
@@ -518,8 +693,10 @@ def _is_prep_only_segment(segment: str) -> bool:
         return True
     if _INSTRUCTION_ONLY_RE.match(segment):
         return True
+    if _is_prep_alternative_phrase(segment):
+        return True
 
-    segment = _QUANTITY_RE.sub("", segment).strip()
+    segment = _strip_leading_amount(segment)
     words = segment.split()
     words = _strip_leading_tokens(words, _UNITS | _SIZES)
     while words and words[0].rstrip(".,") in _PREP_WORDS:
@@ -555,6 +732,9 @@ def _prefer_plural_form(text: str) -> str:
         return " ".join(words)
 
     if last == "garlic" and len(words) > 1 and words[0] in {"clove", "cloves"}:
+        return "garlic"
+
+    if text == "garlic cloves":
         return "garlic"
 
     return text

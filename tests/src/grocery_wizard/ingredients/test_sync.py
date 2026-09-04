@@ -81,6 +81,32 @@ def test_prepare_ingredients_for_notion_splits_and_drops_junk() -> None:
     assert not any("half-moons" in line for line in lines)
 
 
+def test_prepare_ingredients_for_notion_drops_instructions_and_metadata() -> None:
+    text = (
+        "Recipe serves 2\n"
+        "2 tablespoons olive oil\n"
+        "1.\tHeat the olive oil\n"
+        "stir to combine."
+    )
+    prepared = prepare_ingredients_for_notion(text)
+    lines = prepared.splitlines()
+    assert lines == ["2 tablespoons olive oil"]
+
+
+def test_prepare_ingredients_for_notion_repairs_mangled_lines() -> None:
+    text = (
+        "2 pounds Idaho Burbank Russets2 Tablespoons scallions, finely mincedSalt\n"
+        "fresh black pepper1/4 cup chicken stock"
+    )
+    prepared = prepare_ingredients_for_notion(text)
+    lines = prepared.splitlines()
+    assert "2 pounds Idaho Burbank Russets" in lines
+    assert any("scallions" in line for line in lines)
+    assert "Salt" in lines
+    assert "fresh black pepper" in lines
+    assert any("chicken stock" in line for line in lines)
+
+
 def test_merge_keeps_notion_additions_not_in_scrape() -> None:
     existing = "2 tbsp olive oil\n1 lb chicken\nfresh basil"
     scraped = "2 tbsp olive oil\n3 cloves garlic\n1 lb chicken breast"

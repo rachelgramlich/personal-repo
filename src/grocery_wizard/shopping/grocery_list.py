@@ -9,16 +9,14 @@ from pathlib import Path
 
 from src.grocery_wizard.config import LEGACY_WEEK_PLAN_PATH, WEEK_PLAN_PATH
 from src.grocery_wizard.ingredients.normalize import (
-    _normalize_unicode_dashes,
     aggregate_amounts,
-    expand_ingredient_line,
-    is_junk_ingredient,
     normalize_ingredient,
     parse_amount,
     should_show_amount,
 )
 from src.grocery_wizard.ingredients.sync import (
     SyncSummary,
+    parse_ingredients_text,
     recipe_needs_empty_sync,
     run_sync_recipes,
 )
@@ -251,7 +249,7 @@ def _load_week_plan_names(path: Path) -> list[str]:
 
 def _get_ingredient_lines(recipe: Recipe) -> list[str]:
     if recipe.ingredients and recipe.ingredients.strip():
-        return _split_ingredient_text(recipe.ingredients)
+        return parse_ingredients_text(recipe.ingredients)[0]
 
     if recipe.link:
         print(
@@ -336,40 +334,27 @@ def _collect_ingredient_line(
     """Parse *line*, deduplicate by normalised name, and accumulate amounts.
 
     Pantry items are routed to *excluded_pantry* instead of *collected*.
-    Duplicate ingredient names across recipes have their amounts appended so
-    they can later be aggregated.
+    Ingredient lines are expected to be pre-cleaned at Notion ingest time.
     """
-    if is_junk_ingredient(line):
+    normalized, amount = parse_amount(line)
+    if not normalized:
         return
-    for piece in expand_ingredient_line(line):
-        normalized, amount = parse_amount(piece)
-        if not normalized:
-            continue
-        if not should_show_amount(amount, piece):
-            amount = None
-        if exclude_pantry and is_pantry_item(normalized, pantry):
-            if normalized not in excluded_pantry:
-                excluded_pantry.append(normalized)
-            continue
-        key = normalized.lower()
-        if key in collected:
-            collected[key][1].append(amount)
-        else:
-            collected[key] = (normalized, [amount])
+    if not should_show_amount(amount, line):
+        amount = None
+    if exclude_pantry and is_pantry_item(normalized, pantry):
+        if normalized not in excluded_pantry:
+            excluded_pantry.append(normalized)
+        return
+    key = normalized.lower()
+    if key in collected:
+        collected[key][1].append(amount)
+    else:
+        collected[key] = (normalized, [amount])
 
 
 def _split_ingredient_text(text: str) -> list[str]:
-    lines: list[str] = []
-    for raw_line in text.splitlines():
-        line = _normalize_unicode_dashes(raw_line.strip())
-        if not line:
-            continue
-        if line.startswith(("- ", "* ", "• ")):
-            line = line[2:].strip()
-        elif len(line) > 1 and line[0] == "-" and line[1].isdigit():
-            line = line[1:].strip()
-        lines.append(line)
-    return lines
+    """Deprecated: use parse_ingredients_text from sync instead."""
+    return parse_ingredients_text(text)[0]
 
 
 def match_excluded_items(query: str, excluded: list[str]) -> list[str]:

@@ -3,11 +3,14 @@ import pytest
 from src.grocery_wizard.ingredients.normalize import (
     aggregate_amounts,
     expand_ingredient_line,
+    is_instruction_line,
     is_junk_ingredient,
+    is_metadata_line,
     normalize_ingredient,
     parse_amount,
     should_show_amount,
     split_compound_ingredients,
+    split_merged_ingredient_line,
 )
 
 
@@ -60,6 +63,22 @@ def test_normalize_ingredient_keeps_chicken_with_prep_segments() -> None:
     line = "10 boneless, skinless chicken thighs (2½ to 3 pounds)"
     assert not is_junk_ingredient(line)
     assert "chicken" in normalize_ingredient(line)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("Optional: 1 lb ground chicken, turkey, or beef", "ground chicken"),
+        ("3 garlic cloves, minced or grated", "garlic"),
+        ("Crushed red pepper", "crushed red pepper"),
+        ("1 cup/110 grams almond flour (ground almonds)", "almond flour"),
+        ("2 (15-ounce) cans diced tomatoes", "diced tomatoes"),
+        ("1 lb ground turkey", "ground turkey"),
+        ("10 oz frozen spinach", "frozen spinach"),
+    ],
+)
+def test_normalize_ingredient_notion_edge_cases(raw: str, expected: str) -> None:
+    assert normalize_ingredient(raw) == expected
 
 
 def test_should_show_amount() -> None:
@@ -131,6 +150,31 @@ def test_split_compound_ingredients_multiline() -> None:
 def test_split_compound_ingredients_empty() -> None:
     assert split_compound_ingredients("") == []
     assert split_compound_ingredients("   \n") == []
+
+
+def test_is_metadata_line() -> None:
+    assert is_metadata_line("Recipe serves 2")
+    assert is_metadata_line("Serves 4")
+    assert not is_metadata_line("1 small onion")
+
+
+def test_is_instruction_line() -> None:
+    assert is_instruction_line("1.\tHeat the olive oil")
+    assert is_instruction_line("stir to combine.")
+    assert not is_instruction_line("2 tablespoons olive oil")
+
+
+def test_split_merged_ingredient_line() -> None:
+    text = "2 pounds Idaho Burbank Russets2 Tablespoons scallions, finely mincedSalt"
+    assert split_merged_ingredient_line(text) == [
+        "2 pounds Idaho Burbank Russets",
+        "2 Tablespoons scallions, finely minced",
+        "Salt",
+    ]
+    assert split_merged_ingredient_line("Salt fresh black pepper") == [
+        "Salt",
+        "fresh black pepper",
+    ]
 
 
 # ---------------------------------------------------------------------------
