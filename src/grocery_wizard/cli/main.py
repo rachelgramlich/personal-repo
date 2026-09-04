@@ -191,6 +191,60 @@ def main(argv: list[str] | None = None) -> int:
     )
     list_feedback_parser.set_defaults(func=cmd_dev_list_feedback)
 
+    nyt_parser = subparsers.add_parser(
+        "nyt",
+        help="NYT Cooking integration (auth, saved recipes, sync to Notion)",
+    )
+    nyt_subparsers = nyt_parser.add_subparsers(dest="nyt_command", required=True)
+
+    nyt_auth_parser = nyt_subparsers.add_parser(
+        "auth",
+        help="Store and verify NYT-S cookie + regi_id",
+    )
+    nyt_auth_parser.set_defaults(func=cmd_nyt_auth)
+
+    nyt_auth_status_parser = nyt_subparsers.add_parser(
+        "auth-status",
+        help="Check whether NYT Cooking credentials are configured",
+    )
+    nyt_auth_status_parser.set_defaults(func=cmd_nyt_auth_status)
+
+    nyt_logout_parser = nyt_subparsers.add_parser(
+        "logout",
+        help="Clear stored NYT Cooking credentials",
+    )
+    nyt_logout_parser.set_defaults(func=cmd_nyt_logout)
+
+    nyt_saved_parser = nyt_subparsers.add_parser(
+        "saved",
+        help="List saved recipe box recipes",
+    )
+    nyt_saved_parser.add_argument(
+        "--collection",
+        help="Filter to a specific NYT recipe-box folder by name",
+    )
+    nyt_saved_parser.set_defaults(func=cmd_nyt_saved)
+
+    nyt_sync_parser = nyt_subparsers.add_parser(
+        "sync",
+        help="Sync NYT saved recipes to Notion (skips duplicates)",
+    )
+    nyt_sync_parser.add_argument(
+        "--collection",
+        help="Sync only recipes from a specific NYT folder (falls back to full recipe box)",
+    )
+    nyt_sync_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview recipes that would be added without writing to Notion",
+    )
+    nyt_sync_parser.add_argument(
+        "--no-confirm",
+        action="store_true",
+        help="Batch import without per-recipe review prompts",
+    )
+    nyt_sync_parser.set_defaults(func=cmd_nyt_sync)
+
     args = parser.parse_args(argv)
     exit_code = args.func(args)
     if exit_code == 0 and args.command in PROD_COMMANDS:
@@ -412,6 +466,159 @@ def cmd_dev_list_feedback(_args: argparse.Namespace) -> int:
     from src.grocery_wizard.lib.feedback import list_feedback
 
     print(list_feedback())
+    return 0
+
+
+def cmd_nyt_auth(_args: argparse.Namespace) -> int:
+    from src.grocery_wizard.config import NYT_CREDENTIALS_PATH
+    from src.grocery_wizard.integrations.nyt_cooking import (
+        NytAuthError,
+        NYTCookingClient,
+        NytCredentials,
+        parse_regi_id,
+        save_credentials,
+    )
+
+    print("NYT Cooking authentication")
+    print("1. Log into https://cooking.nytimes.com")
+    print("2. DevTools → Application → Cookies → cooking.nytimes.com")
+    print("3. Copy the NYT-S cookie value")
+    print("4. Copy regi_id from regi_cookie (or paste the full cookie)\n")
+
+    cookie = input("NYT-S cookie: ").strip()
+    if not cookie:
+        print("NYT-S cookie is required.", file=sys.stderr)
+        return 1
+
+    regi_raw = input("regi_id (or full regi_cookie): ").strip()
+    if not regi_raw:
+        print("regi_id is required.", file=sys.stderr)
+        return 1
+
+    regi_id = parse_regi_id(regi_raw)
+    credentials = NytCredentials(nyt_s_cookie=cookie, regi_id=regi_id)
+    client = NYTCookingClient(credentials)
+
+    try:
+        client.verify_auth()
+    except NytAuthError as exc:
+        print(f"Authentication failed: {exc}", file=sys.stderr)
+        return 1
+
+    save_credentials(credentials, NYT_CREDENTIALS_PATH)
+    print(f"Credentials verified and saved to {NYT_CREDENTIALS_PATH}")
+    return 0
+
+
+def cmd_nyt_auth_status(_args: argparse.Namespace) -> int:
+    from src.grocery_wizard.integrations.nyt_cooking import (
+        NytAuthError,
+        NYTCookingClient,
+        credentials_status,
+    )
+
+    status = credentials_status()
+    if not status["configured"]:
+        print("NYT Cooking credentials: not configured")
+        print(f"Credentials file: {status['path']}")
+        print("Run: uv run python -m src.grocery_wizard nyt auth")
+        return 1
+
+    source = "environment + file" if status["from_env"] else "file"
+    print(f"NYT Cooking credentials: configured ({source})")
+    print(f"Credentials file: {status['path']}")
+    print(f"regi_id: {status['regi_id']}")
+
+    client = NYTCookingClient()
+    try:
+        client.verify_auth()
+    except NytAuthError as exc:
+        print(f"Verification failed: {exc}", file=sys.stderr)
+        return 1
+
+    print("Verification: OK")
+    return 0
+
+
+def cmd_nyt_logout(_args: argparse.Namespace) -> int:
+    from src.grocery_wizard.config import NYT_CREDENTIALS_PATH
+    from src.grocery_wizard.integrations.nyt_cooking import clear_credentials
+
+    clear_credentials(NYT_CREDENTIALS_PATH)
+    print(f"Cleared NYT credentials at {NYT_CREDENTIALS_PATH}")
+    return 0
+
+
+def cmd_nyt_saved(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.integrations.nyt_cooking import NytAuthError, NYTCookingClient
+
+    client = NYTCookingClient()
+    collection_id: str | None = None
+
+    if args.collection:
+        collection = client.find_collection_by_name(args.collection)
+        if collection is None:
+            print(
+                f"Collection '{args.collection}' not found; listing full recipe box.",
+                file=sys.stderr,
+            )
+        else:
+            collection_id = collection.id
+            print(f"Folder: {collection.name} ({collection.recipe_count} recipes)")
+
+    try:
+        recipes = list(client.iter_all_saved_recipes(collection_id=collection_id))
+    except NytAuthError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    if not recipes:
+        print("No saved recipes found.")
+        return 0
+
+    for index, recipe in enumerate(recipes, start=1):
+        author = f" — {recipe.author}" if recipe.author else ""
+        print(f"{index:4d}. {recipe.name}{author}")
+        print(f"      {recipe.url}")
+    print(f"\nTotal: {len(recipes)} recipe(s)")
+    return 0
+
+
+def cmd_nyt_sync(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.integrations.nyt_cooking import (
+        NytAuthError,
+        NYTCookingClient,
+        sync_saved_recipes_to_notion,
+    )
+
+    config = load_config()
+    db = NotionRecipesDB(config)
+    client = NYTCookingClient()
+
+    if args.dry_run:
+        print("Dry run — no recipes will be written to Notion.\n")
+
+    try:
+        summary = sync_saved_recipes_to_notion(
+            db,
+            client,
+            collection_name=args.collection,
+            dry_run=args.dry_run,
+            no_confirm=args.no_confirm,
+            on_progress=print,
+        )
+    except NytAuthError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    print()
+    print(
+        f"Sync complete: {summary.total} in NYT, "
+        f"{summary.skipped_existing} already in Notion, "
+        f"{summary.created} created, "
+        f"{summary.dry_run} would add, "
+        f"{summary.failed} failed."
+    )
     return 0
 
 

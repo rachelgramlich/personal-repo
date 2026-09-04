@@ -57,6 +57,38 @@ uv run python -m src.grocery_wizard.cli edit-pantry
 
 Edit `src/grocery_wizard/config/pantry.txt` — items here won't show up on your shopping list.
 
+### I want to sync my NYT Cooking recipe box to Notion
+
+One-time auth (interactive — paste cookie values from your browser):
+
+```shell
+uv run python -m src.grocery_wizard nyt auth
+```
+
+List saved recipes:
+
+```shell
+uv run python -m src.grocery_wizard nyt saved
+```
+
+Sync to Notion (skips recipes already in Notion by link):
+
+```shell
+uv run python -m src.grocery_wizard nyt sync
+```
+
+**NYT sync flags:**
+
+| Flag | When to use it |
+|------|----------------|
+| `--collection "Folder Name"` | Sync only one NYT recipe-box folder (falls back to full box if not found) |
+| `--dry-run` | Preview what would be added without writing to Notion |
+| `--no-confirm` | Batch import without per-recipe review prompts |
+
+Other NYT commands: `nyt auth-status`, `nyt logout`.
+
+Credentials are stored in `.local/grocery_wizard/nyt_credentials.json` (gitignored). Optional env overrides: `NYT_S_COOKIE`, `NYT_REGI_ID`.
+
 ## Command cheat sheet
 
 | Command | What it does |
@@ -65,6 +97,9 @@ Edit `src/grocery_wizard/config/pantry.txt` — items here won't show up on your
 | `plan-recipes` | Pick dinners for the week (saves week_plan.json) |
 | `create-grocery-list` | Build your shopping list from this week's plan |
 | `edit-pantry` | Edit what's always in your kitchen (won't appear on shopping list) |
+| `nyt auth` | Store NYT Cooking session (NYT-S cookie + regi_id) |
+| `nyt saved` | List recipes in your NYT recipe box |
+| `nyt sync` | Import saved NYT recipes into Notion (skips duplicates) |
 
 ### Dev / maintenance commands
 
@@ -107,7 +142,7 @@ Grocery Wizard is a package under `src/grocery_wizard/`. Folders group code by *
 | `cli/` | `main.py` | Command-line entry (`add-recipe`, `plan-recipes`, `create-grocery-list`, `edit-pantry`, `dev …`) |
 | `ui/` | `app.py` | Streamlit app (partial — Plan Meals tab is still a stub) |
 | `config/` | `__init__.py`, `pantry.txt` | Env settings, paths, committed pantry staples |
-| `integrations/` | `notion.py` | Notion API client and recipe model |
+| `integrations/` | `notion.py`, `nyt_cooking.py` | Notion API client; NYT Cooking auth and sync |
 | `recipes/` | `scraper.py`, `classify.py`, `add_recipe.py` | Scrape URLs, classify metadata, save new recipes |
 | `ingredients/` | `normalize.py`, `sync.py` | Parse/normalize ingredient lines; sync to Notion |
 | `planning/` | `meal_planner.py` | Interactive weeknight dinner planner |
@@ -124,6 +159,7 @@ Same subfolders as source — e.g. `recipes/test_scraper.py` tests `recipes/scra
 | Path | Purpose |
 |------|---------|
 | `.local/grocery_wizard/week_plan.json` | This week's planned recipe names |
+| `.local/grocery_wizard/nyt_credentials.json` | NYT Cooking session (from `nyt auth`) |
 | `.env` | `NOTION_API_KEY`, `NOTION_DATABASE_ID` (see `.env.example`) |
 
 ### Entry points

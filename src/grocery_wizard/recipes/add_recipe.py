@@ -12,6 +12,72 @@ from src.grocery_wizard.recipes.classify import classify_recipe
 from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text, scrape_recipe
 
 
+def add_prefetched_recipes(
+    db: NotionRecipesDB,
+    recipes: list[tuple[str, str, list[str]]],
+    *,
+    prompt: Callable[[str], str] | None = None,
+    confirm: Callable[[str], bool] | None = None,
+    select_option: Callable[[str, list[str], str | None], str | None] | None = None,
+    no_confirm: bool = False,
+) -> list[str]:
+    """Add recipes with title, URL, and ingredients already fetched (e.g. NYT JSON API)."""
+    prompt_fn = prompt or _default_prompt
+    confirm_fn = confirm or confirm_no_default
+    select_fn = select_option or _default_select_option
+
+    created_ids: list[str] = []
+    schema = db.schema
+
+    for title, url, ingredients in recipes:
+        url = url.strip()
+        if not url:
+            continue
+
+        existing = db.find_by_link(url)
+        if existing:
+            print(f"Skipping duplicate URL (already in Notion as '{existing.name}'): {url}")
+            continue
+
+        filter_columns = [(col.name, col.type, col.options) for col in schema.filter_columns]
+        inferred = classify_recipe(title, ingredients, filter_columns)
+
+        field_values: dict[str, Any] = {
+            schema.name_column: title,
+            schema.link_column: url,
+        }
+        if schema.ingredients_column:
+            field_values[schema.ingredients_column] = ingredients_to_text(ingredients)
+
+        for column_name, value in inferred.items():
+            field_values[column_name] = value
+
+        if no_confirm:
+            reviewed = field_values
+            should_create = True
+        else:
+            reviewed = _review_fields(
+                db=db,
+                field_values=field_values,
+                prompt_fn=prompt_fn,
+                select_fn=select_fn,
+            )
+            if reviewed is None:
+                print("Skipped.")
+                continue
+            should_create = confirm_fn("Create this recipe in Notion?")
+
+        if not should_create:
+            print("Skipped.")
+            continue
+
+        recipe = db.create_recipe(reviewed)
+        created_ids.append(recipe.page_id)
+        print(f"Created: {recipe.name}")
+
+    return created_ids
+
+
 def add_recipes_from_urls(
     db: NotionRecipesDB,
     urls: list[str],
