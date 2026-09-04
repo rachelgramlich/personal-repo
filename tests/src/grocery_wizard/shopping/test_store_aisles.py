@@ -106,6 +106,9 @@ def test_load_store_aisles_reloads_after_file_changes(tmp_path: Path) -> None:
         ("all-purpose flour", "baking"),
         ("sourdough bread", "bakery"),
         ("la croix", "canned drinks"),
+        ("chicken", "meat/fish"),
+        ("chimichurri", "refrigerated"),
+        ("avocado oil", "dry goods"),
     ],
 )
 def test_classify_aisle(item: str, expected_aisle: str) -> None:

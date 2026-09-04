@@ -214,6 +214,7 @@ _JUNK_ONLY_PHRASES = frozenset(
         "to serve",
         "to taste",
         "as needed",
+        "more as needed",
         "if needed",
         "for serving",
         "for topping",
@@ -265,8 +266,31 @@ _PRESERVED_PRODUCTS = (
 )
 
 _TRAILING_CLAUSE_RE = re.compile(
-    r"\b(?:plus more for|such as|or to taste|to taste|for garnish|optional|"
+    r"\b(?:plus more for|plus more\b|such as|or to taste|to taste|for garnish|optional|"
     r"as needed|if needed|for serving|for topping|to serve)\b.*",
+    re.IGNORECASE,
+)
+
+_TRAILING_MORE_RE = re.compile(r"\s+more$", re.IGNORECASE)
+
+_LEADING_TO_PREFIX_RE = re.compile(r"^to\s+(?=\d)", re.IGNORECASE)
+
+_QTY_RANGE_RE = re.compile(
+    r"^((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)(?:\s+(?:large|medium|small))?\s+or\s+"
+    r"((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)(?:\s+(?:large|medium|small))?\s+",
+    re.IGNORECASE,
+)
+
+_QTY_TO_RANGE_RE = re.compile(
+    r"^((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+to\s+" r"((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+",
+    re.IGNORECASE,
+)
+
+_LEMON_VARIANT_RE = re.compile(
+    r"^(?:"
+    r"(?:juice|zest|grated zest) of (?:half(?:\s+a)?|(?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+lemons?|"
+    r"lemons? (?:juice|zest)"
+    r")$",
     re.IGNORECASE,
 )
 
@@ -294,6 +318,13 @@ _INCOMPLETE_PREP_SUFFIX_RE = re.compile(
 _HERB_LEAVES_RE = re.compile(
     r"^(?:(?:fresh|chopped|loosely|firmly)\s+)*(?:packed\s+)?"
     r"(cilantro|basil|parsley|mint|dill|thyme|oregano|sage|rosemary|celery)\s+leaves$",
+    re.IGNORECASE,
+)
+
+_CELERY_LEAVES_RE = re.compile(
+    r"^(?:(?:\d+(?:\s+\d+/\d+)?|\d+/\d+|\d+(?:\.\d+)?)\s+)?"
+    r"(?:(?:cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz)\s+)?"
+    r"(?:(?:loosely|firmly)\s+)?(?:packed\s+)?celery\s+leaves$",
     re.IGNORECASE,
 )
 
@@ -709,6 +740,8 @@ def clean_ingredient_line_for_storage(line: str) -> str:
     if not text:
         return ""
 
+    text = _strip_or_alternative_prefix(text)
+    text = _strip_trailing_more(text)
     text = _storage_ingredient_base_text(text)
     text = _strip_trailing_cut_instructions(text)
     text = _strip_trailing_prep(text)
@@ -749,6 +782,91 @@ def _storage_ingredient_base_text(text: str) -> str:
     return ", ".join(kept)
 
 
+def _strip_or_alternative_prefix(text: str) -> str:
+    if text.startswith("or "):
+        return text[3:].strip()
+    return text
+
+
+def _strip_leading_to_prefix(text: str) -> str:
+    return _LEADING_TO_PREFIX_RE.sub("", text).strip()
+
+
+def _strip_trailing_more(text: str) -> str:
+    return _TRAILING_MORE_RE.sub("", text).strip()
+
+
+def _resolve_quantity_range(text: str) -> str:
+    """Use the higher bound from ``4 or 6`` / ``1 to 2 cups`` style ranges."""
+    match = _QTY_RANGE_RE.match(text)
+    if match is None:
+        match = _QTY_TO_RANGE_RE.match(text)
+    if match is None:
+        return text
+    higher = max(_parse_qty(match.group(1)), _parse_qty(match.group(2)))
+    rest = text[match.end() :].strip()
+    return f"{_format_qty(higher)} {rest}".strip()
+
+
+def _match_lemon_variant_name(text: str) -> str | None:
+    """Return ``lemons`` when *text* is a whole/juice/zest lemon line."""
+    cleaned = re.sub(r"\([^)]*\)", "", text).strip().lower()
+    cleaned = _TRAILING_CLAUSE_RE.sub("", cleaned)
+    cleaned = _strip_trailing_more(cleaned).strip().rstrip(",")
+    if not cleaned:
+        return None
+
+    if _LEMON_VARIANT_RE.match(cleaned):
+        return "lemons"
+
+    match = _LEADING_QTY_RE.match(cleaned)
+    if match and re.fullmatch(r"lemons?", cleaned[match.end() :].strip()):
+        return "lemons"
+
+    return None
+
+
+def _lemon_count_from_line(line: str) -> float | None:
+    """Extract lemon-equivalent count from juice/zest/whole-lemon lines."""
+    text = _normalize_unicode_dashes(line.strip().lower())
+    text = re.sub(r"\([^)]*\)", "", text)
+    text = _TRAILING_CLAUSE_RE.sub("", text)
+    text = _strip_trailing_more(text).strip().rstrip(",")
+
+    match = _LEADING_QTY_RE.match(text)
+    if match and re.fullmatch(r"lemons?", text[match.end() :].strip()):
+        return _parse_qty(match.group(1))
+
+    variant_match = re.match(
+        r"^(?:juice|zest|grated zest) of "
+        r"(half(?:\s+a)?|(\d+(?:\s+\d+/\d+)?|\d+/\d+|\d+(?:\.\d+)?))\s+lemons?$",
+        text,
+        re.IGNORECASE,
+    )
+    if variant_match:
+        qty_part = variant_match.group(1)
+        if qty_part.startswith("half"):
+            return 0.5
+        return _parse_qty(qty_part)
+
+    return None
+
+
+def _is_or_alternative_ingredient(left: str, right: str) -> bool:
+    """Detect ``canned chickpeas`` style alternatives, not prep phrases."""
+    if not left or not right:
+        return False
+    if _is_prep_alternative_phrase(right):
+        return False
+    left_words = left.split()
+    right_words = right.split()
+    if not left_words or not right_words:
+        return False
+    if len(left_words) <= 2 and left_words[-1] in _PREP_WORDS:
+        return False
+    return len(right_words) >= 1 and not right_words[0].isdigit()
+
+
 def normalize_ingredient(line: str) -> str:
     """Reduce a recipe ingredient line to a grocery-store item name."""
     text = _normalize_unicode_dashes(line.strip().lower())
@@ -759,13 +877,27 @@ def normalize_ingredient(line: str) -> str:
     if not text:
         return ""
 
+    text = _strip_or_alternative_prefix(text)
+    text = _strip_leading_to_prefix(text)
+    text = _strip_trailing_more(text)
+
+    lemon_name = _match_lemon_variant_name(text)
+    if lemon_name is not None:
+        return lemon_name
+
     if _is_junk_only(text):
         return ""
 
     text = re.sub(r"\([^)]*\)", "", text)
     text = _ingredient_base_text(text)
     text = _TRAILING_CLAUSE_RE.sub("", text)
+    text = _strip_trailing_more(text)
+    text = _resolve_quantity_range(text)
     text = re.sub(r"\s+", " ", text).strip()
+
+    lemon_name = _match_lemon_variant_name(text)
+    if lemon_name is not None:
+        return lemon_name
 
     preserved_product = _match_preserved_product(text)
 
@@ -785,6 +917,7 @@ def normalize_ingredient(line: str) -> str:
     text = " ".join(words).strip()
 
     text = _simplify_ingredient_name(text)
+    text = _strip_or_alternative_prefix(text)
     text = _strip_trailing_cut_instructions(text)
     text = _strip_trailing_prep(text)
     text = _strip_incomplete_prep_suffix(text)
@@ -922,6 +1055,8 @@ def _simplify_herb_leaves(text: str) -> str:
     match = _HERB_LEAVES_RE.match(text.strip())
     if match:
         return match.group(1).lower()
+    if _CELERY_LEAVES_RE.match(text.strip()):
+        return "celery"
     return text
 
 
@@ -948,19 +1083,25 @@ def _strip_leading_prep(text: str) -> str:
 
 def _simplify_ingredient_name(text: str) -> str:
     if " or " in text:
-        left, _, right = text.partition(" or ")
-        right_clean = right.strip()
-        left_clean = left.strip()
-        if _PREP_ALTERNATIVE_RE.match(right_clean) or _PREP_ALTERNATIVE_RE.match(
-            f"{left_clean.split()[-1]} or {right_clean}" if left_clean else right_clean
-        ):
-            text = left_clean
-        elif _is_prep_alternative_phrase(right_clean):
-            text = left_clean
-        elif _is_prep_alternative_phrase(text):
-            return ""
+        range_resolved = _resolve_quantity_range(text)
+        if range_resolved != text:
+            text = range_resolved
         else:
-            text = right_clean
+            left, _, right = text.partition(" or ")
+            right_clean = right.strip()
+            left_clean = left.strip()
+            if _is_or_alternative_ingredient(left_clean, right_clean):
+                text = _strip_or_alternative_prefix(right_clean)
+            elif _PREP_ALTERNATIVE_RE.match(right_clean) or _PREP_ALTERNATIVE_RE.match(
+                f"{left_clean.split()[-1]} or {right_clean}" if left_clean else right_clean
+            ):
+                text = left_clean
+            elif _is_prep_alternative_phrase(right_clean):
+                text = left_clean
+            elif _is_prep_alternative_phrase(text):
+                return ""
+            else:
+                text = right_clean
     words = text.split()
     if len(words) >= 2 and words[0] in _DESCRIPTOR_WORDS:
         text = " ".join(words[1:])
@@ -988,7 +1129,7 @@ def _is_prep_only_segment(segment: str) -> bool:
     segment = _TRAILING_CLAUSE_RE.sub("", segment).strip()
     if not segment:
         return True
-    if segment in _JUNK_ONLY_PHRASES:
+    if segment in _JUNK_ONLY_PHRASES or segment == "more":
         return True
     if _INSTRUCTION_ONLY_RE.match(segment):
         return True
@@ -1160,11 +1301,16 @@ def parse_amount(line: str) -> tuple[str, str | None]:
         parse_amount("2 eggs")              == ("eggs", "2")
         parse_amount("kosher salt")         == ("kosher salt", None)
     """
+    lemon_count = _lemon_count_from_line(line)
+    if lemon_count is not None:
+        return "lemons", _format_qty(lemon_count)
+
     normalized = normalize_ingredient(line)
     if not normalized:
         return normalized, None
 
     text = _normalize_unicode_dashes(line.strip().lower())
+    text = _resolve_quantity_range(text)
     m = _LEADING_QTY_RE.match(text)
     if m is None:
         return normalized, None

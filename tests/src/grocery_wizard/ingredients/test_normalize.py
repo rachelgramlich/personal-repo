@@ -309,6 +309,60 @@ def test_aggregate_amounts_rounds_up_limes() -> None:
     assert aggregate_amounts(["1", "1/2"]) == "2"
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected_name", "expected_amount"),
+    [
+        ("juice of half a lemon", "lemons", "1/2"),
+        ("zest of 1 lemon", "lemons", "1"),
+        ("Juice of 1/2 lemon, to taste", "lemons", "1/2"),
+        ("1 lemon", "lemons", "1"),
+        ("2 lemons", "lemons", "2"),
+    ],
+)
+def test_parse_amount_lemon_variants(raw: str, expected_name: str, expected_amount: str) -> None:
+    name, amount = parse_amount(raw)
+    assert name == expected_name
+    assert amount == expected_amount
+
+
+def test_aggregate_amounts_consolidates_lemon_variants() -> None:
+    amounts = [
+        parse_amount("juice of half a lemon")[1],
+        parse_amount("1 lemon")[1],
+        parse_amount("zest of 1 lemon")[1],
+    ]
+    assert aggregate_amounts(amounts) == "3"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("or canned chickpeas", "canned chickpeas"),
+        ("sherry vinegar more", "sherry vinegar"),
+        ("extra-virgin olive oil more", "extra-virgin olive oil"),
+        ("to 2 cups loosely packed celery leaves", "celery"),
+        ("4 or 6 small celery stalks", "celery stalks"),
+        ("juice of half a lemons", "lemons"),
+        ("zest of 1 lemons", "lemons"),
+        ("3 tablespoons sherry vinegar, more as needed", "sherry vinegar"),
+        ("4 cups cooked or canned chickpeas", "canned chickpeas"),
+        (
+            "4 large or 6 small celery stalks, trimmed (reserve the leaves)",
+            "celery stalks",
+        ),
+        ("1 to 2 cups loosely packed celery leaves", "celery"),
+    ],
+)
+def test_normalize_ingredient_grocery_list_fixes(raw: str, expected: str) -> None:
+    assert normalize_ingredient(raw) == expected
+
+
+def test_parse_amount_quantity_range_uses_higher_bound() -> None:
+    name, amount = parse_amount("4 or 6 small celery stalks")
+    assert name == "celery stalks"
+    assert amount == "6"
+
+
 def test_notion_fixture_normalize(notion_case: dict) -> None:
     """Notion-derived lines: normalize_ingredient matches fixture expectations."""
     raw = notion_case["raw_line"]

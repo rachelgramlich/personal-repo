@@ -185,7 +185,7 @@
     "recipe": "Creamy lentil & Japanese sweet potato skillet",
     "raw_line": "1/2 tsp sea salt, more to taste",
     "expect_after_prepare": null,
-    "expect_normalized": "sea salt more",
+    "expect_normalized": "sea salt",
     "notes": "to_taste"
   },
   {
@@ -206,7 +206,7 @@
     "recipe": "Easy Dal",
     "raw_line": "Juice of 1/2 lemon, to taste",
     "expect_after_prepare": null,
-    "expect_normalized": "juice of 1/2 lemons",
+    "expect_normalized": "lemons",
     "notes": "to_taste"
   },
   {

@@ -26,8 +26,6 @@ from src.grocery_wizard.recipes.scraper import scrape_recipe
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
 from src.grocery_wizard.shopping.recurring_weekly_items import prompt_recurring_weekly_items
 from src.grocery_wizard.shopping.store_aisles import (
-    aisle_label,
-    group_grocery_items_by_aisle,
     ingredient_name,
     sort_grocery_items,
 )
@@ -409,14 +407,9 @@ def _print_grocery_list(items: list[str], *, heading: str | None = "Grocery list
         print(heading)
         print("=" * 40)
 
-    groups = group_grocery_items_by_aisle(items)
-    for index, (aisle, aisle_items) in enumerate(groups):
-        if index:
-            print()
-        print(aisle_label(aisle))
-        print("-" * 40)
-        for item in aisle_items:
-            print(item)
+    sorted_items = sort_grocery_items(items)
+    for item in sorted_items:
+        print(item)
 
 
 def _recipes_needing_backfill(

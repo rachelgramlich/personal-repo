@@ -626,3 +626,40 @@ def test_build_grocery_list_skips_duplicate_recurring_banana_plural(tmp_path: Pa
     )
 
     assert len([item for item in items if "banana" in item.lower()]) == 1
+
+
+def test_print_grocery_list_has_no_aisle_headers(capsys: pytest.CaptureFixture[str]) -> None:
+    from src.grocery_wizard.shopping.grocery_list import _print_grocery_list
+
+    _print_grocery_list(["eggs", "onions", "bananas"], heading=None)
+
+    output = capsys.readouterr().out
+    assert "Fruit" not in output
+    assert "Vegetables" not in output
+    assert "====" not in output
+    assert "----" not in output
+    assert output.strip().splitlines() == ["bananas", "onions", "eggs"]
+
+
+def test_build_grocery_list_consolidates_lemon_variants(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe(
+            "Lemon Dish",
+            "juice of half a lemon\n1 lemon\nzest of 1 lemon",
+        )
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Lemon Dish"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    lemon_items = [item for item in items if "lemon" in item.lower()]
+    assert len(lemon_items) == 1
+    assert lemon_items[0] == "3 lemons"
