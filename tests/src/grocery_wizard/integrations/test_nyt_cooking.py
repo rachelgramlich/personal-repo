@@ -271,34 +271,18 @@ def test_sync_creates_missing_recipes(credentials: NytCredentials) -> None:
     session = MagicMock()
     client = NYTCookingClient(credentials, session=session)
 
-    def fake_get(url: str, **kwargs: object) -> MagicMock:
-        if "recipe_box_search" in url:
-            return _mock_response(
-                payload={
-                    "collectables": [
-                        {
-                            "id": "42",
-                            "name": "Fresh Recipe",
-                            "url": "https://cooking.nytimes.com/recipes/42-fresh",
-                        }
-                    ],
-                    "collectables_count": 1,
-                }
-            )
-        if "/recipes/42" in url:
-            return _mock_response(
-                payload={
-                    "id": 42,
+    session.get.return_value = _mock_response(
+        payload={
+            "collectables": [
+                {
+                    "id": "42",
                     "name": "Fresh Recipe",
                     "url": "https://cooking.nytimes.com/recipes/42-fresh",
-                    "parts": [
-                        {"ingredients": [{"display_quantity": "1", "display_text": "egg"}]}
-                    ],
                 }
-            )
-        raise AssertionError(f"Unexpected URL: {url}")
-
-    session.get.side_effect = fake_get
+            ],
+            "collectables_count": 1,
+        }
+    )
 
     db = MagicMock()
     db.find_by_link.return_value = None
@@ -311,8 +295,9 @@ def test_sync_creates_missing_recipes(credentials: NytCredentials) -> None:
 
     assert summary.created == 1
     add_mock.assert_called_once()
-    args = add_mock.call_args[0]
-    assert args[1][0][0] == "Fresh Recipe"
+    args, kwargs = add_mock.call_args
+    assert args[1][0] == ("Fresh Recipe", "https://cooking.nytimes.com/recipes/42-fresh", [])
+    assert kwargs["include_ingredients"] is False
 
 
 def test_prompt_collection_choice_picks_folder(credentials: NytCredentials) -> None:

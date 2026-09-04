@@ -414,27 +414,20 @@ def sync_saved_recipes_to_notion(
                 on_progress(f"Would add: {saved.name}")
             continue
 
-        try:
-            recipe = client.get_recipe(saved.id)
-        except NYTCookingError as exc:
-            summary.failed += 1
-            if on_progress:
-                on_progress(f"Failed to fetch recipe '{saved.name}': {exc}")
-            continue
-
         created_ids = add_prefetched_recipes(
             db,
-            [(recipe.name, recipe.url, recipe.ingredients)],
+            [(saved.name, url, [])],
             confirm=confirm,
             no_confirm=no_confirm,
+            include_ingredients=False,
         )
         if created_ids:
             summary.created += 1
             if on_progress:
-                on_progress(f"Created: {recipe.name}")
+                on_progress(f"Created: {saved.name}")
         else:
             if on_progress:
-                on_progress(f"Skipped: {recipe.name}")
+                on_progress(f"Skipped: {saved.name}")
 
     return summary
 

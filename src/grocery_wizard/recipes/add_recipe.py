@@ -20,8 +20,9 @@ def add_prefetched_recipes(
     confirm: Callable[[str], bool] | None = None,
     select_option: Callable[[str, list[str], str | None], str | None] | None = None,
     no_confirm: bool = False,
+    include_ingredients: bool = True,
 ) -> list[str]:
-    """Add recipes with title, URL, and ingredients already fetched (e.g. NYT JSON API)."""
+    """Add recipes with title, URL, and optional ingredients already fetched."""
     prompt_fn = prompt or _default_prompt
     confirm_fn = confirm or confirm_no_default
     select_fn = select_option or _default_select_option
@@ -46,7 +47,7 @@ def add_prefetched_recipes(
             schema.name_column: title,
             schema.link_column: url,
         }
-        if schema.ingredients_column:
+        if include_ingredients and schema.ingredients_column:
             field_values[schema.ingredients_column] = ingredients_to_text(ingredients)
 
         for column_name, value in inferred.items():

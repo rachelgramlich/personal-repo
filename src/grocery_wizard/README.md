@@ -89,6 +89,8 @@ uv run python -m src.grocery_wizard nyt saved         # list recipe box
 uv run python -m src.grocery_wizard nyt sync          # import to Notion (prompts for folder)
 ```
 
+NYT sync adds **name, link, and classified metadata** (Meal, Protein, Cuisine, etc.) — not ingredients. Fill ingredients later with `dev backfill-ingredients` or when ingredient parsing (#21) lands.
+
 **NYT sync flags:**
 
 | Flag | When to use it |
