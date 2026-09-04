@@ -6,6 +6,7 @@ import sys
 from collections.abc import Callable
 from typing import Any
 
+from src.grocery_wizard.ingredients.sync import prepare_ingredients_for_notion
 from src.grocery_wizard.integrations.notion import NotionRecipesDB
 from src.grocery_wizard.lib.prompts import confirm_no_default
 from src.grocery_wizard.recipes.classify import classify_recipe
@@ -71,6 +72,11 @@ def add_recipes_from_urls(
         if not confirm_fn("Create this recipe in Notion?"):
             print("Skipped.")
             continue
+
+        if schema.ingredients_column and reviewed.get(schema.ingredients_column):
+            reviewed[schema.ingredients_column] = prepare_ingredients_for_notion(
+                reviewed[schema.ingredients_column]
+            )
 
         recipe = db.create_recipe(reviewed)
         created_ids.append(recipe.page_id)

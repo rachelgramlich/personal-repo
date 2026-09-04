@@ -10,6 +10,7 @@ import requests
 
 from src.grocery_wizard.ingredients.normalize import (
     expand_ingredient_line,
+    is_junk_ingredient,
     normalize_ingredient,
 )
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
@@ -90,6 +91,26 @@ def split_ingredients_text(text: str) -> str:
             continue
         output_lines.extend(expand_ingredient_line(line))
     return ingredients_to_text(output_lines)
+
+
+def prepare_ingredients_for_notion(text: str) -> str:
+    """Split compound lines and drop junk before storing ingredients in Notion."""
+    split = split_ingredients_text(text)
+    if not split.strip():
+        return ""
+
+    kept: list[str] = []
+    for line in split.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if is_directive(stripped):
+            kept.append(stripped)
+            continue
+        if is_junk_ingredient(stripped):
+            continue
+        kept.append(stripped)
+    return ingredients_to_text(kept)
 
 
 def refresh_ingredients_for_recipe(

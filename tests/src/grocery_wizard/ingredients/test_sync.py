@@ -11,6 +11,7 @@ from src.grocery_wizard.ingredients.sync import (
     merge_ingredients,
     parse_ingredients_text,
     parse_removal_target,
+    prepare_ingredients_for_notion,
     recipe_needs_merge,
     recipe_needs_sync,
     refresh_ingredients_for_recipe,
@@ -68,6 +69,16 @@ def test_is_directive() -> None:
     assert is_directive("remove: pepper")
     assert is_directive("# comment")
     assert not is_directive("2 cups rice")
+
+
+def test_prepare_ingredients_for_notion_splits_and_drops_junk() -> None:
+    text = "2 sweet potatoes and 1 red onion\n" "sliced into half-moons\n" "remove: garlic\n"
+    prepared = prepare_ingredients_for_notion(text)
+    lines = [line for line in prepared.splitlines() if line.strip()]
+    assert any("sweet potatoes" in line for line in lines)
+    assert any("red onion" in line for line in lines)
+    assert "remove: garlic" in lines
+    assert not any("half-moons" in line for line in lines)
 
 
 def test_merge_keeps_notion_additions_not_in_scrape() -> None:
