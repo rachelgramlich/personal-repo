@@ -1,28 +1,28 @@
 Pipeline validation report
-Recipes in Notion: 71
+Recipes in Notion: 244
 Runs: 2
 
 --- Run 1 ---
 Plan source: suggest_meals (meals=5, seed=1)
-Recipes (5): Bibimbap, Sticky Harissa Tofu Tacos, Red Curry Lentils with Sweet Potatoes and Spinach, Grilled Chimichurri Chicken w/ zucchini and orzo, Celery Salad
-Grocery items: 34
+Recipes (5): Bibimbap, Sticky Harissa Tofu Tacos, Red Curry Lentils with Sweet Potatoes and Spinach, One-Pan Orzo With Spinach and Feta, Nonya Hokkien Stir-Fried Noodles
+Grocery items: 29
 
 Sample grocery items:
   - 1/2 limes
   - 2 lemons
-  - 1 pint small tomatoes
+  - 1 bag spinach
   - 1 sweet potatoes
   - 1 yellow onions
-  - 1/4 cup thinly sliced red onions
   - 2 red onions
-  - 6 celery stalks
-  - 8 corn tortillas
-  - basil
-  - celery
+  - 3 shallots
+  - bean sprouts
   - cilantro
+  - dill
+  - mustard greens
   - oyster mushrooms
-  - red cabbage
-  - spinach
+  - 16 oz block of extra firm tofu
+  - shrimp
+  - 8 corn tortillas
 
 Missing from Notion (0):
   (none)
@@ -30,8 +30,9 @@ Missing from Notion (0):
 Recipes without ingredients (0):
   (none)
 
-Suspicious stored ingredient text (0):
-  (none)
+Suspicious stored ingredient text (2):
+  - Red Curry Lentils with Sweet Potatoes and Spinach
+  - Nonya Hokkien Stir-Fried Noodles
 
 Empty-normalize ingredient lines (0):
   (none)
@@ -44,25 +45,25 @@ Suspicious normalized names (0):
 
 --- Run 2 ---
 Plan source: suggest_meals (meals=5, seed=3)
-Recipes (5): Bibimbap, Sticky Harissa Tofu Tacos, Grilled Chimichurri Chicken w/ zucchini and orzo, Red Curry Lentils with Sweet Potatoes and Spinach, Homemade Sushi
-Grocery items: 31
+Recipes (5): Bibimbap, Sticky Harissa Tofu Tacos, One-Pan Orzo With Spinach and Feta, Red Curry Lentils with Sweet Potatoes and Spinach, Celery Salad
+Grocery items: 27
 
 Sample grocery items:
   - 1/2 limes
   - 2 lemons
-  - avocados
+  - 1 bag spinach
+  - 1 pint small tomatoes
   - 1 sweet potatoes
   - 1 yellow onions
   - 2 red onions
-  - 8 corn tortillas
+  - 2 scallions
+  - 6 celery
+  - basil
   - cilantro
-  - edamame
-  - mini cucumbers
+  - dill
   - oyster mushrooms
-  - red cabbage
-  - scallions
-  - spinach
-  - zucchini
+  - 16 oz block of extra firm tofu
+  - Parmigiano-Reggiano cheese
 
 Missing from Notion (0):
   (none)
@@ -70,8 +71,9 @@ Missing from Notion (0):
 Recipes without ingredients (0):
   (none)
 
-Suspicious stored ingredient text (0):
-  (none)
+Suspicious stored ingredient text (2):
+  - Red Curry Lentils with Sweet Potatoes and Spinach
+  - Celery Salad
 
 Empty-normalize ingredient lines (0):
   (none)

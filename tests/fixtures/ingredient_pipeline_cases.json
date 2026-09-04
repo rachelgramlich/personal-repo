@@ -24,12 +24,12 @@
     "expect_grocery": "ginger",
     "issue_21": true
   },
-  {
-    "label": "Celery stalk range (or)",
-    "raw_line": "4 large or 6 small celery stalks",
-    "expect_stored": "6 celery stalks",
-    "issue_21": true
-  },
+    {
+        "label": "Celery stalk range (or)",
+        "raw_line": "4 large or 6 small celery stalks",
+        "expect_stored": "6 celery",
+        "issue_21": true
+    },
   {
     "label": "Optional sherry vinegar",
     "raw_line": "Optional: 1/2 cup sherry vinegar, more as needed",
@@ -212,5 +212,17 @@
     ],
     "aggregate": true,
     "expect_aggregate_grocery": "3 lemons"
+  },
+  {
+    "label": "Legacy lemon zest storage format",
+    "raw_line": "lemon zest",
+    "expect_stored": "zest lemons",
+    "expect_grocery": "lemons"
+  },
+  {
+    "label": "Legacy stored celery stalks line",
+    "raw_line": "6 celery stalks",
+    "expect_stored": "6 celery",
+    "expect_grocery": "6 celery"
   }
 ]

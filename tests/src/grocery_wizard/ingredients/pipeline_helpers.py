@@ -29,10 +29,11 @@ def process_ingredient_line(raw: str, *, nyt: bool = False) -> ProcessedIngredie
     stored = minimal_clean_for_storage(raw) if nyt else clean_ingredient_line_for_storage(raw)
     name, amount = parse_amount(raw)
     show_amount = should_show_amount(amount, raw)
+    keeps_amount = amount and not str(amount).startswith(("head:", "clove:", "zest:"))
     if name == "garlic":
         grocery_amount = aggregate_amounts([amount], name=name)
     else:
-        grocery_amount = amount if show_amount else None
+        grocery_amount = amount if show_amount and keeps_amount else None
     grocery_line = format_grocery_item(name, grocery_amount)
     return ProcessedIngredientLine(
         raw=raw,

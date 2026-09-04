@@ -190,7 +190,12 @@ def _truncate_at_instructions(lines: list[str]) -> list[str]:
     return kept
 
 
-def prepare_ingredients_for_notion(text: str, *, source_url: str | None = None) -> str:
+def prepare_ingredients_for_notion(
+    text: str,
+    *,
+    source_url: str | None = None,
+    force_full_format: bool = False,
+) -> str:
     """Clean, split, and normalize ingredient text before storing in Notion."""
     lines = _normalize_stored_lines(text)
     if not lines:
@@ -204,7 +209,7 @@ def prepare_ingredients_for_notion(text: str, *, source_url: str | None = None) 
     if not split.strip():
         return ""
 
-    use_minimal_cleanup = is_nyt_cooking_url(source_url)
+    use_minimal_cleanup = is_nyt_cooking_url(source_url) and not force_full_format
     kept: list[str] = []
     for line in split.splitlines():
         stripped = line.strip()
@@ -257,7 +262,11 @@ def refresh_ingredients_for_recipe(
         except Exception as exc:
             return RefreshResult(recipe.name, "failed", str(exc))
 
-    refreshed_text = prepare_ingredients_for_notion(source_text, source_url=recipe.link)
+    refreshed_text = prepare_ingredients_for_notion(
+        source_text,
+        source_url=recipe.link,
+        force_full_format=split_only,
+    )
     ingredient_lines = [
         line for line in refreshed_text.splitlines() if line.strip() and not is_directive(line)
     ]

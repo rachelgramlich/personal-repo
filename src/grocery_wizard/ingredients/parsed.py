@@ -277,6 +277,17 @@ _LEMON_LINE_RE = re.compile(
     re.IGNORECASE,
 )
 
+_LEMON_ZEST_LEGACY_RE = re.compile(
+    r"^(?:\d+(?:\s+\d+/\d+|\d+/\d+|\.\d+)?\s+)?"
+    r"(?:(?:finely|freshly)\s+)?(?:grated\s+)?lemon\s+zest\b",
+    re.IGNORECASE,
+)
+
+_FROM_LEMON_RE = re.compile(
+    r"\(from\s+(half(?:\s+a)?|(?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+lemons?\)",
+    re.IGNORECASE,
+)
+
 _SUBSTITUTION_PAREN_RE = re.compile(
     r"\((?:or\s+)?(?:substitute|see notes|frozen|fresh)\b",
     re.IGNORECASE,
@@ -718,6 +729,47 @@ def _lemon_quantity_from_parsed(parsed: ParsedIngredient, original: str) -> floa
     return None
 
 
+def _is_lemon_zest_ingredient(original: str, name: str = "") -> bool:
+    stripped = original.strip()
+    if _LEMON_LINE_RE.match(stripped) and re.search(r"\bzest\b", stripped, re.IGNORECASE):
+        return True
+    if re.search(r"\blemon\s+zest\b", stripped, re.IGNORECASE):
+        return True
+    return bool(name and re.search(r"\blemon\s+zest\b", name, re.IGNORECASE))
+
+
+def _lemon_zest_quantity(original: str, parsed: ParsedIngredient) -> float:
+    from_match = _FROM_LEMON_RE.search(original)
+    if from_match:
+        value = from_match.group(1).lower().strip()
+        if value in {"half", "a half"}:
+            return 0.5
+        return _parse_qty(value)
+    qty = _lemon_quantity_from_parsed(parsed, original)
+    if qty is not None:
+        return qty
+    return 1.0
+
+
+def _format_lemon_zest_storage(qty: float) -> str:
+    if qty != 1:
+        return f"zest {_format_qty(qty)} lemons"
+    return "zest lemons"
+
+
+def _canonicalize_grocery_name(name: str) -> str:
+    lowered = name.lower().strip()
+    if lowered in {"celery stalk", "celery stalks"}:
+        return "celery"
+    if re.match(r"^(?:\d+\s+)?(?:small|large|medium\s+)?celery\s+stalks?\Z", lowered):
+        return "celery"
+    return name
+
+
+def _is_celery_stalk_unit(unit: str, name: str) -> bool:
+    return "celery" in name.lower() and bool(re.search(r"stalks?", unit.lower()))
+
+
 def _should_preserve_raw_line(line: str) -> bool:
     return bool(
         _SUBSTITUTION_PAREN_RE.search(line)
@@ -750,7 +802,12 @@ _DESCRIPTOR_COUNT_UNITS = frozenset(
 )
 
 
-def _build_storage_line(parsed: ParsedIngredient, original: str) -> str:
+def _build_storage_line(
+    parsed: ParsedIngredient,
+    original: str,
+    *,
+    source_line: str | None = None,
+) -> str:
     if not parsed.name:
         return _strip_trailing_prep_commas(original.strip())
 
@@ -758,6 +815,10 @@ def _build_storage_line(parsed: ParsedIngredient, original: str) -> str:
     name = _include_size_in_name(parsed, name)
     amounts = list(parsed.amount or [])
     selected = _select_amount(amounts, original)
+
+    context = source_line or original
+    if _is_lemon_zest_ingredient(context, name):
+        return _format_lemon_zest_storage(_lemon_zest_quantity(context, parsed))
 
     if _LEMON_LINE_RE.match(original.strip()) or name == "lemons":
         if re.search(r"\bzest\b", original, re.IGNORECASE):
@@ -783,6 +844,9 @@ def _build_storage_line(parsed: ParsedIngredient, original: str) -> str:
     if qty is None:
         return _prefer_plural_form(name)
 
+    if _is_celery_stalk_unit(unit_part, name):
+        return f"{_format_qty(qty)} celery"
+
     if _is_volume_unit(unit_part):
         return name
 
@@ -797,6 +861,8 @@ def _build_storage_line(parsed: ParsedIngredient, original: str) -> str:
         return f"clove:{_format_qty(qty)} garlic"
 
     if unit_lower in _DESCRIPTOR_COUNT_UNITS or unit_lower in {"stalk", "stalks"}:
+        if "celery" in name.lower():
+            return f"{_format_qty(qty)} celery".strip()
         return _format_with_descriptor_unit(qty, unit_part, name)
 
     amount_text = _format_amount_text(selected)
@@ -825,11 +891,13 @@ def format_ingredient_for_storage(line: str) -> str:
     )
     if not text:
         return ""
+    if re.match(r"^(?:finely|freshly\s+grated\s+)?lemon\s+zest\Z", text, re.IGNORECASE):
+        return "zest lemons"
     if _should_preserve_raw_line(line):
         return _strip_trailing_prep_commas(_normalize_unicode(line.strip()))
     parse_text = _strip_parenthetical_notes(text)
     parsed = _parse_with_library(parse_text)
-    return _build_storage_line(parsed, parse_text)
+    return _build_storage_line(parsed, parse_text, source_line=text)
 
 
 def minimal_clean_for_storage(line: str) -> str:
@@ -889,7 +957,7 @@ def _parse_stored_rest(qty_str: str, rest: str) -> tuple[str, str | None]:
         name = _prefer_plural_form(
             _strip_size_descriptors(_simplify_parsed_name(f"{base} {unit_word}"))
         )
-    return name, qty_str
+    return _canonicalize_grocery_name(name), qty_str
 
 
 _ZEST_LEMONS_RE = re.compile(
@@ -943,6 +1011,11 @@ def parse_stored_ingredient(line: str) -> tuple[str, str | None]:
     if text.lower() == "garlic":
         return "garlic", None
 
+    if _LEMON_ZEST_LEGACY_RE.match(text) or re.match(
+        r"^(?:finely|freshly\s+grated\s+)?lemon\s+zest\Z", text, re.IGNORECASE
+    ):
+        return "lemons", "zest:1"
+
     match = _LEADING_QTY_RE.match(text)
     if match:
         qty_str = match.group(1).strip()
@@ -951,7 +1024,8 @@ def parse_stored_ingredient(line: str) -> tuple[str, str | None]:
             return _parse_stored_rest(qty_str, rest)
 
     if looks_like_stored_ingredient_line(text):
-        return _prefer_plural_form(_strip_size_descriptors(_simplify_parsed_name(text))), None
+        name = _prefer_plural_form(_strip_size_descriptors(_simplify_parsed_name(text)))
+        return _canonicalize_grocery_name(name), None
 
     parsed = _parse_with_library(_strip_optional_prefix(text))
     name = _simplify_parsed_name(parsed.name[0].text) if parsed.name else text
@@ -993,7 +1067,13 @@ def looks_like_stored_ingredient_line(text: str) -> bool:
         return False
     if re.search(r"\d\s+or\s+\d", stripped):
         return False
+    if re.search(r"\d(?:\s+\w+)+\s+or\s+\d", stripped):
+        return False
     if re.search(r"\d+\s+to\s+\d+", stripped):
+        return False
+    if re.match(r"^\d+\s+\d+\s+", stripped):
+        return False
+    if _LEMON_ZEST_LEGACY_RE.match(stripped):
         return False
     if re.search(
         r"\b(?:packed|coarsely|finely|roughly|thinly)\s+(?:chopped|sliced|diced|minced)\b",

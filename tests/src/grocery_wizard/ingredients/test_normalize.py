@@ -401,14 +401,15 @@ def test_clean_ingredient_line_for_storage_head_garlic() -> None:
         ("sherry vinegar more", "sherry vinegar"),
         ("extra-virgin olive oil more", "extra-virgin olive oil"),
         ("to 2 cups loosely packed celery leaves", "celery"),
-        ("4 or 6 small celery stalks", "celery stalks"),
+        ("4 or 6 small celery stalks", "celery"),
         ("juice of half a lemons", "lemons"),
         ("zest of 1 lemons", "lemons"),
+        ("lemon zest", "lemons"),
         ("3 tablespoons sherry vinegar, more as needed", "sherry vinegar"),
         ("4 cups cooked or canned chickpeas", "canned chickpeas"),
         (
             "4 large or 6 small celery stalks, trimmed (reserve the leaves)",
-            "celery stalks",
+            "celery",
         ),
         ("1 to 2 cups loosely packed celery leaves", "celery"),
     ],
@@ -419,7 +420,7 @@ def test_normalize_ingredient_grocery_list_fixes(raw: str, expected: str) -> Non
 
 def test_parse_amount_quantity_range_uses_higher_bound() -> None:
     name, amount = parse_amount("4 or 6 small celery stalks")
-    assert name == "celery stalks"
+    assert name == "celery"
     assert amount == "6"
 
 
@@ -450,6 +451,35 @@ def test_ground_black_pepper_not_truncated() -> None:
 
 def test_aggregate_stored_lemon_zest_with_whole_lemons() -> None:
     assert aggregate_amounts(["zest:1", "2"], name="lemons") == "3"
+
+
+def test_legacy_lemon_zest_stored_format() -> None:
+    from src.grocery_wizard.ingredients.parsed import format_ingredient_for_storage
+
+    assert format_ingredient_for_storage("lemon zest") == "zest lemons"
+    assert format_ingredient_for_storage("1/2 teaspoon lemon zest") == "zest lemons"
+    assert (
+        format_ingredient_for_storage("1 teaspoon finely grated lemon zest (from 1 lemon)")
+        == "zest lemons"
+    )
+    assert (
+        format_ingredient_for_storage("1/2 teaspoon lemon zest (from 1/2 lemon)")
+        == "zest 1/2 lemons"
+    )
+    name, amount = parse_amount("lemon zest")
+    assert name == "lemons"
+    assert amount == "zest:1"
+
+
+def test_celery_stalks_store_as_celery() -> None:
+    from src.grocery_wizard.ingredients.parsed import format_ingredient_for_storage
+
+    stored = format_ingredient_for_storage("4 large or 6 small celery stalks")
+    assert stored == "6 celery"
+    name, amount = parse_amount(stored)
+    assert name == "celery"
+    assert amount == "6"
+    assert normalize_ingredient(stored) == "celery"
 
 
 def test_notion_fixture_normalize(notion_case: dict) -> None:
