@@ -133,7 +133,8 @@ Same subfolders as source — e.g. `recipes/test_scraper.py` tests `recipes/scra
 uv run python -m src.grocery_wizard.cli <command>
 
 # Streamlit (secondary)
-uv run streamlit run src/grocery_wizard/ui/app.py
+just grocery-ui
+# or: uv run streamlit run src/grocery_wizard/ui/app.py
 ```
 
 ```
@@ -224,10 +225,11 @@ Unmatched items land in **Other** (always last). Longer keyword phrases win over
 ## Streamlit UI
 
 ```shell
-uv run streamlit run src/grocery_wizard/ui/app.py
+just grocery-ui
+# or: uv run streamlit run src/grocery_wizard/ui/app.py
 ```
 
-Tabs: Add Recipe, Sync Ingredients, Plan Meals (stub), Grocery List.
+Tabs: Add Recipe, Plan Meals, Grocery List.
 
 ## Supported recipe sources
 

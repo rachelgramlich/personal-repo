@@ -17,9 +17,11 @@ from src.grocery_wizard.planning.meal_planner import (
     parse_meal_requests,
     pick_diverse_recipe,
     recipe_matches_column_filter,
+    replace_meals_in_plan,
     run_meal_planner,
     save_week_plan,
     select_diverse_meals,
+    suggest_meals,
 )
 
 
@@ -208,6 +210,83 @@ DIVERSITY_RECIPES = [
         },
     ),
 ]
+
+
+def test_suggest_meals_locked_first_then_diverse(monkeypatch) -> None:
+    dinner_recipes = [
+        _recipe(
+            "Chicken Curry",
+            page_id="id-1",
+            properties={
+                "Meal": "Dinner",
+                "Protein": ["Chicken"],
+                "Dinner: Weeknight Friendly": True,
+            },
+        ),
+        _recipe(
+            "Fish Pasta",
+            page_id="id-2",
+            properties={
+                "Meal": "Dinner",
+                "Protein": ["Fish"],
+                "Dinner: Weeknight Friendly": True,
+            },
+        ),
+        _recipe(
+            "Bean Bowl",
+            page_id="id-3",
+            properties={
+                "Meal": "Dinner",
+                "Protein": ["Beans"],
+                "Dinner: Weeknight Friendly": True,
+            },
+        ),
+    ]
+    monkeypatch.setattr(
+        "src.grocery_wizard.planning.meal_planner.select_diverse_meals",
+        lambda pool, count: pool[:count],
+    )
+    plan = suggest_meals(
+        dinner_recipes,
+        meals=3,
+        locked_names=["Bean Bowl"],
+        schema_columns=SCHEMA_COLUMNS,
+    )
+    assert plan[0] == "Bean Bowl"
+    assert len(plan) == 3
+    assert plan[1:] == ["Chicken Curry", "Fish Pasta"]
+
+
+def test_suggest_meals_uses_default_filters() -> None:
+    plan = suggest_meals(
+        RECIPES,
+        meals=5,
+        schema_columns=SCHEMA_COLUMNS,
+    )
+    assert plan == ["Chicken Curry"]
+
+
+def test_replace_meals_in_plan_swaps_selected_slots(monkeypatch) -> None:
+    pool = [
+        _recipe("Chicken Curry", page_id="id-1"),
+        _recipe("Fish Pasta", page_id="id-2"),
+        _recipe("Bean Bowl", page_id="id-3"),
+        _recipe("Tofu Stir Fry", page_id="id-4"),
+    ]
+    monkeypatch.setattr(
+        "src.grocery_wizard.planning.meal_planner.pick_diverse_recipe",
+        lambda candidates, selected: candidates[0],
+    )
+
+    updated, rejected = replace_meals_in_plan(
+        ["Chicken Curry", "Fish Pasta", "Bean Bowl"],
+        ["Fish Pasta"],
+        all_recipes=pool,
+        pool=pool,
+    )
+
+    assert rejected == {"Fish Pasta"}
+    assert updated == ["Chicken Curry", "Tofu Stir Fry", "Bean Bowl"]
 
 
 def test_select_diverse_meals_varies_protein_category_cuisine() -> None:

@@ -30,6 +30,10 @@ test:
 test-cov:
     uv run pytest --cov=. --cov-report=html
 
+# Run Grocery Wizard Streamlit UI (laptop / same-WiFi phone)
+grocery-ui *ARGS:
+    uv run streamlit run src/grocery_wizard/ui/app.py {{ARGS}}
+
 # Clean up Python cache files
 clean:
     find . -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
