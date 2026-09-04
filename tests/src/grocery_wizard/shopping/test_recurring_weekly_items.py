@@ -48,3 +48,10 @@ def test_prompt_recurring_weekly_items_edit_and_save(tmp_path: Path) -> None:
 
     assert result == ["yogurt"]
     assert load_recurring_weekly_items(path) == ["yogurt"]
+
+
+def test_prompt_recurring_weekly_items_edit_can_clear_list() -> None:
+    with patch("builtins.input", side_effect=["edit", "", "", ""]):
+        result = prompt_recurring_weekly_items(["berries", "milk"], interactive=True)
+
+    assert result == []

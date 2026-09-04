@@ -93,4 +93,4 @@ def _prompt_edit_lines(items: list[str]) -> list[str]:
             line = line[2:].strip()
         if line:
             edited.append(line)
-    return edited if edited or not items else items
+    return edited

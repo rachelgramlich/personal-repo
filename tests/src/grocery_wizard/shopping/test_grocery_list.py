@@ -324,6 +324,33 @@ def test_run_grocery_list_quiet_skips_excluded_display(
     assert code == 0
     output = capsys.readouterr().out
     assert "Excluded staples" not in output
+    assert "berries" not in output
+    assert "milk" not in output
+
+
+def test_run_grocery_list_quiet_can_include_recurring_weekly_items(
+    pantry_file: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Test Recipe", "1 lb chicken breast"),
+    ]
+    week_plan = pantry_file.parent / "week_plan.json"
+    week_plan.write_text('{"recipes": ["Test Recipe"]}', encoding="utf-8")
+
+    with patch("src.grocery_wizard.shopping.grocery_list._prompt_staples", return_value=[]):
+        code = run_grocery_list(
+            db,
+            quiet=True,
+            include_recurring_weekly_items=True,
+            recurring_weekly_items=["milk"],
+            week_plan_path=week_plan,
+            pantry_path=pantry_file,
+        )
+
+    assert code == 0
+    assert "milk" in capsys.readouterr().out
 
 
 def test_load_week_plan_names_falls_back_to_legacy_path(tmp_path: Path, monkeypatch) -> None:
@@ -511,3 +538,23 @@ def test_build_grocery_list_skips_duplicate_recurring_weekly_items(tmp_path: Pat
     )
 
     assert len([item for item in items if "milk" in item.lower()]) == 1
+
+
+def test_build_grocery_list_skips_duplicate_recurring_banana_plural(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Smoothie", "2 bananas"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Smoothie"],
+        pantry_path=pantry_path,
+        recurring_weekly_items=["bananas"],
+        include_recurring_weekly_items=True,
+    )
+
+    assert len([item for item in items if "banana" in item.lower()]) == 1

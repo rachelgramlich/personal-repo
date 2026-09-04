@@ -46,6 +46,33 @@ def test_load_store_aisles_uses_committed_config() -> None:
     assert "onion" in config.aisle_keywords["vegetables"]
 
 
+def test_load_store_aisles_warns_when_file_missing(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    missing = tmp_path / "missing_aisles.txt"
+    load_store_aisles(str(missing))
+    assert "store aisle config not found" in capsys.readouterr().err
+
+
+def test_load_store_aisles_reloads_after_file_changes(tmp_path: Path) -> None:
+    path = tmp_path / "store_aisles.txt"
+    path.write_text(
+        "\n".join(["# --- fruit: Fruit ---", "apple", "# --- other: Other ---"]),
+        encoding="utf-8",
+    )
+    first = load_store_aisles(str(path))
+    assert "apple" in first.aisle_keywords["fruit"]
+
+    path.write_text(
+        "\n".join(["# --- fruit: Fruit ---", "banana", "# --- other: Other ---"]),
+        encoding="utf-8",
+    )
+    second = load_store_aisles(str(path))
+    assert "banana" in second.aisle_keywords["fruit"]
+    assert "apple" not in second.aisle_keywords["fruit"]
+
+
 @pytest.mark.parametrize(
     ("item", "expected_aisle"),
     [

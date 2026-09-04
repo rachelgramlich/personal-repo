@@ -243,10 +243,14 @@ def render_grocery_list() -> None:
         height=100,
         help="These items are added every week. Edit here before generating your list.",
     )
-    save_recurring_defaults = st.checkbox(
-        "Save recurring weekly items as defaults for future weeks",
-        value=False,
-    )
+    if st.button("Save recurring defaults"):
+        recurring_defaults = [
+            line.strip().lstrip("-•* ").strip()
+            for line in recurring_text.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+        write_recurring_weekly_items(RECURRING_WEEKLY_ITEMS_PATH, recurring_defaults)
+        st.success("Saved recurring weekly defaults.")
 
     if st.button("Generate list", type="primary"):
         if not selected:
@@ -258,11 +262,6 @@ def render_grocery_list() -> None:
             for line in recurring_text.splitlines()
             if line.strip() and not line.strip().startswith("#")
         ]
-        if save_recurring_defaults:
-            write_recurring_weekly_items(
-                RECURRING_WEEKLY_ITEMS_PATH,
-                recurring_weekly_items,
-            )
 
         with st.spinner("Building grocery list..."):
             items, excluded, sync_summary = build_grocery_list(

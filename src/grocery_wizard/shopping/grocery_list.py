@@ -13,6 +13,7 @@ from src.grocery_wizard.ingredients.normalize import (
     aggregate_amounts,
     expand_ingredient_line,
     is_junk_ingredient,
+    normalize_ingredient,
     parse_amount,
 )
 from src.grocery_wizard.ingredients.sync import (
@@ -43,6 +44,7 @@ def run_grocery_list(
     pantry_path: Path | None = None,
     recurring_weekly_items_path: Path | None = None,
     recurring_weekly_items: list[str] | None = None,
+    include_recurring_weekly_items: bool | None = None,
     exclude_pantry: bool = True,
 ) -> int:
     """Generate a merged grocery list from week plan or explicit recipe names."""
@@ -96,6 +98,9 @@ def run_grocery_list(
     ]
 
     excluded_sorted = sorted(excluded_pantry, key=str.lower)
+    include_recurring = (
+        include_recurring_weekly_items if include_recurring_weekly_items is not None else not quiet
+    )
 
     if not quiet:
         _print_excluded_summary(excluded_sorted)
@@ -107,13 +112,11 @@ def run_grocery_list(
                     grocery_items.append(item)
                     existing.add(item.lower())
 
-        recurring = (
-            recurring_weekly_items
-            if recurring_weekly_items is not None
-            else prompt_recurring_weekly_items(
-                path=recurring_weekly_items_path,
-                interactive=True,
-            )
+        recurring = _resolve_recurring_weekly_items(
+            recurring_weekly_items=recurring_weekly_items,
+            recurring_weekly_items_path=recurring_weekly_items_path,
+            include=include_recurring,
+            interactive=True,
         )
         _append_unique_items(grocery_items, seen, recurring)
 
@@ -132,13 +135,11 @@ def run_grocery_list(
         grocery_items = _prompt_accept_or_edit(grocery_items)
         _print_grocery_list(grocery_items, heading="Final grocery list")
     else:
-        recurring = (
-            recurring_weekly_items
-            if recurring_weekly_items is not None
-            else prompt_recurring_weekly_items(
-                path=recurring_weekly_items_path,
-                interactive=False,
-            )
+        recurring = _resolve_recurring_weekly_items(
+            recurring_weekly_items=recurring_weekly_items,
+            recurring_weekly_items_path=recurring_weekly_items_path,
+            include=include_recurring,
+            interactive=False,
         )
         _append_unique_items(grocery_items, seen, recurring)
         for staple in staples or []:
@@ -278,6 +279,27 @@ def format_grocery_item(name: str, amount: str | None) -> str:
     return f"{amount} {name}"
 
 
+def _resolve_recurring_weekly_items(
+    *,
+    recurring_weekly_items: list[str] | None,
+    recurring_weekly_items_path: Path | None,
+    include: bool,
+    interactive: bool,
+) -> list[str]:
+    if recurring_weekly_items is not None:
+        return recurring_weekly_items
+    if not include:
+        return []
+    return prompt_recurring_weekly_items(
+        path=recurring_weekly_items_path,
+        interactive=interactive,
+    )
+
+
+def _normalized_item_key(name: str) -> str:
+    return (normalize_ingredient(name) or name.strip()).lower()
+
+
 def _append_unique_items(
     grocery_items: list[str],
     seen: set[str],
@@ -288,7 +310,7 @@ def _append_unique_items(
         cleaned = item.strip()
         if not cleaned:
             continue
-        key = cleaned.lower()
+        key = _normalized_item_key(cleaned)
         if _item_already_present(cleaned, seen, grocery_items):
             continue
         seen.add(key)
@@ -296,11 +318,11 @@ def _append_unique_items(
 
 
 def _item_already_present(name: str, seen: set[str], grocery_items: list[str]) -> bool:
-    key = name.strip().lower()
+    key = _normalized_item_key(name)
     if key in seen:
         return True
     for item in grocery_items:
-        if ingredient_name(item).lower() == key:
+        if _normalized_item_key(ingredient_name(item)) == key:
             return True
     return False
 

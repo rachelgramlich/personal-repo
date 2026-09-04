@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
+import sys
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 
 from src.grocery_wizard.config import STORE_AISLES_PATH
@@ -62,11 +62,28 @@ def parse_store_aisles_file(path: Path) -> StoreAisleConfig:
     )
 
 
-@lru_cache(maxsize=1)
+_aisle_config_cache: dict[str, tuple[float, StoreAisleConfig]] = {}
+
+
 def load_store_aisles(path: str | None = None) -> StoreAisleConfig:
     """Load store aisle config from the committed config file."""
     resolved = Path(path) if path else STORE_AISLES_PATH
-    return parse_store_aisles_file(resolved)
+    cache_key = str(resolved.resolve())
+    mtime = resolved.stat().st_mtime if resolved.exists() else -1.0
+    cached = _aisle_config_cache.get(cache_key)
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
+
+    if not resolved.exists():
+        print(
+            f"Warning: store aisle config not found ({resolved}); "
+            "items will appear under Other.",
+            file=sys.stderr,
+        )
+
+    config = parse_store_aisles_file(resolved)
+    _aisle_config_cache[cache_key] = (mtime, config)
+    return config
 
 
 def ingredient_name(item: str) -> str:
