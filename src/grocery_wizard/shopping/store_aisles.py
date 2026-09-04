@@ -62,16 +62,20 @@ def parse_store_aisles_file(path: Path) -> StoreAisleConfig:
     )
 
 
-_aisle_config_cache: dict[str, tuple[float, StoreAisleConfig]] = {}
+_aisle_config_cache: dict[str, tuple[tuple[int, int], StoreAisleConfig]] = {}
 
 
 def load_store_aisles(path: str | None = None) -> StoreAisleConfig:
     """Load store aisle config from the committed config file."""
     resolved = Path(path) if path else STORE_AISLES_PATH
     cache_key = str(resolved.resolve())
-    mtime = resolved.stat().st_mtime if resolved.exists() else -1.0
+    if resolved.exists():
+        stat = resolved.stat()
+        cache_stamp = (stat.st_mtime_ns, stat.st_size)
+    else:
+        cache_stamp = (-1, -1)
     cached = _aisle_config_cache.get(cache_key)
-    if cached is not None and cached[0] == mtime:
+    if cached is not None and cached[0] == cache_stamp:
         return cached[1]
 
     if not resolved.exists():
@@ -82,7 +86,7 @@ def load_store_aisles(path: str | None = None) -> StoreAisleConfig:
         )
 
     config = parse_store_aisles_file(resolved)
-    _aisle_config_cache[cache_key] = (mtime, config)
+    _aisle_config_cache[cache_key] = (cache_stamp, config)
     return config
 
 

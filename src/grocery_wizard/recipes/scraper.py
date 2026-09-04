@@ -79,6 +79,7 @@ class ScrapedRecipe:
     url: str
     title: str
     ingredients: list[str]
+    total_time_minutes: float | None = None
 
 
 def scrape_recipe(url: str) -> ScrapedRecipe:
@@ -97,8 +98,14 @@ def scrape_recipe(url: str) -> ScrapedRecipe:
     soup = BeautifulSoup(response.content, "html.parser")
     title = _extract_title(soup)
     ingredients = _extract_ingredients(soup)
+    total_time_minutes = _extract_json_ld_cook_time_minutes(soup)
 
-    return ScrapedRecipe(url=url, title=title, ingredients=ingredients)
+    return ScrapedRecipe(
+        url=url,
+        title=title,
+        ingredients=ingredients,
+        total_time_minutes=total_time_minutes,
+    )
 
 
 def _is_tiktok_url(url: str) -> bool:
@@ -737,6 +744,88 @@ def _looks_like_instructions(ingredients: list[str]) -> bool:
     verb_items = sum(1 for item in ingredients if _INSTRUCTION_START.match(item))
     threshold = max(2, len(ingredients) // 2)
     return long_items >= threshold or verb_items >= threshold
+
+
+def _extract_json_ld_cook_time_minutes(soup: BeautifulSoup) -> float | None:
+    for script in soup.find_all("script", type="application/ld+json"):
+        text = script.string or script.get_text()
+        if not text:
+            continue
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        minutes = _recipe_time_from_json_ld(data)
+        if minutes is not None:
+            return minutes
+    return None
+
+
+def _recipe_time_from_json_ld(data: object) -> float | None:
+    if isinstance(data, list):
+        for item in data:
+            minutes = _recipe_time_from_json_ld(item)
+            if minutes is not None:
+                return minutes
+        return None
+
+    if not isinstance(data, dict):
+        return None
+
+    recipe_type = data.get("@type", "")
+    types = recipe_type if isinstance(recipe_type, list) else [recipe_type]
+    if any(str(item).casefold() == "recipe" for item in types):
+        total = _parse_iso8601_duration_minutes(data.get("totalTime"))
+        if total is not None:
+            return total
+
+        cook = _parse_iso8601_duration_minutes(data.get("cookTime"))
+        prep = _parse_iso8601_duration_minutes(data.get("prepTime"))
+        if cook is not None and prep is not None:
+            return cook + prep
+        if cook is not None:
+            return cook
+        if prep is not None:
+            return prep
+
+    for key in ("@graph", "mainEntity"):
+        nested = data.get(key)
+        if nested is not None:
+            minutes = _recipe_time_from_json_ld(nested)
+            if minutes is not None:
+                return minutes
+
+    return None
+
+
+_ISO8601_DURATION = re.compile(
+    r"^P(?:(?P<days>\d+)D)?(?:T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?)?$",
+    re.IGNORECASE,
+)
+
+
+def _parse_iso8601_duration_minutes(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if not isinstance(value, str):
+        return None
+
+    text = value.strip()
+    if not text:
+        return None
+
+    match = _ISO8601_DURATION.match(text)
+    if not match:
+        return None
+
+    days = int(match.group("days") or 0)
+    hours = int(match.group("hours") or 0)
+    minutes = int(match.group("minutes") or 0)
+    seconds = int(match.group("seconds") or 0)
+    total = days * 24 * 60 + hours * 60 + minutes + seconds / 60
+    return total if total > 0 else None
 
 
 def _extract_json_ld_ingredients(soup: BeautifulSoup) -> list[str]:

@@ -1,8 +1,9 @@
 """Tests for recipe classification."""
 
 from src.grocery_wizard.recipes.classify import classify_column, classify_recipe
+from src.grocery_wizard.recipes.weeknight import is_weeknight_friendly
 
-MEAL_OPTIONS = ["Drink", "Breakfast", "Lunch", "Dinner", "Snack", "Dessert"]
+MEAL_OPTIONS = ["Drink", "Breakfast", "Lunch", "Dinner", "Snack/Side", "Dessert"]
 
 
 def test_meal_does_not_match_tea_inside_steamed() -> None:
@@ -78,3 +79,66 @@ def test_classify_recipe_leaves_unmatched_meal_empty() -> None:
         [("Meal", "select", MEAL_OPTIONS)],
     )
     assert result["Meal"] is None
+
+
+def test_meal_lunch_is_sandwich_only() -> None:
+    assert (
+        classify_column("Meal", "Chickpea Salad Sandwich", [], allowed_options=MEAL_OPTIONS)
+        == "Lunch"
+    )
+    assert (
+        classify_column("Meal", "Lemon Potato Salad With Mint", [], allowed_options=MEAL_OPTIONS)
+        == "Snack/Side"
+    )
+
+
+def test_meal_salad_is_snack_side_not_dinner() -> None:
+    assert (
+        classify_column("Meal", "Corn Salad With Mango and Halloumi", [], allowed_options=MEAL_OPTIONS)
+        == "Snack/Side"
+    )
+
+
+def test_meal_dessert_for_baking() -> None:
+    assert (
+        classify_column("Meal", "Peanut Butter Cookies", [], allowed_options=MEAL_OPTIONS)
+        == "Dessert"
+    )
+    assert (
+        classify_column("Meal", "Salted Chocolate Chunk Shortbread Cookies", [], allowed_options=MEAL_OPTIONS)
+        == "Dessert"
+    )
+
+
+def test_meal_savory_pie_stays_dinner() -> None:
+    assert (
+        classify_column("Meal", "Skillet Chicken Potpie", [], allowed_options=MEAL_OPTIONS)
+        == "Dinner"
+    )
+    assert (
+        classify_column("Meal", "Samosa Pie", [], allowed_options=MEAL_OPTIONS)
+        == "Dinner"
+    )
+
+
+def test_meal_snack_side_alias_for_legacy_snack_option() -> None:
+    legacy_options = ["Drink", "Breakfast", "Lunch", "Dinner", "Snack", "Dessert"]
+    assert (
+        classify_column("Meal", "Corn Salad With Tomatoes", [], allowed_options=legacy_options)
+        == "Snack"
+    )
+
+
+def test_weeknight_friendly_requires_dinner() -> None:
+    assert is_weeknight_friendly("Quick Cookies", meal="Dessert", total_minutes=20) is False
+
+
+def test_weeknight_friendly_from_nyt_time() -> None:
+    assert is_weeknight_friendly("Butter Paneer", meal="Dinner", total_minutes=30) is True
+    assert is_weeknight_friendly("Slow Roast Chicken", meal="Dinner", total_minutes=90) is False
+
+
+def test_weeknight_friendly_from_title_heuristics() -> None:
+    assert is_weeknight_friendly("One-Pot Chermoula Shrimp and Orzo", meal="Dinner") is True
+    assert is_weeknight_friendly("Sheet Pan Chicken", meal="Dinner") is True
+    assert is_weeknight_friendly("Classic Beef Bourguignon", meal="Dinner") is False

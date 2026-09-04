@@ -57,6 +57,57 @@ uv run python -m src.grocery_wizard.cli edit-pantry
 
 Edit `src/grocery_wizard/config/pantry.txt` — items here won't show up on your shopping list.
 
+### I want to sync my NYT Cooking recipe box to Notion
+
+NYT credentials come from environment variables only (no `nyt auth` command).
+
+#### Get credentials from your browser
+
+1. Log into [NYT Cooking](https://cooking.nytimes.com).
+2. Open DevTools → **Application** (Chrome) or **Storage** (Firefox) → **Cookies** → `cooking.nytimes.com`.
+3. Copy the **NYT-S** cookie value → set as `NYT_S_COOKIE`.
+4. Copy **regi_id** from the **regi_cookie** value (or paste the full cookie; the numeric id is extracted automatically) → set as `NYT_REGI_ID`.
+
+#### Set environment variables
+
+**Local** — add to `.env` in the repo root (see `.env.example`):
+
+```shell
+NYT_S_COOKIE=your-nyt-s-cookie-value
+NYT_REGI_ID=12345678
+```
+
+`NYT_USER_ID` is accepted as an alias for `NYT_REGI_ID`.
+
+**Cloud Agent / dashboard** — add the same names as Secrets (`NYT_S_COOKIE`, `NYT_REGI_ID` or `NYT_USER_ID`).
+
+#### Verify and use
+
+```shell
+uv run python -m src.grocery_wizard nyt auth-status   # check env vars + live verification
+uv run python -m src.grocery_wizard nyt saved         # list recipe box
+uv run python -m src.grocery_wizard nyt sync          # import to Notion (prompts for folder)
+```
+
+NYT sync adds **name, link, classified metadata, and the "Synced from NYT recipe box" checkbox** — not ingredients. Add a **checkbox** column with that exact name in Notion (or set `GROCERY_WIZARD_NYT_SYNCED_COLUMN` if you name it differently). Fill ingredients later with `dev backfill-ingredients` or when ingredient parsing (#21) lands.
+
+**NYT sync flags:**
+
+| Flag | When to use it |
+|------|----------------|
+| *(no flag)* | Interactive picker — choose full recipe box or a specific folder |
+| `--collection "Folder Name"` | Sync one NYT recipe-box folder without prompting (falls back to full box if not found) |
+| `--dry-run` | Preview what would be added without writing to Notion |
+| `--confirm` | Review each recipe before creating (default: batch import with auto-classified metadata) |
+
+After sync, a metadata review prints automatically. Run `nyt review-metadata` anytime, or ask your agent to fix flagged recipes.
+
+Other NYT commands: `nyt auth-status`, `nyt review-metadata`, `nyt apply-metadata`, `nyt reclassify`.
+
+`nyt reclassify` re-runs **Meal** and **Dinner: Weeknight Friendly** for every recipe with the NYT sync checkbox checked.
+
+**Weeknight friendly** is set automatically when you add any recipe (`add-recipe`, NYT sync, or the Streamlit UI). For **Dinner** recipes it is checked when total cook time is under 60 minutes (from the scraper's JSON-LD data or NYT API) or the title suggests a quick/easy dish (weeknight, one-pot, sheet pan, stir fry, etc.). You do not need to set the checkbox manually during review.
+
 ## Command cheat sheet
 
 | Command | What it does |
@@ -65,6 +116,10 @@ Edit `src/grocery_wizard/config/pantry.txt` — items here won't show up on your
 | `plan-recipes` | Pick dinners for the week (saves week_plan.json) |
 | `create-grocery-list` | Build your shopping list from this week's plan |
 | `edit-pantry` | Edit what's always in your kitchen (won't appear on shopping list) |
+| `nyt auth-status` | Check NYT Cooking env credentials and verify session |
+| `nyt saved` | List recipes in your NYT recipe box |
+| `nyt sync` | Import saved NYT recipes into Notion (interactive folder picker; skips duplicates) |
+| `nyt reclassify` | Re-run Meal and Weeknight Friendly for NYT-synced recipes |
 
 ### Dev / maintenance commands
 
@@ -107,7 +162,7 @@ Grocery Wizard is a package under `src/grocery_wizard/`. Folders group code by *
 | `cli/` | `main.py` | Command-line entry (`add-recipe`, `plan-recipes`, `create-grocery-list`, `edit-pantry`, `dev …`) |
 | `ui/` | `app.py` | Streamlit app (partial — Plan Meals tab is still a stub) |
 | `config/` | `__init__.py`, `pantry.txt` | Env settings, paths, committed pantry staples |
-| `integrations/` | `notion.py` | Notion API client and recipe model |
+| `integrations/` | `notion.py`, `nyt_cooking.py` | Notion API client; NYT Cooking auth and sync |
 | `recipes/` | `scraper.py`, `classify.py`, `add_recipe.py` | Scrape URLs, classify metadata, save new recipes |
 | `ingredients/` | `normalize.py`, `sync.py` | Parse/normalize ingredient lines; sync to Notion |
 | `planning/` | `meal_planner.py` | Interactive weeknight dinner planner |
@@ -124,7 +179,7 @@ Same subfolders as source — e.g. `recipes/test_scraper.py` tests `recipes/scra
 | Path | Purpose |
 |------|---------|
 | `.local/grocery_wizard/week_plan.json` | This week's planned recipe names |
-| `.env` | `NOTION_API_KEY`, `NOTION_DATABASE_ID` (see `.env.example`) |
+| `.env` | `NOTION_API_KEY`, `NOTION_DATABASE_ID`, NYT credentials (see `.env.example`) |
 
 ### Entry points
 
@@ -233,7 +288,7 @@ Tabs: Add Recipe, Plan Meals, Grocery List.
 
 ## Supported recipe sources
 
-Most recipe blogs with structured HTML or JSON-LD work well. TikTok and Instagram are **partially supported** — ingredients must appear in the caption text. When scraping fails, paste ingredients manually into Notion or use a blog link.
+Most recipe blogs with structured HTML or JSON-LD work well. When available, **total cook time** is read from JSON-LD (`totalTime`, or `prepTime` + `cookTime`) for weeknight-friendly classification. TikTok and Instagram are **partially supported** — ingredients must appear in the caption text. When scraping fails, paste ingredients manually into Notion or use a blog link.
 
 ## Notion database schema (auto-detected)
 
@@ -249,5 +304,6 @@ Key columns:
 | Cuisine | multi_select | Italian, Asian, Mexican, … |
 | Dinner Category | multi_select | Curry, Pasta, Bowl, … |
 | Dinner: Weeknight Friendly | checkbox | Meal-planning filter |
+| Synced from NYT recipe box | checkbox | Set automatically by `nyt sync` |
 
 Optional env overrides: `GROCERY_WIZARD_NAME_COLUMN`, `GROCERY_WIZARD_LINK_COLUMN`, `GROCERY_WIZARD_INGREDIENTS_COLUMN`.

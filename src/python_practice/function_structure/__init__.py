@@ -9,9 +9,10 @@ Feel free to add new functions or remove existing ones to make the
 code as readable and maintainable as possible.
 """
 
-from datetime import datetime
-from loguru import logger
 import re
+from datetime import datetime
+
+from loguru import logger
 
 # =====================================================================
 # PROBLEM 1: The "Everything and the Kitchen Sink" Function

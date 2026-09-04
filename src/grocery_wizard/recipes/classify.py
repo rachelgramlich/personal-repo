@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from typing import Any
+
+from src.grocery_wizard.recipes.weeknight import is_weeknight_friendly
 
 # Column name (lowercase) -> option -> keywords
 # Options must match the user's Notion database (see README / plan).
@@ -42,10 +45,8 @@ CLASSIFICATION_RULES: dict[str, dict[str, list[str]]] = {
             "frittata",
             "omelet",
             "omelette",
-            "muffin",
-            "muffins",
         ],
-        "Lunch": ["lunch", "sandwich", "wrap", "salad bowl"],
+        "Lunch": ["sandwich", "sandwiches"],
         "Dinner": [
             "dinner",
             "curry",
@@ -56,15 +57,23 @@ CLASSIFICATION_RULES: dict[str, dict[str, list[str]]] = {
             "entree",
             "main course",
         ],
-        "Snack": ["snack", "appetizer", "dip", "bite"],
+        "Snack/Side": ["snack", "appetizer", "dip", "bite", "side dish"],
         "Dessert": [
             "dessert",
             "cake",
             "cookie",
+            "cookies",
             "brownie",
+            "brownies",
             "pie",
             "pudding",
             "ice cream",
+            "tart",
+            "muffin",
+            "muffins",
+            "scone",
+            "scones",
+            "bars",
         ],
         "Drink": [
             "beverage",
@@ -120,11 +129,50 @@ MEAL_PRIORITY: tuple[str, ...] = (
     "Breakfast",
     "Lunch",
     "Dinner",
-    "Snack",
+    "Snack/Side",
     "Dessert",
     "Drink",
 )
 
+# Legacy alias for databases that still use "Snack".
+SNACK_SIDE_ALIASES: tuple[str, ...] = ("Snack/Side", "Snack")
+
+# Savory titles that contain baking words but are not desserts.
+SAVORY_MEAL_BLOCKERS = re.compile(
+    r"\b("
+    r"gnocchi|chile crisp|potpie|pot pie|samosa|quesadilla|taco|tofu|chicken|"
+    r"beans|pasta|soup|stew|noodles|burrito|enchilada|lasagna|curry|"
+    r"couscous|flatbread|fritters|meatball|satay|bibimbap|kimbap|adobo|ratatouille|"
+    r"scallop|salmon|shrimp|halloumi|skewer|dumpling|tomato tart|potpie"
+    r")\b",
+    re.IGNORECASE,
+)
+
+DESSERT_PATTERN = re.compile(
+    r"\b("
+    r"cake|cakes|cookie|cookies|brownie|brownies|pudding|pavlova|shortcake|"
+    r"gingerbread|crumble|galette|fluff|toffee|scones|scone|muffins|muffin|"
+    r"cupcake|cupcakes|blondie|blondies|macaron|macaroon|fudge|truffle"
+    r")\b",
+    re.IGNORECASE,
+)
+
+DESSERT_CRISP_PATTERN = re.compile(r"\b(crisp|crumble)\b", re.IGNORECASE)
+DESSERT_PIE_TART_PATTERN = re.compile(r"\b(pie|tart)\b", re.IGNORECASE)
+DESSERT_BARS_PATTERN = re.compile(r"\b(bars)\b", re.IGNORECASE)
+
+DRINK_PATTERN = re.compile(
+    r"\b(smoothie|limeade|lemonade|mangonada|limonada|cocktail|mocktail|milkshake)\b",
+    re.IGNORECASE,
+)
+
+BREAKFAST_PATTERN = re.compile(
+    r"\b(pancake|pancakes|waffle|waffles|oatmeal|granola|frittata|omelet|omelette)\b",
+    re.IGNORECASE,
+)
+
+SANDWICH_PATTERN = re.compile(r"\bsandwich(?:es)?\b", re.IGNORECASE)
+SALAD_PATTERN = re.compile(r"\bsalad\b", re.IGNORECASE)
 
 def classify_column(
     column_name: str,
@@ -162,15 +210,34 @@ def classify_recipe(
     title: str,
     ingredients: list[str],
     filter_columns: list[tuple[str, str, list[str]]],
-) -> dict[str, str | list[str] | None]:
+    *,
+    total_minutes: float | None = None,
+    weeknight_column: str | None = None,
+) -> dict[str, Any]:
     """Return inferred values for each filter column (name, type, options)."""
-    results: dict[str, str | list[str] | None] = {}
+    results: dict[str, Any] = {}
+    meal_options: list[str] | None = None
+
     for column_name, column_type, options in filter_columns:
         value = classify_column(column_name, title, ingredients, allowed_options=options)
         if column_type == "multi_select" and value is not None:
             results[column_name] = [value]
         else:
             results[column_name] = value
+        if column_name.lower() == "meal":
+            meal_options = options
+
+    meal = results.get("Meal")
+    if meal is None:
+        meal = classify_column("Meal", title, ingredients, allowed_options=meal_options)
+
+    if weeknight_column:
+        results[weeknight_column] = is_weeknight_friendly(
+            title,
+            meal=meal if isinstance(meal, str) else None,
+            total_minutes=total_minutes,
+        )
+
     return results
 
 
@@ -179,6 +246,10 @@ def _classify_meal(
     rules: dict[str, list[str]],
     allowed_options: list[str] | None,
 ) -> str | None:
+    structured = _classify_meal_structured(text)
+    if structured is not None:
+        return _resolve_meal_option(structured, allowed_options)
+
     scored: list[tuple[str, int]] = []
     for option in MEAL_PRIORITY:
         keywords = rules.get(option)
@@ -197,7 +268,72 @@ def _classify_meal(
     for option in MEAL_PRIORITY:
         for candidate, score in scored:
             if candidate == option and score == best_score:
-                return candidate
+                return _resolve_meal_option(candidate, allowed_options)
+    return None
+
+
+def _classify_meal_structured(text: str) -> str | None:
+    """Rule-based meal classification with explicit priority."""
+    if _is_dessert(text):
+        return "Dessert"
+
+    if BREAKFAST_PATTERN.search(text):
+        return "Breakfast"
+
+    if SANDWICH_PATTERN.search(text):
+        return "Lunch"
+
+    if SALAD_PATTERN.search(text):
+        return "Snack/Side"
+
+    if _score_keywords(CLASSIFICATION_RULES["meal"]["Snack/Side"], text) > 0:
+        return "Snack/Side"
+
+    if SAVORY_MEAL_BLOCKERS.search(text):
+        return "Dinner"
+
+    if _score_keywords(CLASSIFICATION_RULES["meal"]["Dinner"], text) > 0:
+        return "Dinner"
+
+    if DRINK_PATTERN.search(text):
+        return "Drink"
+
+    return None
+
+
+def _is_dessert(text: str) -> bool:
+    if SAVORY_MEAL_BLOCKERS.search(text):
+        if DESSERT_CRISP_PATTERN.search(text) and not SAVORY_MEAL_BLOCKERS.search(text):
+            pass
+        else:
+            return False
+
+    if DESSERT_PATTERN.search(text):
+        return True
+
+    if DESSERT_CRISP_PATTERN.search(text):
+        return True
+
+    if DESSERT_PIE_TART_PATTERN.search(text):
+        if "pot" in text or "chicken" in text or "tomato" in text:
+            return False
+        return True
+
+    if DESSERT_BARS_PATTERN.search(text) and not SAVORY_MEAL_BLOCKERS.search(text):
+        return True
+
+    return False
+
+
+def _resolve_meal_option(meal: str, allowed_options: list[str] | None) -> str | None:
+    if allowed_options is None:
+        return meal
+    if meal in allowed_options:
+        return meal
+    if meal == "Snack/Side" and "Snack" in allowed_options:
+        return "Snack"
+    if meal == "Snack" and "Snack/Side" in allowed_options:
+        return "Snack/Side"
     return None
 
 

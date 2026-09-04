@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from src.grocery_wizard.ingredients.sync import prepare_ingredients_for_notion
@@ -11,6 +12,104 @@ from src.grocery_wizard.integrations.notion import NotionRecipesDB
 from src.grocery_wizard.lib.prompts import confirm_no_default
 from src.grocery_wizard.recipes.classify import classify_recipe
 from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text, scrape_recipe
+from src.grocery_wizard.recipes.weeknight import DEFAULT_WEEKNIGHT_COLUMN
+
+
+@dataclass(frozen=True)
+class PrefetchedCreateResult:
+    page_id: str
+    name: str
+    url: str
+    field_values: dict[str, Any]
+
+
+def add_prefetched_recipes(
+    db: NotionRecipesDB,
+    recipes: list[tuple[str, str, list[str]]],
+    *,
+    prompt: Callable[[str], str] | None = None,
+    confirm: Callable[[str], bool] | None = None,
+    select_option: Callable[[str, list[str], str | None], str | None] | None = None,
+    no_confirm: bool = False,
+    include_ingredients: bool = True,
+    mark_nyt_synced: bool = False,
+) -> list[PrefetchedCreateResult]:
+    """Add recipes with title, URL, and optional ingredients already fetched."""
+    prompt_fn = prompt or _default_prompt
+    confirm_fn = confirm or confirm_no_default
+    select_fn = select_option or _default_select_option
+
+    created: list[PrefetchedCreateResult] = []
+    schema = db.schema
+
+    for entry in recipes:
+        title, url, ingredients = entry[0], entry[1], entry[2]
+        total_minutes = entry[3] if len(entry) > 3 else None
+        url = url.strip()
+        if not url:
+            continue
+
+        existing = db.find_by_link(url)
+        if existing:
+            print(f"Skipping duplicate URL (already in Notion as '{existing.name}'): {url}")
+            continue
+
+        filter_columns = [(col.name, col.type, col.options) for col in schema.filter_columns]
+        weeknight_column = _weeknight_column_name(schema)
+        inferred = classify_recipe(
+            title,
+            ingredients,
+            filter_columns,
+            total_minutes=total_minutes,
+            weeknight_column=weeknight_column,
+        )
+
+        field_values: dict[str, Any] = {
+            schema.name_column: title,
+            schema.link_column: url,
+        }
+        if include_ingredients and schema.ingredients_column:
+            field_values[schema.ingredients_column] = ingredients_to_text(ingredients)
+
+        for column_name, value in inferred.items():
+            field_values[column_name] = value
+
+        if mark_nyt_synced:
+            nyt_column = db.nyt_synced_column_name()
+            if nyt_column:
+                field_values[nyt_column] = True
+
+        if no_confirm:
+            reviewed = field_values
+            should_create = True
+        else:
+            reviewed = _review_fields(
+                db=db,
+                field_values=field_values,
+                prompt_fn=prompt_fn,
+                select_fn=select_fn,
+            )
+            if reviewed is None:
+                print("Skipped.")
+                continue
+            should_create = confirm_fn("Create this recipe in Notion?")
+
+        if not should_create:
+            print("Skipped.")
+            continue
+
+        recipe = db.create_recipe(reviewed)
+        created.append(
+            PrefetchedCreateResult(
+                page_id=recipe.page_id,
+                name=recipe.name,
+                url=url,
+                field_values=reviewed,
+            )
+        )
+        print(f"Created: {recipe.name}")
+
+    return created
 
 
 def add_recipes_from_urls(
@@ -47,7 +146,14 @@ def add_recipes_from_urls(
             continue
 
         filter_columns = [(col.name, col.type, col.options) for col in schema.filter_columns]
-        inferred = classify_recipe(scraped.title, scraped.ingredients, filter_columns)
+        weeknight_column = _weeknight_column_name(schema)
+        inferred = classify_recipe(
+            scraped.title,
+            scraped.ingredients,
+            filter_columns,
+            total_minutes=scraped.total_time_minutes,
+            weeknight_column=weeknight_column,
+        )
 
         field_values: dict[str, Any] = {
             schema.name_column: scraped.title,
@@ -122,6 +228,9 @@ def _review_fields(
             reviewed[field_name] = picked
 
         elif column and column.type == "checkbox":
+            if field_name == DEFAULT_WEEKNIGHT_COLUMN and isinstance(current, bool):
+                reviewed[field_name] = current
+                continue
             picked = _prompt_checkbox(field_name, current, prompt_fn)
             if picked is None:
                 return None
@@ -264,6 +373,12 @@ def _format_value(value: Any) -> str:
     if isinstance(value, list):
         return ", ".join(str(v) for v in value)
     return str(value)
+
+
+def _weeknight_column_name(schema: Any) -> str | None:
+    if DEFAULT_WEEKNIGHT_COLUMN in schema.all_columns:
+        return DEFAULT_WEEKNIGHT_COLUMN
+    return None
 
 
 def _default_prompt(message: str) -> str:

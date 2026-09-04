@@ -719,6 +719,7 @@ _STANDALONE_INGREDIENT_WORDS = frozenset(
 _STORAGE_KEEP_SEGMENTS = frozenset(
     {
         "to taste",
+        "more to taste",
         "optional",
         "for garnish",
         "to serve",

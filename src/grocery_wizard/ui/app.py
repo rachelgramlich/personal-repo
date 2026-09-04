@@ -29,6 +29,7 @@ from src.grocery_wizard.planning.meal_planner import (
 )
 from src.grocery_wizard.recipes.classify import classify_recipe
 from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text, scrape_recipe
+from src.grocery_wizard.recipes.weeknight import DEFAULT_WEEKNIGHT_COLUMN
 from src.grocery_wizard.shopping.grocery_list import (
     _load_week_plan_names,
     build_grocery_list,
@@ -557,7 +558,18 @@ def _preview_recipes(db: NotionRecipesDB, urls: list[str]) -> list[dict]:
             continue
 
         filter_columns = [(col.name, col.type, col.options) for col in schema.filter_columns]
-        inferred = classify_recipe(scraped.title, scraped.ingredients, filter_columns)
+        weeknight_column = (
+            DEFAULT_WEEKNIGHT_COLUMN
+            if DEFAULT_WEEKNIGHT_COLUMN in schema.all_columns
+            else None
+        )
+        inferred = classify_recipe(
+            scraped.title,
+            scraped.ingredients,
+            filter_columns,
+            total_minutes=scraped.total_time_minutes,
+            weeknight_column=weeknight_column,
+        )
         ingredients_text = (
             ingredients_to_text(scraped.ingredients) if schema.ingredients_column else ""
         )
