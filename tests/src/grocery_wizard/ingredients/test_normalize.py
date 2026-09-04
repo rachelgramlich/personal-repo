@@ -6,6 +6,7 @@ from src.grocery_wizard.ingredients.normalize import (
     is_junk_ingredient,
     normalize_ingredient,
     parse_amount,
+    should_show_amount,
     split_compound_ingredients,
 )
 
@@ -26,6 +27,9 @@ from src.grocery_wizard.ingredients.normalize import (
         ("1 can chickpeas, rinsed and drained", "chickpeas"),
         ("lime wedges", "limes"),
         ("1 lime, cut into wedges (optional)", "limes"),
+        ("3 packed cups coarsely chopped tuscan or curly kale", "kale"),
+        ("4 teaspoons gochujang", "gochujang"),
+        ("1 red onion, sliced into half-moons", "red onions"),
     ],
 )
 def test_normalize_ingredient(raw: str, expected: str) -> None:
@@ -42,11 +46,28 @@ def test_normalize_ingredient(raw: str, expected: str) -> None:
         "for garnish",
         "to serve",
         "optional",
+        "sliced into half-moons",
+        "sliced into half moons",
+        "cut into wedges",
     ],
 )
 def test_normalize_ingredient_junk_lines(raw: str) -> None:
     assert normalize_ingredient(raw) == ""
     assert is_junk_ingredient(raw)
+
+
+def test_normalize_ingredient_keeps_chicken_with_prep_segments() -> None:
+    line = "10 boneless, skinless chicken thighs (2½ to 3 pounds)"
+    assert not is_junk_ingredient(line)
+    assert "chicken" in normalize_ingredient(line)
+
+
+def test_should_show_amount() -> None:
+    assert should_show_amount("4 teaspoons", "4 teaspoons gochujang") is False
+    assert should_show_amount("6 ounces", "6 ounces oyster mushrooms") is False
+    assert should_show_amount("3", "3 packed cups kale") is False
+    assert should_show_amount("2", "2 sweet potatoes") is True
+    assert should_show_amount("1 lb", "1 lb chicken breast") is True
 
 
 def test_normalize_ingredient_empty() -> None:
@@ -129,12 +150,11 @@ def test_split_compound_ingredients_empty() -> None:
         ("2 tbsp olive oil, plus more for drizzling", "olive oil", "2 tbsp"),
         # Inline descriptor stripped, unit still detected
         ("2 (15-ounce) cans diced tomatoes", "diced tomatoes", "2 cans"),
-        # Bare count > 1 (no recognised unit) → bare number returned
+        # Bare count (no recognised unit) → bare number returned
         ("2 eggs", "eggs", "2"),
         ("4 large carrots, peeled", "carrots", "4"),
-        # Bare count of exactly 1 → no amount (avoids "1 onions")
-        ("1 large egg, beaten", "eggs", None),
-        ("1 medium onion, diced", "onions", None),
+        ("1 large egg, beaten", "eggs", "1"),
+        ("1 medium onion, diced", "onions", "1"),
         # No leading quantity → no amount
         ("kosher salt", "kosher salt", None),
         ("fresh cilantro", "cilantro", None),

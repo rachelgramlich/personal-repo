@@ -207,9 +207,52 @@ _JUNK_ONLY_PHRASES = frozenset(
     }
 )
 
+_DESCRIPTOR_WORDS = frozenset(
+    {
+        "curly",
+        "tuscan",
+        "loosely",
+        "firmly",
+        "ripe",
+    }
+)
+
+_HIDE_AMOUNT_UNITS_RE = re.compile(
+    r"\b(tsp|teaspoons?|tbsp|tablespoons?|cups?|packed|ounces?|oz)\b",
+    re.IGNORECASE,
+)
+
+_PRESERVED_PRODUCTS = (
+    "diced tomatoes",
+    "crushed tomatoes",
+    "stewed tomatoes",
+    "ground beef",
+    "ground turkey",
+    "ground pork",
+    "ground chicken",
+    "ground lamb",
+    "frozen peas",
+    "frozen corn",
+    "frozen berries",
+)
+
 _TRAILING_CLAUSE_RE = re.compile(
     r"\b(?:plus more for|such as|or to taste|to taste|for garnish|optional|"
     r"as needed|if needed|for serving|for topping|to serve)\b.*",
+    re.IGNORECASE,
+)
+
+# Standalone prep/cut instructions (often scraped as their own line).
+_INSTRUCTION_ONLY_RE = re.compile(
+    r"^(?:(?:thinly|thickly|roughly|finely|lightly)\s+)?"
+    r"(?:sliced|cut|diced|chopped|minced|halved|quartered|julienned|cubed|trimmed|peeled|seeded)"
+    r"(?:\s+into)?"
+    r"(?:\s+"
+    r"(?:half[- ]moons?|wedges?|strips?|rounds?|cubes?|chunks?|pieces?|"
+    r"bite[- ]size(?:\s+pieces?)?|\d+[- ]inch(?:\s+pieces?)?|small\s+pieces?|"
+    r"thin\s+slices?|thick\s+slices?)"
+    r")?"
+    r"\s*$",
     re.IGNORECASE,
 )
 
@@ -324,9 +367,21 @@ def _looks_like_ingredient(part: str) -> bool:
     return len(words[0]) >= 4
 
 
+def should_show_amount(amount: str | None, raw_line: str) -> bool:
+    """Return whether a parsed amount should appear on the grocery list."""
+    if amount is None:
+        return False
+    return _HIDE_AMOUNT_UNITS_RE.search(raw_line) is None
+
+
 def is_junk_ingredient(line: str) -> bool:
     """Return True when a line is only prep instructions, not a grocery item."""
     return _is_junk_only(line)
+
+
+def drop_junk_ingredient_lines(lines: list[str]) -> list[str]:
+    """Remove prep-only instruction lines from scraped ingredient lists."""
+    return [line for line in lines if line.strip() and not is_junk_ingredient(line)]
 
 
 def normalize_ingredient(line: str) -> str:
@@ -339,15 +394,28 @@ def normalize_ingredient(line: str) -> str:
         return ""
 
     text = re.sub(r"\([^)]*\)", "", text)
-    text = text.split(",")[0]
+    text = _ingredient_base_text(text)
     text = _TRAILING_CLAUSE_RE.sub("", text)
     text = re.sub(r"\s+", " ", text).strip()
 
+    preserved_product = _match_preserved_product(text)
+
     text = _QUANTITY_RE.sub("", text).strip()
     words = text.split()
-    words = _strip_leading_tokens(words, _UNITS | _SIZES)
+    changed = True
+    while changed and words:
+        changed = False
+        before = len(words)
+        words = _strip_leading_tokens(words, _UNITS | _SIZES)
+        while words and words[0].rstrip(".,") in _PREP_WORDS:
+            if words[0] in {"frozen", "canned", "dried"} and len(words) > 1:
+                break
+            words.pop(0)
+        if len(words) != before:
+            changed = True
     text = " ".join(words).strip()
 
+    text = _simplify_ingredient_name(text)
     text = _strip_trailing_prep(text)
     text = _strip_leading_prep(text)
     text = re.sub(r"\s+", " ", text).strip()
@@ -355,7 +423,29 @@ def normalize_ingredient(line: str) -> str:
     if not text:
         return ""
 
+    if preserved_product:
+        return preserved_product
+
     return _prefer_plural_form(text)
+
+
+def _ingredient_base_text(text: str) -> str:
+    """Keep the full ingredient name when commas separate descriptors, not trailing prep."""
+    without_parens = re.sub(r"\([^)]*\)", "", text).strip()
+    segments = [segment.strip() for segment in without_parens.split(",") if segment.strip()]
+    if len(segments) <= 1:
+        return without_parens
+    if all(_is_prep_only_segment(segment) for segment in segments[1:]):
+        return segments[0]
+    return " ".join(segments)
+
+
+def _match_preserved_product(text: str) -> str | None:
+    lowered = text.lower()
+    for product in sorted(_PRESERVED_PRODUCTS, key=len, reverse=True):
+        if product in lowered:
+            return product
+    return None
 
 
 def _strip_leading_tokens(words: list[str], skip: set[str]) -> list[str]:
@@ -411,32 +501,46 @@ def _strip_leading_prep(text: str) -> str:
     return text.strip()
 
 
+def _simplify_ingredient_name(text: str) -> str:
+    if " or " in text:
+        text = text.split(" or ")[-1].strip()
+    words = text.split()
+    if len(words) >= 2 and words[0] in _DESCRIPTOR_WORDS:
+        text = " ".join(words[1:])
+    return text.strip()
+
+
+def _is_prep_only_segment(segment: str) -> bool:
+    segment = _TRAILING_CLAUSE_RE.sub("", segment).strip()
+    if not segment:
+        return True
+    if segment in _JUNK_ONLY_PHRASES:
+        return True
+    if _INSTRUCTION_ONLY_RE.match(segment):
+        return True
+
+    segment = _QUANTITY_RE.sub("", segment).strip()
+    words = segment.split()
+    words = _strip_leading_tokens(words, _UNITS | _SIZES)
+    while words and words[0].rstrip(".,") in _PREP_WORDS:
+        words.pop(0)
+    return not words
+
+
 def _is_junk_only(text: str) -> bool:
     cleaned = text.strip().lower()
     if not cleaned:
         return True
 
-    cleaned = re.sub(r"\([^)]*\)", "", cleaned)
-    cleaned = cleaned.split(",")[0]
-    cleaned = _TRAILING_CLAUSE_RE.sub("", cleaned).strip()
-    cleaned = re.sub(r"\s+", " ", cleaned)
-    if not cleaned:
-        return True
-    if cleaned in _JUNK_ONLY_PHRASES:
+    without_parens = re.sub(r"\([^)]*\)", "", cleaned).strip()
+    if _INSTRUCTION_ONLY_RE.match(without_parens):
         return True
 
-    for part in _CONJUNCTION_SPLIT_RE.split(cleaned):
-        part = part.strip()
-        if not part:
-            continue
-        part = _QUANTITY_RE.sub("", part).strip()
-        words = part.split()
-        words = _strip_leading_tokens(words, _UNITS | _SIZES)
-        while words and words[0].rstrip(".,") in _PREP_WORDS:
-            words.pop(0)
-        if words:
-            return False
-    return True
+    segments = [segment.strip() for segment in without_parens.split(",") if segment.strip()]
+    if not segments:
+        return True
+
+    return all(_is_prep_only_segment(segment) for segment in segments)
 
 
 def _prefer_plural_form(text: str) -> str:
@@ -598,10 +702,9 @@ def parse_amount(line: str) -> tuple[str, str | None]:
         if candidate in _UNITS:
             return normalized, f"{qty_str} {candidate}"
 
-    # No recognised unit — only return a bare count when quantity > 1.
-    # Showing "1 onions" is worse than just "onions".
+    # No recognised unit — return a bare count for whole-item ingredients.
     try:
-        if _parse_qty(qty_str) > 1:
+        if _parse_qty(qty_str) >= 1:
             return normalized, qty_str
     except (ValueError, ZeroDivisionError):
         pass

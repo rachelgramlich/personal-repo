@@ -15,6 +15,7 @@ from src.grocery_wizard.ingredients.normalize import (
     is_junk_ingredient,
     normalize_ingredient,
     parse_amount,
+    should_show_amount,
 )
 from src.grocery_wizard.ingredients.sync import (
     SyncSummary,
@@ -344,6 +345,8 @@ def _collect_ingredient_line(
         normalized, amount = parse_amount(piece)
         if not normalized:
             continue
+        if not should_show_amount(amount, piece):
+            amount = None
         if exclude_pantry and is_pantry_item(normalized, pantry):
             if normalized not in excluded_pantry:
                 excluded_pantry.append(normalized)
