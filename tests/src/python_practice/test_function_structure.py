@@ -12,7 +12,7 @@ from src.python_practice.function_structure import (
 
 
 @pytest.mark.parametrize(
-    "raw_csv_line, expected",
+    ("raw_csv_line", "expected"),
     [
         (
             "John Doe,2022-10-15,Engineering,100000",
@@ -51,13 +51,11 @@ def test_p2_generate_report():
 
 class MockDB:
     def execute(self, query):
-        if "SELECT" in query and "existing@test.com" in query:
-            return True
-        return False
+        return "SELECT" in query and "existing@test.com" in query
 
 
 @pytest.mark.parametrize(
-    "payload, expected_status",
+    ("payload", "expected_status"),
     [
         ({"email": "new@test.com", "password": "StrongPassword1"}, "success"),
         ({"email": "existing@test.com", "password": "StrongPassword1"}, "error"),

@@ -411,8 +411,8 @@ def test_review_plan_regenerates_single_slot(monkeypatch) -> None:
     plan = _review_plan_interactive(
         ["Chicken Curry", "Fish Pasta", "Bean Bowl"],
         pool,
-        pool,
-        rejected,
+        all_recipes=pool,
+        rejected_names=rejected,
         schema=None,
         prompt_fn=lambda _: next(prompts),
     )
@@ -439,8 +439,8 @@ def test_review_plan_old_slot_not_auto_rejected(monkeypatch) -> None:
     plan = _review_plan_interactive(
         ["Chicken Curry", "Fish Pasta"],
         pool,
-        pool,
-        rejected,
+        all_recipes=pool,
+        rejected_names=rejected,
         schema=None,
         prompt_fn=lambda _: next(prompts),
     )

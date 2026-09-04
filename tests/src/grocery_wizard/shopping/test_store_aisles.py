@@ -18,16 +18,7 @@ from src.grocery_wizard.shopping.store_aisles import (
 def test_parse_store_aisles_file_reads_sections_and_keywords(tmp_path: Path) -> None:
     path = tmp_path / "store_aisles.txt"
     path.write_text(
-        "\n".join(
-            [
-                "# --- produce: Fresh stuff ---",
-                "onion",
-                "garlic",
-                "",
-                "# --- other: Other ---",
-                "# catch-all",
-            ]
-        ),
+        "# --- produce: Fresh stuff ---\nonion\ngarlic\n\n# --- other: Other ---\n# catch-all",
         encoding="utf-8",
     )
 
@@ -61,14 +52,14 @@ def test_load_store_aisles_warns_when_file_missing(
 def test_load_store_aisles_reloads_after_file_changes(tmp_path: Path) -> None:
     path = tmp_path / "store_aisles.txt"
     path.write_text(
-        "\n".join(["# --- fruit: Fruit ---", "apple", "# --- other: Other ---"]),
+        "# --- fruit: Fruit ---\napple\n# --- other: Other ---",
         encoding="utf-8",
     )
     first = load_store_aisles(str(path))
     assert "apple" in first.aisle_keywords["fruit"]
 
     path.write_text(
-        "\n".join(["# --- fruit: Fruit ---", "banana", "# --- other: Other ---"]),
+        "# --- fruit: Fruit ---\nbanana\n# --- other: Other ---",
         encoding="utf-8",
     )
     second = load_store_aisles(str(path))

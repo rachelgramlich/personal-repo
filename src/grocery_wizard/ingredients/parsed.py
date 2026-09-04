@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "aggregate_amounts",
+    "ingredient_name",
+    "parse_amount",
+    "parse_stored_ingredient",
+    "should_show_amount",
+]
+
 import math
 import re
 from fractions import Fraction
@@ -13,7 +21,7 @@ from ingredient_parser import parse_ingredient
 if TYPE_CHECKING:
     from ingredient_parser.dataclasses import IngredientAmount, ParsedIngredient
 
-_NLTK_READY = False
+_nltk_ready = False
 
 _LEADING_QTY_RE = re.compile(
     r"^((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s*",
@@ -24,7 +32,7 @@ _AMOUNT_STR_RE = re.compile(
     re.DOTALL,
 )
 
-_UNICODE_DASHES = ("–", "—", "−")
+_UNICODE_DASHES = ("–", "—", "−")  # noqa: RUF001
 _UNICODE_FRACTIONS = {
     "¼": "1/4",
     "½": "1/2",
@@ -298,8 +306,8 @@ def is_nyt_cooking_url(url: str | None) -> bool:
 
 
 def _ensure_nltk_data() -> None:
-    global _NLTK_READY
-    if _NLTK_READY:
+    global _nltk_ready  # noqa: PLW0603
+    if _nltk_ready:
         return
     try:
         import nltk
@@ -309,7 +317,7 @@ def _ensure_nltk_data() -> None:
         import nltk
 
         nltk.download("averaged_perceptron_tagger_eng", quiet=True)
-    _NLTK_READY = True
+    _nltk_ready = True
 
 
 def _normalize_unicode(text: str) -> str:
@@ -688,13 +696,11 @@ def _lemon_quantity_from_parsed(parsed: ParsedIngredient, original: str) -> floa
 
 
 def _should_preserve_raw_line(line: str) -> bool:
-    if _SUBSTITUTION_PAREN_RE.search(line):
-        return True
-    if _TO_TASTE_RE.search(line):
-        return True
-    if line.strip().startswith(("[x]", "▢", "•", "*")):
-        return True
-    return False
+    return bool(
+        _SUBSTITUTION_PAREN_RE.search(line)
+        or _TO_TASTE_RE.search(line)
+        or line.strip().startswith(("[x]", "▢", "•", "*"))
+    )
 
 
 def _strip_trailing_prep_commas(text: str) -> str:
@@ -810,8 +816,7 @@ def minimal_clean_for_storage(line: str) -> str:
         return ""
     text = _strip_or_prefix(_strip_optional_prefix(text))
     text = _strip_trailing_prep_commas(text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def ingredient_name(line: str) -> str:
@@ -997,9 +1002,7 @@ def looks_like_stored_ingredient_line(text: str) -> bool:
         rest_words = stripped[match.end() :].strip().split()
         if rest_words and _is_volume_unit(rest_words[0]):
             return False
-    if "(" in stripped and ")" in stripped:
-        return False
-    return True
+    return not ("(" in stripped and ")" in stripped)
 
 
 def should_show_amount(amount: str | None, raw_line: str) -> bool:
@@ -1101,7 +1104,7 @@ def _split_amount_str(amount: str) -> tuple[str, str | None]:
         return (amount, None)
     qty_str = match.group(1).strip()
     unit_part = match.group(2).strip() if match.group(2) else None
-    return (qty_str, unit_part if unit_part else None)
+    return (qty_str, unit_part or None)
 
 
 def _canonical_unit(unit: str | None) -> str | None:

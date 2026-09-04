@@ -60,20 +60,13 @@ def test_format_meals_and_grocery_list_includes_both_sections() -> None:
     text = format_meals_and_grocery_list(meals, grocery_items)
 
     assert text == (
-        "Meals\n"
-        "- Chicken Tikka (https://example.com/tikka)\n"
-        "- Salad\n"
-        "\n"
-        "Grocery List\n"
-        "- lettuce\n"
-        "- onions\n"
-        "- chicken breast"
+        "Meals\n- Chicken Tikka (https://example.com/tikka)\n- Salad\n\nGrocery List\n- lettuce\n- onions\n- chicken breast"
     )
 
 
 def test_format_meals_and_grocery_list_empty_grocery_items() -> None:
     text = format_meals_and_grocery_list([("Soup", "https://example.com/soup")], [])
-    assert text == ("Meals\n" "- Soup (https://example.com/soup)\n" "\n" "Grocery List")
+    assert text == ("Meals\n- Soup (https://example.com/soup)\n\nGrocery List")
 
 
 def test_build_grocery_list_excludes_pantry_by_default(pantry_file: Path) -> None:
@@ -156,7 +149,6 @@ def test_build_grocery_list_splits_compound_ingredients(tmp_path: Path) -> None:
     "ingredient_text",
     [
         "cauliflower\nrice",
-        "cauliflower\nrice",
     ],
 )
 def test_build_grocery_list_splits_cauliflower_and_rice(
@@ -213,7 +205,7 @@ def test_build_grocery_list_white_beans_not_split(tmp_path: Path) -> None:
         _recipe("Soup", "2 cans white beans"),
     ]
 
-    items, excluded, _sync = build_grocery_list(
+    items, _excluded, _sync = build_grocery_list(
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
@@ -467,7 +459,7 @@ def test_build_grocery_list_only_syncs_empty_recipes(tmp_path: Path) -> None:
 
     captured: list = []
 
-    def fake_run_sync_recipes(db_arg, recipes, **kwargs):  # noqa: ANN001
+    def fake_run_sync_recipes(db_arg, recipes, **kwargs):
         captured.extend(recipes)
         return SyncSummary()
 
@@ -475,7 +467,7 @@ def test_build_grocery_list_only_syncs_empty_recipes(tmp_path: Path) -> None:
         "src.grocery_wizard.shopping.grocery_list.run_sync_recipes",
         side_effect=fake_run_sync_recipes,
     ):
-        items, excluded, sync_summary = build_grocery_list(
+        _items, _excluded, _sync_summary = build_grocery_list(
             db,
             recipe_names=["Populated", "Empty"],
             backfill_missing=True,

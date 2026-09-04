@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "StoreAisleConfig",
+    "group_grocery_items_by_aisle",
+    "ingredient_name",
+    "load_store_aisles",
+    "sort_grocery_items",
+]
+
 import re
 import sys
 from dataclasses import dataclass
@@ -13,7 +21,7 @@ from src.grocery_wizard.ingredients.normalize import parse_amount
 _SECTION_HEADER_RE = re.compile(r"^#\s*---\s*(?P<id>.+?)(?::\s*(?P<label>.+?))?\s*---\s*$")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class StoreAisleConfig:
     aisle_order: tuple[str, ...]
     aisle_labels: dict[str, str]
@@ -193,6 +201,4 @@ def _word_matches(haystack_word: str, needle_word: str) -> bool:
         return True
     if haystack_word == needle_word + "es":
         return True
-    if needle_word.endswith("y") and haystack_word == needle_word[:-1] + "ies":
-        return True
-    return False
+    return needle_word.endswith("y") and haystack_word == needle_word[:-1] + "ies"

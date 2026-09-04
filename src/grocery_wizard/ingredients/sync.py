@@ -10,15 +10,17 @@ import requests
 
 from src.grocery_wizard.ingredients.normalize import (
     expand_ingredient_line,
-    format_ingredient_for_storage,
-    ingredient_name,
     is_instruction_line,
     is_junk_ingredient,
     is_metadata_line,
-    is_nyt_cooking_url,
     is_recipe_step_line,
-    minimal_clean_for_storage,
     split_merged_ingredient_line,
+)
+from src.grocery_wizard.ingredients.parsed import (
+    format_ingredient_for_storage,
+    ingredient_name,
+    is_nyt_cooking_url,
+    minimal_clean_for_storage,
 )
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
 from src.grocery_wizard.recipes.scraper import (
@@ -170,9 +172,7 @@ def _is_ingredient_continuation(previous: str, current: str) -> bool:
     prev_words = previous.split()
     if len(prev_words) == 1 and prev_words[0][0].isupper():
         return False
-    if stripped[0].islower() and not re.match(r"^\d", stripped):
-        return True
-    return False
+    return stripped[0].islower() and not re.match(r"^\d", stripped)
 
 
 def _truncate_at_instructions(lines: list[str]) -> list[str]:
@@ -390,9 +390,7 @@ def is_removal_directive(line: str) -> bool:
     if not match:
         return False
     target = match.group(1).strip()
-    if re.match(r"^\d", target):
-        return False
-    return True
+    return not re.match(r"^\d", target)
 
 
 def is_directive(line: str) -> bool:
@@ -453,9 +451,7 @@ def _matches_removal(line: str, removal_target: str) -> bool:
     target_norm = ingredient_name(removal_target)
     if not normalized or not target_norm:
         return False
-    if target_norm in normalized or normalized in target_norm:
-        return True
-    return False
+    return target_norm in normalized or normalized in target_norm
 
 
 def apply_removals(lines: list[str], removal_targets: list[str]) -> list[str]:
@@ -514,9 +510,7 @@ def recipe_needs_sync(recipe: Recipe, *, force: bool = False) -> bool:
     """Return True when a recipe should be batch-synced (empty Ingredients only)."""
     if not recipe.link:
         return False
-    if recipe.ingredients and recipe.ingredients.strip():
-        return False
-    return True
+    return not (recipe.ingredients and recipe.ingredients.strip())
 
 
 def find_recipes_needing_sync(db: NotionRecipesDB, *, force: bool = False) -> list[Recipe]:

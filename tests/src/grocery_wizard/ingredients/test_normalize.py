@@ -141,13 +141,13 @@ def test_expand_ingredient_line_does_not_split_color_variants() -> None:
 
 def test_expand_ingredient_line_does_not_split_white_beans() -> None:
     assert expand_ingredient_line("2 cans white beans") == ["2 cans white beans"]
-    assert expand_ingredient_line("–2 cans white beans") == ["-2 cans white beans"]
+    assert expand_ingredient_line("–2 cans white beans") == ["-2 cans white beans"]  # noqa: RUF001
 
 
 def test_normalize_ingredient_white_beans() -> None:
     assert normalize_ingredient("2 cans white beans") == "white beans"
-    assert normalize_ingredient("– 2 cans white beans") == "white beans"
-    assert normalize_ingredient("–2 cans white beans") == "white beans"
+    assert normalize_ingredient("– 2 cans white beans") == "white beans"  # noqa: RUF001
+    assert normalize_ingredient("–2 cans white beans") == "white beans"  # noqa: RUF001
 
 
 def test_split_compound_ingredients_multiline() -> None:

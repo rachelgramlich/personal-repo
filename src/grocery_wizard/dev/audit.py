@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "AuditReport",
+    "audit_recipes",
+    "format_audit_report",
+    "looks_suspicious_ingredients",
+    "split_ingredient_lines",
+]
+
 import re
 from dataclasses import dataclass, field
 
 from src.grocery_wizard.integrations.notion import Recipe
-from src.grocery_wizard.recipes.scraper import _has_merge_artifacts, _looks_fragmented
+from src.grocery_wizard.recipes.scraper import has_merge_artifacts, looks_fragmented
 
 _BR_SPLIT = re.compile(r"<br\s*/?>", re.IGNORECASE)
 
@@ -42,7 +50,7 @@ def looks_suspicious_ingredients(text: str) -> bool:
     lines = split_ingredient_lines(text)
     if not lines:
         return False
-    return _looks_fragmented(lines) or _has_merge_artifacts(lines)
+    return looks_fragmented(lines) or has_merge_artifacts(lines)
 
 
 def audit_recipes(recipes: list[Recipe]) -> AuditReport:

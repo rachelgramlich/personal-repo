@@ -136,11 +136,12 @@ def _parse_csv_line_refactored(raw_csv_line: str) -> tuple[str, str, str, str]:
     return name, raw_date, department, salary_str
 
 
+_VALID_DEPARTMENTS = ["Engineering", "Sales", "Marketing", "HR"]
+
+
 def is_valid_department_refactored(department: str) -> bool:
     """Check if department is in valid list."""
-    VALID_DEPARTMENTS = ["Engineering", "Sales", "Marketing", "HR"]
-
-    if department not in VALID_DEPARTMENTS:
+    if department not in _VALID_DEPARTMENTS:
         logger.error(f"Invalid department {department}")
         return False
     return True
@@ -148,7 +149,7 @@ def is_valid_department_refactored(department: str) -> bool:
 
 def _format_date_refactored(raw_date: str) -> datetime:
     """Convert date from YYYY-MM-DD to DD/MM/YYYY format."""
-    original_date_object = datetime.strptime(raw_date, "%Y-%m-%d")
+    original_date_object = datetime.strptime(raw_date, "%Y-%m-%d")  # noqa: DTZ007
     return original_date_object.strftime("%m/%d/%Y")
 
 
@@ -156,19 +157,16 @@ def _calculate_compensation_by_department_refactored(
     salary_str: str, department: str
 ) -> float:
     """Calculate total compensation based on department."""
-    DEPARTMENT_BONUS_RATES = {
+    department_bonus_rates = {
         "Engineering": 0.15,
         "Sales": 0.20,
     }
-    STANDARD_BONUS_RATE = 0.05
+    standard_bonus_rate = 0.05
 
     base_salary = float(salary_str)
-    bonus_rate = DEPARTMENT_BONUS_RATES.get(department, STANDARD_BONUS_RATE)
+    bonus_rate = department_bonus_rates.get(department, standard_bonus_rate)
     bonus = base_salary * bonus_rate
-
-    total_compensation = base_salary + bonus
-
-    return total_compensation
+    return base_salary + bonus
 
 
 def process_employee_data_refactored(

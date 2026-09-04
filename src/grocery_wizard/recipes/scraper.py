@@ -2,6 +2,17 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "INSTAGRAM_MANUAL_HINT",
+    "TIKTOK_MANUAL_HINT",
+    "ScrapeError",
+    "ScrapedRecipe",
+    "has_merge_artifacts",
+    "ingredients_to_text",
+    "looks_fragmented",
+    "scrape_recipe",
+]
+
 import json
 import re
 from dataclasses import dataclass
@@ -74,7 +85,7 @@ class ScrapeError(Exception):
     """Recipe could not be scraped from the URL."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ScrapedRecipe:
     url: str
     title: str
@@ -427,11 +438,10 @@ def _looks_like_ingredient_line(line: str) -> bool:
         return False
     if _INSTRUCTION_START.match(stripped):
         return False
-    if _INGREDIENT_LINE.search(stripped):
-        return True
-    if re.match(r"^[\d/.\s]+(?:cup|tbsp|tsp|oz|lb|g|ml)\b", stripped, re.IGNORECASE):
-        return True
-    return False
+    return bool(
+        _INGREDIENT_LINE.search(stripped)
+        or re.match(r"^[\d/.\s]+(?:cup|tbsp|tsp|oz|lb|g|ml)\b", stripped, re.IGNORECASE)
+    )
 
 
 def _dedupe_preserve_order(items: list[str]) -> list[str]:
@@ -468,7 +478,7 @@ def _extract_ingredients(soup: BeautifulSoup) -> list[str]:
     if heading_ingredients and not _looks_like_instructions(heading_ingredients):
         heading_ingredients = _normalize_ingredient_lines(heading_ingredients)
         if json_ld_ingredients and (
-            _looks_fragmented(heading_ingredients) or _has_merge_artifacts(heading_ingredients)
+            looks_fragmented(heading_ingredients) or has_merge_artifacts(heading_ingredients)
         ):
             return json_ld_ingredients
         return heading_ingredients
@@ -536,7 +546,7 @@ def _extract_ingredients_from_container(container: Tag) -> list[str]:
         list_items = container.find_all("li", recursive=False)
     if list_items:
         texts = _clean_ingredient_texts(_texts_from_list_items(list_items))
-        if texts and _looks_fragmented(texts):
+        if texts and looks_fragmented(texts):
             joined = _join_fragmented_lines(texts)
             if joined:
                 return joined
@@ -547,7 +557,7 @@ def _extract_ingredients_from_container(container: Tag) -> list[str]:
         texts = _clean_ingredient_texts(
             [item.get_text(" ", strip=True) for item in ingredient_items]
         )
-        if texts and _looks_fragmented(texts):
+        if texts and looks_fragmented(texts):
             joined = _join_fragmented_lines(texts)
             if joined:
                 return joined
@@ -563,7 +573,7 @@ def _extract_ingredients_from_container(container: Tag) -> list[str]:
                 and not _is_section_heading(item)
             ]
         )
-        if texts and _looks_fragmented(texts):
+        if texts and looks_fragmented(texts):
             joined = _join_fragmented_lines(texts)
             if joined:
                 return joined
@@ -603,14 +613,14 @@ def _texts_from_list_items(items: list[Tag]) -> list[str]:
 def _normalize_ingredient_lines(lines: list[str]) -> list[str]:
     if not lines:
         return []
-    if _looks_fragmented(lines):
+    if looks_fragmented(lines):
         joined = _join_fragmented_lines(lines)
         if joined:
             return drop_junk_ingredient_lines(joined)
     return drop_junk_ingredient_lines(lines)
 
 
-def _looks_fragmented(lines: list[str]) -> bool:
+def looks_fragmented(lines: list[str]) -> bool:
     if len(lines) < 4:
         return False
 
@@ -623,13 +633,10 @@ def _looks_fragmented(lines: list[str]) -> bool:
         return True
 
     avg_len = sum(len(line) for line in stripped) / len(stripped)
-    if len(stripped) >= 12 and avg_len < 18:
-        return True
-
-    return False
+    return len(stripped) >= 12 and avg_len < 18
 
 
-def _has_merge_artifacts(lines: list[str]) -> bool:
+def has_merge_artifacts(lines: list[str]) -> bool:
     for line in lines:
         stripped = line.strip()
         if not stripped:
@@ -662,10 +669,9 @@ def _is_ingredient_fragment(line: str) -> bool:
 
     if _UNIT_ONLY.match(stripped):
         return True
-    if _QUANTITY_START.match(stripped) and len(words) <= 2 and not _FOOD_WORD.search(stripped):
-        return True
-
-    return False
+    return bool(
+        _QUANTITY_START.match(stripped) and len(words) <= 2 and not _FOOD_WORD.search(stripped)
+    )
 
 
 def _starts_new_ingredient(line: str) -> bool:
@@ -674,9 +680,7 @@ def _starts_new_ingredient(line: str) -> bool:
         return False
     if stripped.startswith(("-", "•", "*", "▢", "[")):
         return True
-    if _QUANTITY_START.match(stripped):
-        return True
-    return False
+    return bool(_QUANTITY_START.match(stripped))
 
 
 def _is_complete_ingredient(line: str) -> bool:
@@ -689,9 +693,7 @@ def _is_complete_ingredient(line: str) -> bool:
         _INGREDIENT_LINE.search(stripped) or _QUANTITY_START.match(stripped)
     ):
         return True
-    if len(stripped.split()) >= 3 and _FOOD_WORD.search(stripped):
-        return True
-    return False
+    return len(stripped.split()) >= 3 and bool(_FOOD_WORD.search(stripped))
 
 
 def _join_fragmented_lines(lines: list[str]) -> list[str]:

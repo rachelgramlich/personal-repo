@@ -2,11 +2,27 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "clean_ingredient_line_for_storage",
+    "drop_junk_ingredient_lines",
+    "expand_ingredient_line",
+    "ingredient_name",
+    "is_instruction_line",
+    "is_junk_ingredient",
+    "is_metadata_line",
+    "is_recipe_step_line",
+    "normalize_ingredient",
+    "parse_amount",
+    "split_compound_ingredients",
+    "split_merged_ingredient_line",
+    "split_recipe_title_bleed",
+]
+
 import re
 
 # Leading quantity: integers, fractions, mixed numbers, ranges.
 _QUANTITY_RE = re.compile(
-    r"^[\d\s./-]+|" r"^(?:a|an)\s+",
+    r"^[\d\s./-]+|^(?:a|an)\s+",
     re.IGNORECASE,
 )
 
@@ -22,7 +38,7 @@ _AMOUNT_STR_RE = re.compile(
     re.DOTALL,
 )
 
-_UNICODE_DASHES = ("–", "—", "−")  # en-dash, em-dash, minus sign
+_UNICODE_DASHES = ("–", "—", "−")  # en-dash, em-dash, minus sign  # noqa: RUF001
 
 _UNICODE_FRACTIONS = {
     "¼": "1/4",
@@ -281,7 +297,7 @@ _QTY_RANGE_RE = re.compile(
 )
 
 _QTY_TO_RANGE_RE = re.compile(
-    r"^((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+to\s+" r"((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+",
+    r"^((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+to\s+((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+",
     re.IGNORECASE,
 )
 
@@ -652,9 +668,7 @@ def is_instruction_line(line: str) -> bool:
         return True
     if _INSTRUCTION_ONLY_RE.match(stripped):
         return True
-    if len(stripped) > 100 and _INSTRUCTION_VERB_RE.search(stripped):
-        return True
-    return False
+    return len(stripped) > 100 and bool(_INSTRUCTION_VERB_RE.search(stripped))
 
 
 def is_recipe_step_line(line: str) -> bool:
@@ -672,12 +686,12 @@ def split_merged_ingredient_line(line: str) -> list[str]:
         return []
 
     parts: list[str] = []
-    for segment in _MERGED_CAMEL_SPLIT_RE.split(text):
-        segment = segment.strip()
+    for raw_segment in _MERGED_CAMEL_SPLIT_RE.split(text):
+        segment = raw_segment.strip()
         if not segment:
             continue
-        for piece in _MERGED_QTY_SPLIT_RE.split(segment):
-            piece = piece.strip()
+        for raw_piece in _MERGED_QTY_SPLIT_RE.split(segment):
+            piece = raw_piece.strip()
             if not piece:
                 continue
             parts.extend(_split_leading_capitalized_ingredient(piece))
@@ -822,7 +836,7 @@ def _prepare_line_for_parsing(line: str) -> str:
     )
 
     return _strip_leading_to_prefix(
-        _strip_or_prefix(_strip_optional_prefix(_normalize_unicode(line.strip()).lstrip("-–—− \t")))
+        _strip_or_prefix(_strip_optional_prefix(_normalize_unicode(line.strip()).lstrip("-–—− \t")))  # noqa: RUF001
     )
 
 

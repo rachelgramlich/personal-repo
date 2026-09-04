@@ -33,10 +33,48 @@ target-version = "py312"
 exclude = ["src/python_practice/tidy_first", "tests/src/python_practice/test_tidy_first.py"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "N",    # pep8-naming
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+    "C4",   # flake8-comprehensions
+    "PIE",  # flake8-pie
+    "RET",  # flake8-return
+    "ISC",  # flake8-implicit-str-concat
+    "PGH",  # pygrep-hooks
+    "DTZ",  # flake8-datetimez
+    "PERF", # perflint
+    "FLY",  # flynt (f-string conversions)
+    "PT",   # flake8-pytest-style
+    "PLR",  # pylint refactor
+    "PLE",  # pylint errors
+    "PLW",  # pylint warnings
+    "TRY",  # tryceratops
+    "EM",   # flake8-errmsg
+    "FURB", # refurb (modernise patterns)
+]
+ignore = [
+    # Exception message style — allow inline strings for simple cases
+    "EM101",   # string literal as exception argument
+    "EM102",   # f-string as exception argument
+    "TRY003",  # long exception messages (pairs with EM)
+    # Pylint thresholds — too noisy for a personal project
+    "PLR2004", # magic value comparison
+    "PLR0912", # too-many-branches
+    "PLR0913", # too-many-arguments
+    "PLR0915", # too-many-statements
+    "PLR0911", # too-many-return-statements
+    # Simplify rules that conflict with explicit/readable style
+    "SIM108",  # ternary instead of if-else (often less readable)
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["E501"]
+"tests/**/*.py" = ["E501", "PLR2004"]
 "src/grocery_wizard/ui/app.py" = ["E402"]
 
 [tool.pytest.ini_options]

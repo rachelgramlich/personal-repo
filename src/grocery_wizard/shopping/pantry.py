@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "PantrySection",
+    "format_pantry_display",
+    "is_pantry_item",
+    "load_pantry",
+    "parse_pantry_file",
+    "run_pantry_interactive",
+    "write_pantry_file",
+]
+
 import os
 import shlex
 import subprocess

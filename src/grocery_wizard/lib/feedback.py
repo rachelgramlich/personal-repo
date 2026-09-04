@@ -2,14 +2,31 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "PROD_COMMANDS",
+    "FeedbackEntry",
+    "append_feedback",
+    "format_feedback_list",
+    "list_feedback",
+    "load_feedback",
+    "prompt_for_feedback",
+]
+
 import json
 import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from src.grocery_wizard.config import FEEDBACK_PATH
+
+
+class FeedbackEntry(TypedDict):
+    timestamp: str
+    command: str
+    feedback: str
+
 
 PROD_COMMANDS = frozenset(
     {
@@ -21,7 +38,7 @@ PROD_COMMANDS = frozenset(
 )
 
 
-def load_feedback(path: Path = FEEDBACK_PATH) -> list[dict[str, Any]]:
+def load_feedback(path: Path = FEEDBACK_PATH) -> list[FeedbackEntry]:
     """Load feedback entries from disk, or return an empty list if missing/corrupt."""
     if not path.exists():
         return []
@@ -74,7 +91,7 @@ def prompt_for_feedback(
     append_feedback(command, text, path)
 
 
-def format_feedback_list(entries: list[dict[str, Any]]) -> str:
+def format_feedback_list(entries: list[FeedbackEntry]) -> str:
     """Format entries newest-first for display."""
     if not entries:
         return "No feedback yet."

@@ -30,7 +30,7 @@ NYT_LAST_SYNC_PATH = DATA_DIR / "nyt_last_sync.json"
 load_dotenv(_REPO_ROOT / ".env")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Config:
     notion_api_key: str
     notion_database_id: str

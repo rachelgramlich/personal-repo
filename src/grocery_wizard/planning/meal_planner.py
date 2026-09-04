@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "FilterValue",
+    "MealPlanFilters",
+    "filter_recipes",
+    "run_meal_planner",
+    "save_week_plan",
+    "suggest_meals",
+]
+
 import difflib
 import json
 import random
@@ -20,12 +29,15 @@ DIVERSITY_COLUMNS = ("Protein", "Dinner Category", "Cuisine")
 DEFAULT_FILTER_MEAL = "Dinner"
 DEFAULT_FILTER_WEEKNIGHT_COLUMN = "Dinner: Weeknight Friendly"
 
+# A filter value is always a string, list of strings, bool, or absent (None).
+type FilterValue = str | list[str] | bool | None
+
 
 @dataclass
 class MealPlanFilters:
     """Per-column filter values. Omitted columns are not filtered."""
 
-    values: dict[str, Any] = field(default_factory=dict)
+    values: dict[str, FilterValue] = field(default_factory=dict)
 
 
 def filter_recipes(
@@ -381,10 +393,10 @@ def run_meal_planner(
     plan = _review_plan_interactive(
         plan,
         full_pool,
-        all_recipes,
-        rejected_names,
-        schema,
-        prompt_fn,
+        all_recipes=all_recipes,
+        rejected_names=rejected_names,
+        schema=schema,
+        prompt_fn=prompt_fn,
     )
 
     if not confirm_fn(f"\nSave {len(plan)} meal(s) to {week_plan_path}?"):
@@ -479,11 +491,11 @@ def _print_final_plan(plan: list[str]) -> None:
 def _resolve_slot_interactive(
     pool: list[Recipe],
     plan_recipes: list[Recipe],
+    *,
     accepted_names: set[str],
     rejected_names: set[str],
     schema,
     prompt_fn: Callable[[str], str],
-    *,
     exclude_recipe: Recipe | None = None,
 ) -> Recipe | None:
     """Prompt until user accepts a recipe for one slot. Returns recipe or None."""
@@ -535,6 +547,7 @@ def _resolve_slot_interactive(
 def _review_plan_interactive(
     plan: list[str],
     pool: list[Recipe],
+    *,
     all_recipes: list[Recipe],
     rejected_names: set[str],
     schema,
@@ -568,10 +581,10 @@ def _review_plan_interactive(
         replacement = _resolve_slot_interactive(
             pool,
             plan_recipes,
-            accepted_names,
-            rejected_names,
-            schema,
-            prompt_fn,
+            accepted_names=accepted_names,
+            rejected_names=rejected_names,
+            schema=schema,
+            prompt_fn=prompt_fn,
             exclude_recipe=old_recipe,
         )
         if replacement is not None:
@@ -604,10 +617,10 @@ def _build_plan_interactive(
         accepted = _resolve_slot_interactive(
             pool,
             plan_recipes,
-            accepted_names,
-            session_rejected,
-            schema,
-            prompt_fn,
+            accepted_names=accepted_names,
+            rejected_names=session_rejected,
+            schema=schema,
+            prompt_fn=prompt_fn,
         )
         if accepted is None:
             print(f"\nNo more recipes available after {len(plan)} suggested meal(s).")
@@ -745,8 +758,8 @@ def _prompt_multi_select_filter(
         return None
 
     picked: list[str] = []
-    for part in choice.split(","):
-        part = part.strip()
+    for raw_part in choice.split(","):
+        part = raw_part.strip()
         if not part:
             continue
         if part.isdigit():

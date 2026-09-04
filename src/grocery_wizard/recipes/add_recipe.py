@@ -15,7 +15,7 @@ from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text,
 from src.grocery_wizard.recipes.weeknight import DEFAULT_WEEKNIGHT_COLUMN
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PrefetchedCreateResult:
     page_id: str
     name: str
@@ -71,8 +71,7 @@ def add_prefetched_recipes(
         if include_ingredients and schema.ingredients_column:
             field_values[schema.ingredients_column] = ingredients_to_text(ingredients)
 
-        for column_name, value in inferred.items():
-            field_values[column_name] = value
+        field_values.update(inferred)
 
         if mark_nyt_synced:
             nyt_column = db.nyt_synced_column_name()
@@ -128,8 +127,8 @@ def add_recipes_from_urls(
     created_ids: list[str] = []
     schema = db.schema
 
-    for url in urls:
-        url = url.strip()
+    for raw_url in urls:
+        url = raw_url.strip()
         if not url:
             continue
 
@@ -162,8 +161,7 @@ def add_recipes_from_urls(
         if schema.ingredients_column:
             field_values[schema.ingredients_column] = ingredients_to_text(scraped.ingredients)
 
-        for column_name, value in inferred.items():
-            field_values[column_name] = value
+        field_values.update(inferred)
 
         reviewed = _review_fields(
             db=db,
@@ -214,12 +212,12 @@ def _review_fields(
         current = field_values.get(field_name)
 
         if column and column.type in ("select", "status"):
-            options = [""] + column.options
+            options = ["", *column.options]
             current_str = current if isinstance(current, str) else None
             picked = select_fn(field_name, options, current_str)
             if picked is None:
                 return None
-            reviewed[field_name] = picked if picked else None
+            reviewed[field_name] = picked or None
 
         elif column and column.type == "multi_select":
             current_list = current if isinstance(current, list) else []
@@ -247,7 +245,7 @@ def _review_fields(
             display = _format_value(current)
             print(f"\n{field_name}:\n{display or '(empty)'}")
             new_value = prompt_fn(f"  Enter value for {field_name} (Enter to keep): ")
-            reviewed[field_name] = new_value if new_value else current
+            reviewed[field_name] = new_value or current
 
     return reviewed
 
@@ -329,8 +327,8 @@ def _prompt_multi_select(
             return []
 
         picked: list[str] = []
-        for part in choice.split(","):
-            part = part.strip()
+        for raw_part in choice.split(","):
+            part = raw_part.strip()
             if not part:
                 continue
             if part.isdigit():
@@ -390,7 +388,7 @@ def _default_select_option(field_name: str, options: list[str], current: str | N
     print(f"\n{field_name}: {_format_value(current) or '(empty)'}")
     print("  Options:")
     for i, option in enumerate(options, start=1):
-        label = option if option else "(blank)"
+        label = option or "(blank)"
         marker = " *" if option and option == current else ""
         if not option and not current:
             marker = " *"
