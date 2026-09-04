@@ -245,3 +245,15 @@ def test_parse_amount_junk_line_returns_empty_name() -> None:
 )
 def test_aggregate_amounts(amounts: list, expected: str | None) -> None:
     assert aggregate_amounts(amounts) == expected
+
+
+def test_notion_fixture_normalize(notion_case: dict) -> None:
+    """Notion-derived lines: normalize_ingredient matches fixture expectations."""
+    raw = notion_case["raw_line"]
+    expected = notion_case["expect_normalized"]
+    result = normalize_ingredient(raw)
+
+    if expected is None:
+        assert result == ""
+    else:
+        assert result == expected

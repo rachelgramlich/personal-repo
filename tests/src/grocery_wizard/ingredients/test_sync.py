@@ -200,3 +200,40 @@ def test_refresh_ingredients_skips_without_link(monkeypatch: pytest.MonkeyPatch)
     result = refresh_ingredients_for_recipe(FakeDB(), recipe)
     assert result.status == "skipped"
     assert result.message == "no link"
+
+
+def test_notion_fixture_prepare(notion_case: dict) -> None:
+    """Notion-derived lines: prepare_ingredients_for_notion matches fixture expectations."""
+    raw = notion_case["raw_line"]
+    expected = notion_case["expect_after_prepare"]
+    result = prepare_ingredients_for_notion(raw)
+
+    if expected is None:
+        assert result == raw.strip()
+    else:
+        assert result == expected
+
+
+def test_notion_fixture_preserves_removal_directives(notion_case: dict) -> None:
+    if notion_case.get("notes") != "removal directive":
+        pytest.skip("removal directive case only")
+    prepared = prepare_ingredients_for_notion(notion_case["raw_line"])
+    assert "remove: garlic" in prepared.splitlines()
+
+
+def test_backfill_preserves_manual_substitution_notes() -> None:
+    """Reformat must not drop manual substitution / note lines from real recipes."""
+    text = (
+        "2 cans (15 oz each) black beans, rinsed\n"
+        "1 chicken bouillon cube (or substitute 2 cups chicken broth for the water bouillon)\n"
+        "5 oz fresh spinach (or frozen, see notes below)\n"
+        "Salt, to taste\n"
+        "1 tablespoon plain Greek yogurt (optional)\n"
+        "remove: salt\n"
+    )
+    prepared = prepare_ingredients_for_notion(text)
+    lines = prepared.splitlines()
+    assert any("bouillon" in line for line in lines)
+    assert any("see notes" in line for line in lines)
+    assert any("to taste" in line.lower() for line in lines)
+    assert any(line.startswith("remove:") for line in lines)

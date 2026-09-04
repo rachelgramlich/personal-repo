@@ -212,6 +212,33 @@ def main(argv: list[str] | None = None) -> int:
     )
     list_feedback_parser.set_defaults(func=cmd_dev_list_feedback)
 
+    validate_pipeline_parser = dev_subparsers.add_parser(
+        "validate-pipeline",
+        help="Run Notion → meal plan → grocery list validation report",
+    )
+    validate_pipeline_parser.add_argument(
+        "--seeds",
+        default="1,2,3",
+        help="Comma-separated random seeds for suggest_meals (default: 1,2,3)",
+    )
+    validate_pipeline_parser.add_argument(
+        "--meals",
+        type=int,
+        default=None,
+        help="Meal count when no saved week plan exists (default: from config)",
+    )
+    validate_pipeline_parser.add_argument(
+        "--output",
+        default="tests/fixtures/pipeline_validation_report.txt",
+        help="Where to write the report (default: tests/fixtures/pipeline_validation_report.txt)",
+    )
+    validate_pipeline_parser.add_argument(
+        "--suggest-meals",
+        action="store_true",
+        help="Ignore saved week plan and use suggest_meals with --seeds",
+    )
+    validate_pipeline_parser.set_defaults(func=cmd_dev_validate_pipeline)
+
     args = parser.parse_args(argv)
     exit_code = args.func(args)
     if exit_code == 0 and args.command in PROD_COMMANDS:
@@ -440,6 +467,38 @@ def cmd_dev_list_feedback(_args: argparse.Namespace) -> int:
     from src.grocery_wizard.lib.feedback import list_feedback
 
     print(list_feedback())
+    return 0
+
+
+def cmd_dev_validate_pipeline(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from src.grocery_wizard.dev.validate_pipeline import (
+        format_pipeline_report,
+        run_pipeline_validation,
+    )
+
+    config = load_config()
+    db = NotionRecipesDB(config)
+
+    seed_values: list[int | None]
+    if args.seeds.strip().lower() in ("none", "saved"):
+        seed_values = [None]
+    else:
+        seed_values = [int(part.strip()) for part in args.seeds.split(",") if part.strip()]
+
+    output_path = Path(args.output)
+    report = run_pipeline_validation(
+        db,
+        meals=args.meals,
+        seeds=seed_values,
+        use_saved_week_plan=not args.suggest_meals,
+    )
+    text = format_pipeline_report(report)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(text, encoding="utf-8")
+    print(text)
+    print(f"\nReport saved to {output_path}")
     return 0
 
 
