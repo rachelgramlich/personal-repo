@@ -531,11 +531,11 @@ def test_cli_nyt_saved_lists_recipes(capsys: pytest.CaptureFixture[str]) -> None
 def test_reclassify_updates_meal_and_weeknight() -> None:
     from dataclasses import dataclass
 
+    from src.grocery_wizard.integrations.notion import ColumnInfo, DatabaseSchema
     from src.grocery_wizard.integrations.nyt_cooking import (
         NytRecipe,
         reclassify_nyt_synced_recipes,
     )
-    from src.grocery_wizard.integrations.notion import ColumnInfo, DatabaseSchema
 
     @dataclass
     class StubRecipe:
