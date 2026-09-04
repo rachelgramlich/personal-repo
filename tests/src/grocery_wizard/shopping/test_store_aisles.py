@@ -96,6 +96,7 @@ def test_load_store_aisles_reloads_after_file_changes(tmp_path: Path) -> None:
         ("potato chips", "snacks"),
         ("all-purpose flour", "baking"),
         ("sourdough bread", "bakery"),
+        ("8 corn tortillas", "bakery"),
         ("la croix", "canned drinks"),
         ("chicken", "meat/fish"),
         ("chimichurri", "refrigerated"),

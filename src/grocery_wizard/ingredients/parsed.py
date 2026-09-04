@@ -421,6 +421,8 @@ def _display_unit(canonical: str, qty: float) -> str:
 def _first_alternative(name: str) -> str:
     if " or " not in name.lower():
         return name.strip()
+    if re.search(r"\bor\b.*\b(?:stock|broth)\b", name, re.IGNORECASE):
+        return name.strip()
     parts = [part.strip() for part in _OR_ALTERNATIVE_RE.split(name.strip()) if part.strip()]
     if not parts:
         return name.strip()
@@ -429,12 +431,14 @@ def _first_alternative(name: str) -> str:
 
 def _match_preserved_product(name: str) -> str | None:
     lowered = name.lower()
+    if re.search(r"\bor\b.*\b(?:stock|broth)\b", lowered):
+        return None
     for product in sorted(_PRESERVED_PRODUCTS, key=len, reverse=True):
         if product in lowered:
             return product
-    # ground meats
+    # ground meats (not ground pepper/spices)
     ground_match = re.search(r"\bground\s+([a-z]+)", lowered)
-    if ground_match:
+    if ground_match and "pepper" not in lowered:
         return f"ground {ground_match.group(1)}"
     frozen_match = re.search(r"\bfrozen\s+([a-z]+(?:\s+[a-z]+)?)", lowered)
     if frozen_match:
@@ -476,7 +480,7 @@ def garlic_clove_count_from_line(line: str) -> float | None:
     selected = _select_amount(list(parsed.amount or []), text)
     if selected is None:
         return None
-    unit = _unit_key(str(selected.unit or "").strip())
+    unit = _unit_key(_amount_unit(selected))
     if unit != "clove":
         return None
     return _amount_quantity(selected)
@@ -520,6 +524,8 @@ def _simplify_parsed_name(name: str) -> str:
         return lowered.replace(" leaves", "")
     if lowered.startswith("freshly ground "):
         cleaned = cleaned[15:].strip()
+    elif lowered.startswith("ground ") and "pepper" in lowered:
+        cleaned = cleaned[7:].strip()
     elif lowered.startswith("fresh "):
         cleaned = cleaned[6:].strip()
     words = cleaned.split()
@@ -527,6 +533,22 @@ def _simplify_parsed_name(name: str) -> str:
         words.pop(0)
     cleaned = " ".join(words)
     return _prefer_plural_form(cleaned)
+
+
+def _flatten_amounts(amounts: list[IngredientAmount]) -> list[IngredientAmount]:
+    """Expand composite amounts (e.g. ``1 tsp plus 1/4 cup``) into flat parts."""
+    flattened: list[IngredientAmount] = []
+    for amount in amounts:
+        nested = getattr(amount, "amounts", None)
+        if nested:
+            flattened.extend(nested)
+        else:
+            flattened.append(amount)
+    return flattened
+
+
+def _amount_unit(amount: IngredientAmount) -> str:
+    return str(getattr(amount, "unit", None) or "").strip()
 
 
 def _amount_quantity(amount: IngredientAmount) -> float | None:
@@ -548,6 +570,7 @@ def _amounts_from_original_context(
     original: str,
 ) -> list[IngredientAmount]:
     """Drop amounts that only appear inside parenthetical weight notes."""
+    amounts = _flatten_amounts(amounts)
     if "(" not in original:
         return amounts
     paren_chunks = re.findall(r"\([^)]*\)", original)
@@ -555,8 +578,8 @@ def _amounts_from_original_context(
     filtered: list[IngredientAmount] = []
     for amount in amounts:
         text = str(getattr(amount, "text", "") or "").lower()
-        if text and text in paren_text and _is_count_unit(str(amount.unit or "")) is False:
-            unit = str(amount.unit or "").lower()
+        if text and text in paren_text and _is_count_unit(_amount_unit(amount)) is False:
+            unit = _amount_unit(amount).lower()
             if unit in {
                 "pound",
                 "pounds",
@@ -621,14 +644,14 @@ def _select_amount(amounts: list[IngredientAmount], original: str = "") -> Ingre
         if comparable:
             return max(comparable, key=lambda amount: _amount_quantity(amount) or 0.0)
 
-    bare_counts = [amount for amount in amounts if not str(amount.unit or "").strip()]
+    bare_counts = [amount for amount in amounts if not _amount_unit(amount)]
     if bare_counts:
         return max(bare_counts, key=lambda amount: _amount_quantity(amount) or 0.0)
 
-    count_amounts = [amount for amount in amounts if _is_count_unit(str(amount.unit or ""))]
+    count_amounts = [amount for amount in amounts if _is_count_unit(_amount_unit(amount))]
     if count_amounts:
         weight_amounts = [
-            amount for amount in amounts if _is_weight_unit_strip_at_storage(str(amount.unit or ""))
+            amount for amount in amounts if _is_weight_unit_strip_at_storage(_amount_unit(amount))
         ]
         if weight_amounts:
             return max(count_amounts, key=lambda amount: _amount_quantity(amount) or 0.0)
@@ -637,7 +660,7 @@ def _select_amount(amounts: list[IngredientAmount], original: str = "") -> Ingre
     non_volume = [
         amount
         for amount in amounts
-        if not _is_volume_unit(str(amount.unit or "")) and str(amount.unit or "").strip()
+        if not _is_volume_unit(_amount_unit(amount)) and _amount_unit(amount)
     ]
     if non_volume:
         return max(non_volume, key=lambda amount: _amount_quantity(amount) or 0.0)
@@ -670,7 +693,7 @@ def _format_amount_text(amount: IngredientAmount) -> str | None:
     qty = _amount_quantity(amount)
     if qty is None or qty <= 0:
         return None
-    unit = str(amount.unit or "").strip()
+    unit = _amount_unit(amount)
     if not unit:
         return _format_qty(qty)
     _size, unit_part = _split_size_from_unit(unit)
@@ -754,7 +777,7 @@ def _build_storage_line(parsed: ParsedIngredient, original: str) -> str:
     if selected is None:
         return _prefer_plural_form(name)
 
-    unit = str(selected.unit or "").strip()
+    unit = _amount_unit(selected)
     _size, unit_part = _split_size_from_unit(unit)
     qty = _amount_quantity(selected)
     if qty is None:
@@ -933,14 +956,14 @@ def parse_stored_ingredient(line: str) -> tuple[str, str | None]:
     parsed = _parse_with_library(_strip_optional_prefix(text))
     name = _simplify_parsed_name(parsed.name[0].text) if parsed.name else text
     selected = _select_amount(list(parsed.amount or []), text)
-    if selected is None or _is_volume_unit(str(selected.unit or "")):
+    if selected is None or _is_volume_unit(_amount_unit(selected)):
         return _prefer_plural_form(name), None
 
     amount_text = _format_amount_text(selected)
     if amount_text is None:
         return _prefer_plural_form(name), None
 
-    unit = str(selected.unit or "").strip()
+    unit = _amount_unit(selected)
     qty = _amount_quantity(selected)
     if qty is not None and _is_garlic_clove_unit(unit, name):
         return "garlic", f"clove:{_format_qty(qty)}"
@@ -1013,18 +1036,25 @@ def should_show_amount(amount: str | None, raw_line: str) -> bool:
 
 
 def _aggregate_lemon_amounts(amounts: list[str]) -> str:
-    """Sum lemon counts, omitting zest when whole lemons already cover it."""
+    """Sum lemon counts, allowing one zest need to overlap with a whole lemon."""
     regular_total = 0.0
     zest_total = 0.0
+    has_fractional = False
     for amount in amounts:
         if amount.startswith("zest:"):
             zest_total += _parse_qty(amount[5:])
             continue
         qty_str, _ = _split_amount_str(amount)
-        regular_total += _parse_qty(qty_str)
-    if regular_total >= 2:
-        zest_total = 0.0
-    return str(math.ceil(regular_total + zest_total))
+        qty = _parse_qty(qty_str)
+        regular_total += qty
+        if "/" in qty_str or qty % 1 != 0:
+            has_fractional = True
+
+    overlap = 0.0
+    if zest_total > 0 and regular_total >= 2 and has_fractional:
+        overlap = min(zest_total, 1.0)
+
+    return str(math.ceil(regular_total + zest_total - overlap))
 
 
 def _aggregate_garlic_amounts(amounts: list[str | None]) -> str | None:

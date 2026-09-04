@@ -185,5 +185,32 @@
     "raw_line": "10 oz frozen spinach",
     "expect_stored": "frozen spinach",
     "expect_grocery": "frozen spinach"
+  },
+  {
+    "label": "Composite amount: teaspoon plus cup oil",
+    "raw_line": "½ teaspoon plus ¼ cup canola oil",
+    "expect_stored": "canola oil",
+    "expect_grocery": "canola oil"
+  },
+  {
+    "label": "Stock or alternative preserved",
+    "raw_line": "1 ¾ cups low-sodium chicken or vegetable stock",
+    "expect_stored": "low-sodium chicken or vegetable stock",
+    "expect_grocery": "low-sodium chicken or vegetable stock"
+  },
+  {
+    "label": "Ground black pepper stored line",
+    "raw_line": "ground black pepper",
+    "expect_stored": "black pepper",
+    "expect_grocery": "black pepper"
+  },
+  {
+    "label": "Stored lemon zest plus whole lemons",
+    "raw_lines": [
+      "zest lemons",
+      "2 lemons"
+    ],
+    "aggregate": true,
+    "expect_aggregate_grocery": "3 lemons"
   }
 ]

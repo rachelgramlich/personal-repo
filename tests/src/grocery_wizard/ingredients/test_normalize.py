@@ -423,6 +423,35 @@ def test_parse_amount_quantity_range_uses_higher_bound() -> None:
     assert amount == "6"
 
 
+def test_composite_amount_canola_oil_does_not_crash() -> None:
+    from src.grocery_wizard.ingredients.parsed import format_ingredient_for_storage
+
+    stored = format_ingredient_for_storage("½ teaspoon plus ¼ cup canola oil")
+    assert stored == "canola oil"
+    name, amount = parse_amount(stored)
+    assert name == "canola oil"
+    assert amount is None
+
+
+def test_stock_or_alternative_preserved() -> None:
+    from src.grocery_wizard.ingredients.parsed import format_ingredient_for_storage
+
+    raw = "1 ¾ cups low-sodium chicken or vegetable stock"
+    stored = format_ingredient_for_storage(raw)
+    assert stored == "low-sodium chicken or vegetable stock"
+    assert normalize_ingredient(stored) == "low-sodium chicken or vegetable stock"
+
+
+def test_ground_black_pepper_not_truncated() -> None:
+    name, amount = parse_amount("ground black pepper")
+    assert name == "black pepper"
+    assert amount is None
+
+
+def test_aggregate_stored_lemon_zest_with_whole_lemons() -> None:
+    assert aggregate_amounts(["zest:1", "2"], name="lemons") == "3"
+
+
 def test_notion_fixture_normalize(notion_case: dict) -> None:
     """Notion-derived lines: normalize_ingredient matches fixture expectations."""
     raw = notion_case["raw_line"]

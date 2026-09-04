@@ -177,6 +177,8 @@ hot dog bun
 hamburger bun
 dinner roll
 baguette
+corn tortilla
+corn tortillas
 tortilla
 pita
 naan
