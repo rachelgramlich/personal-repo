@@ -810,53 +810,35 @@ def _render_grocery_result() -> None:
     for failure in sync_failures:
         st.warning(f"Failed to scrape ingredients: {failure}")
 
-    # 1. Excluded staples — mirror CLI: show excluded list, let user add any back.
     readd: list[str] = []
-    if excluded:
-        st.markdown("**Excluded pantry staples**")
-        st.caption("These were left off your list — select any to add back:")
-        readd = st.multiselect(
-            "Add back to list",
-            options=excluded,
-            default=result.get("readd", []),
-            key="grocery_readd",
-            label_visibility="collapsed",
-        )
-    result["readd"] = readd
-
     additional_text = result.get("additional_text", "")
-    draft_items, _ = _compute_grocery_drafts(items, readd, additional_text)
 
-    # 2. Draft grocery list — show after re-adds, before extras.
-    if excluded:
-        st.markdown("**Draft grocery list**")
-        st.text_area(
-            "Draft list",
-            value="\n".join(f"- {item}" for item in draft_items),
-            height=max(120, min(30 * len(draft_items), 300)),
-            disabled=True,
-            label_visibility="collapsed",
-            key="grocery_draft_list",
+    with st.expander("Customize list", expanded=bool(excluded)):
+        if excluded:
+            st.caption("These pantry staples were left off your list.")
+            readd = st.multiselect(
+                "Add any back",
+                options=excluded,
+                default=result.get("readd", []),
+                key="grocery_readd",
+            )
+        additional_text = st.text_area(
+            "Extra items (one per line)",
+            value=result.get("additional_text", ""),
+            placeholder="milk\neggs",
+            height=80,
+            key="grocery_additional_items",
         )
 
-    # 3. Extra items — mirror CLI "paste additional items" prompt.
-    additional_text = st.text_area(
-        "Extra items (one per line)",
-        value=result.get("additional_text", ""),
-        placeholder="milk\neggs",
-        height=80,
-        key="grocery_additional_items",
-    )
+    result["readd"] = readd
     result["additional_text"] = additional_text
 
     _, final_items = _compute_grocery_drafts(items, readd, additional_text)
 
-    # 4. Final grocery list — copy/download.
     if final_items or meal_names:
         db = get_db()
         meals = _meal_entries_with_links(db, meal_names)
         list_text = format_meals_and_grocery_list(meals, final_items)
-        st.markdown("**Final grocery list**")
         col_copy, col_download = st.columns(2)
         with col_copy:
             _render_copy_button(list_text, label="Copy plan", key="grocery_copy")
