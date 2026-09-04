@@ -11,6 +11,7 @@ from src.grocery_wizard.ingredients.normalize import (
     should_show_amount,
     split_compound_ingredients,
     split_merged_ingredient_line,
+    split_recipe_title_bleed,
 )
 
 
@@ -239,12 +240,56 @@ def test_parse_amount_junk_line_returns_empty_name() -> None:
         ([None, None], None),
         ([None, "2 cans"], "2 cans"),
         (["2 cans", None], "2 cans"),
-        # Bare counts (no unit) → sum
+        # Bare counts (no unit) → sum and round up for shopping
         (["2", "3"], "5"),
+        (["1", "1/2"], "2"),
+        (["1/2", "1/2"], "1"),
     ],
 )
 def test_aggregate_amounts(amounts: list, expected: str | None) -> None:
     assert aggregate_amounts(amounts) == expected
+
+
+def test_split_recipe_title_bleed() -> None:
+    assert split_recipe_title_bleed("chimichurri zucchini orzo") == [
+        "chimichurri",
+        "zucchini",
+        "orzo",
+    ]
+    assert split_recipe_title_bleed("gnocchi sauce veggie for gnocchi") == [
+        "gnocchi",
+        "veggie for gnocchi",
+    ]
+    assert split_recipe_title_bleed("cilantro and lime wedges") == ["cilantro and lime wedges"]
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("1 (1-inch) piece fresh ginger, peeled and grated", "ginger"),
+        ("cilantro leaves", "cilantro"),
+        ("asparagus trimmed thinly sliced on an angle", "asparagus"),
+        (
+            "1 pound boneless, skinless chicken thighs, cut into 1-inch pieces",
+            "chicken thighs",
+        ),
+        ("¼ cup loosely packed basil leaves, rolled and julienned", "basil"),
+        ("2 garlic cloves, smashed and peeled", "garlic"),
+        ("1, 15oz can cannellini beans, drained and rinsed", "cannellini beans"),
+    ],
+)
+def test_normalize_ingredient_display_name_fixes(raw: str, expected: str) -> None:
+    assert normalize_ingredient(raw) == expected
+
+
+def test_parse_amount_fractional_lime() -> None:
+    name, amount = parse_amount("1/2 lime")
+    assert name == "limes"
+    assert amount == "1/2"
+
+
+def test_aggregate_amounts_rounds_up_limes() -> None:
+    assert aggregate_amounts(["1", "1/2"]) == "2"
 
 
 def test_notion_fixture_normalize(notion_case: dict) -> None:

@@ -10,6 +10,7 @@ from pathlib import Path
 from src.grocery_wizard.config import LEGACY_WEEK_PLAN_PATH, WEEK_PLAN_PATH
 from src.grocery_wizard.ingredients.normalize import (
     aggregate_amounts,
+    expand_ingredient_line,
     normalize_ingredient,
     parse_amount,
     should_show_amount,
@@ -336,20 +337,21 @@ def _collect_ingredient_line(
     Pantry items are routed to *excluded_pantry* instead of *collected*.
     Ingredient lines are expected to be pre-cleaned at Notion ingest time.
     """
-    normalized, amount = parse_amount(line)
-    if not normalized:
-        return
-    if not should_show_amount(amount, line):
-        amount = None
-    if exclude_pantry and is_pantry_item(normalized, pantry):
-        if normalized not in excluded_pantry:
-            excluded_pantry.append(normalized)
-        return
-    key = normalized.lower()
-    if key in collected:
-        collected[key][1].append(amount)
-    else:
-        collected[key] = (normalized, [amount])
+    for part in expand_ingredient_line(line):
+        normalized, amount = parse_amount(part)
+        if not normalized:
+            continue
+        if not should_show_amount(amount, part):
+            amount = None
+        if exclude_pantry and is_pantry_item(normalized, pantry):
+            if normalized not in excluded_pantry:
+                excluded_pantry.append(normalized)
+            continue
+        key = normalized.lower()
+        if key in collected:
+            collected[key][1].append(amount)
+        else:
+            collected[key] = (normalized, [amount])
 
 
 def _split_ingredient_text(text: str) -> list[str]:

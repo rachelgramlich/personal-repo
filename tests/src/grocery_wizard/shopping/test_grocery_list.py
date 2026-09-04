@@ -460,6 +460,49 @@ def test_build_grocery_list_only_syncs_empty_recipes(tmp_path: Path) -> None:
     assert captured[0].name == "Empty"
 
 
+def test_build_grocery_list_splits_title_bleed(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Chimichurri Chicken", "chimichurri zucchini orzo"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Chimichurri Chicken"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert "chimichurri" in items
+    assert "zucchini" in items
+    assert "orzo" in items
+    assert "chimichurri zucchini orzo" not in items
+
+
+def test_build_grocery_list_aggregates_fractional_limes(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Recipe A", "1 lime, cut into wedges"),
+        _recipe("Recipe B", "1/2 lime"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Recipe A", "Recipe B"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert "2 limes" in items
+    assert len([item for item in items if "lime" in item.lower()]) == 1
+
+
 def test_build_grocery_list_shows_amounts(tmp_path: Path) -> None:
     """Amounts parsed from ingredient lines appear in the grocery list."""
     pantry_path = tmp_path / "pantry.txt"

@@ -55,20 +55,20 @@
     "expect_normalized": "leeks light green white parts only halved lengthwise and",
     "notes": "parenthetical, and"
   },
-  {
-    "recipe": "Red Curry Lentils with Sweet Potatoes and Spinach",
-    "raw_line": "1 (1-inch) piece fresh ginger, peeled and grated (about 1 tablespoon)",
-    "expect_after_prepare": null,
-    "expect_normalized": "ginger peeled and",
-    "notes": "parenthetical, and"
-  },
-  {
-    "recipe": "Spinach Artichoke White Bean Soup",
-    "raw_line": "1, 15oz can cannellini beans, drained and rinsed",
-    "expect_after_prepare": null,
-    "expect_normalized": "cannellini beans drained and",
-    "notes": "and, metric_qty"
-  },
+    {
+        "recipe": "Red Curry Lentils with Sweet Potatoes and Spinach",
+        "raw_line": "1 (1-inch) piece fresh ginger, peeled and grated (about 1 tablespoon)",
+        "expect_after_prepare": null,
+        "expect_normalized": "ginger",
+        "notes": "parenthetical, and"
+    },
+    {
+        "recipe": "Spinach Artichoke White Bean Soup",
+        "raw_line": "1, 15oz can cannellini beans, drained and rinsed",
+        "expect_after_prepare": null,
+        "expect_normalized": "cannellini beans",
+        "notes": "and, metric_qty"
+    },
   {
     "recipe": "Tomatillo Beans",
     "raw_line": "2 (14 oz) cans white beans (drained rinsed)",
@@ -146,20 +146,20 @@
     "expect_normalized": "cauliflower white beans potatoes heavy cream",
     "notes": "edge"
   },
-  {
-    "recipe": "Celery Salad",
-    "raw_line": "2 garlic cloves, smashed and peeled",
-    "expect_after_prepare": null,
-    "expect_normalized": "garlic cloves smashed and",
-    "notes": "and"
-  },
-  {
-    "recipe": "Celery Salad",
-    "raw_line": "¼ cup loosely packed basil leaves, rolled and julienned",
-    "expect_after_prepare": null,
-    "expect_normalized": "¼ cup loosely packed basil leaves rolled and",
-    "notes": "and"
-  },
+    {
+        "recipe": "Celery Salad",
+        "raw_line": "2 garlic cloves, smashed and peeled",
+        "expect_after_prepare": null,
+        "expect_normalized": "garlic",
+        "notes": "and"
+    },
+    {
+        "recipe": "Celery Salad",
+        "raw_line": "¼ cup loosely packed basil leaves, rolled and julienned",
+        "expect_after_prepare": "1/4 cup loosely packed basil leaves, rolled and julienned",
+        "expect_normalized": "basil",
+        "notes": "and"
+    },
   {
     "recipe": "Chickpea curry",
     "raw_line": "and pepper, to taste",
@@ -174,13 +174,13 @@
     "expect_normalized": "salt",
     "notes": "to_taste"
   },
-  {
-    "recipe": "Creamy lentil & Japanese sweet potato skillet",
-    "raw_line": "1 Japanese sweet potato, peeled and cubed",
-    "expect_after_prepare": null,
-    "expect_normalized": "japanese sweet potato peeled and",
-    "notes": "and"
-  },
+    {
+        "recipe": "Creamy lentil & Japanese sweet potato skillet",
+        "raw_line": "1 Japanese sweet potato, peeled and cubed",
+        "expect_after_prepare": null,
+        "expect_normalized": "japanese sweet potatoes",
+        "notes": "and"
+    },
   {
     "recipe": "Creamy lentil & Japanese sweet potato skillet",
     "raw_line": "1/2 tsp sea salt, more to taste",
@@ -209,13 +209,13 @@
     "expect_normalized": "juice of 1/2 lemons",
     "notes": "to_taste"
   },
-  {
-    "recipe": "Herby Chickpea Salad Sandwich w marinated zucchini",
-    "raw_line": "2, 15 oz cans chickpeas, drained and rinsed",
-    "expect_after_prepare": null,
-    "expect_normalized": "chickpeas drained and",
-    "notes": "and"
-  },
+    {
+        "recipe": "Herby Chickpea Salad Sandwich w marinated zucchini",
+        "raw_line": "2, 15 oz cans chickpeas, drained and rinsed",
+        "expect_after_prepare": null,
+        "expect_normalized": "chickpeas",
+        "notes": "and"
+    },
   {
     "recipe": "Lasagna Soup",
     "raw_line": "28oz tomato sauce",
@@ -244,13 +244,13 @@
     "expect_normalized": "parsley",
     "notes": "metric_qty"
   },
-  {
-    "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
-    "raw_line": "1 pound boneless, skinless chicken thighs, cut into 1-inch pieces",
-    "expect_after_prepare": null,
-    "expect_normalized": "chicken thighs cut into 1-inch pieces",
-    "notes": "prep_instruction"
-  },
+    {
+        "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
+        "raw_line": "1 pound boneless, skinless chicken thighs, cut into 1-inch pieces",
+        "expect_after_prepare": null,
+        "expect_normalized": "chicken thighs",
+        "notes": "prep_instruction"
+    },
   {
     "recipe": "Mashed potatoes (synthetic)",
     "raw_line": "2 pounds Idaho Burbank Russets2 Tablespoons scallions, finely mincedSalt",
@@ -314,11 +314,46 @@
     "expect_normalized": "chicken bouillon cube",
     "notes": "manual addition preserved"
   },
-  {
-    "recipe": "Spinach Artichoke White Bean Soup",
-    "raw_line": "5 oz fresh spinach (or frozen, see notes below)",
-    "expect_after_prepare": null,
-    "expect_normalized": "spinach",
-    "notes": "manual addition preserved"
-  }
+    {
+        "recipe": "Spinach Artichoke White Bean Soup",
+        "raw_line": "5 oz fresh spinach (or frozen, see notes below)",
+        "expect_after_prepare": null,
+        "expect_normalized": "spinach",
+        "notes": "manual addition preserved"
+    },
+    {
+        "recipe": "Grilled Chimichurri Chicken w/ zucchini and orzo",
+        "raw_line": "chimichurri zucchini orzo",
+        "expect_after_prepare": "chimichurri\nzucchini\norzo",
+        "expect_normalized": "chimichurri zucchini orzo",
+        "notes": "recipe_title_bleed"
+    },
+    {
+        "recipe": "Gnocchi (synthetic)",
+        "raw_line": "gnocchi sauce veggie for gnocchi",
+        "expect_after_prepare": "gnocchi\nveggie for gnocchi",
+        "expect_normalized": "gnocchi sauce veggie for gnocchi",
+        "notes": "recipe_title_bleed"
+    },
+    {
+        "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
+        "raw_line": "asparagus trimmed thinly sliced on an angle",
+        "expect_after_prepare": null,
+        "expect_normalized": "asparagus",
+        "notes": "prep_instruction"
+    },
+    {
+        "recipe": "Chickpea curry",
+        "raw_line": "cilantro leaves",
+        "expect_after_prepare": null,
+        "expect_normalized": "cilantro",
+        "notes": "herb_leaves"
+    },
+    {
+        "recipe": "Turmeric-Black Pepper Chicken With Asparagus",
+        "raw_line": "1/2 lime",
+        "expect_after_prepare": null,
+        "expect_normalized": "limes",
+        "notes": "fractional_count"
+    }
 ]

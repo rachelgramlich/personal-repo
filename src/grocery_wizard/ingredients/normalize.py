@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 
 # Leading quantity: integers, fractions, mixed numbers, ranges.
@@ -23,6 +24,18 @@ _AMOUNT_STR_RE = re.compile(
 )
 
 _UNICODE_DASHES = ("–", "—", "−")  # en-dash, em-dash, minus sign
+
+_UNICODE_FRACTIONS = {
+    "¼": "1/4",
+    "½": "1/2",
+    "¾": "3/4",
+    "⅓": "1/3",
+    "⅔": "2/3",
+    "⅛": "1/8",
+    "⅜": "3/8",
+    "⅝": "5/8",
+    "⅞": "7/8",
+}
 
 _UNITS = {
     "teaspoon",
@@ -257,6 +270,89 @@ _TRAILING_CLAUSE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Cut/trim instructions after the ingredient name (not product descriptors).
+_TRAILING_CUT_INSTRUCTION_RE = re.compile(
+    r",?\s+(?:"
+    r"cut\s+into\s+(?:\d+[- ]inch\s+)?(?:pieces?|strips?|chunks?|cubes?|wedges?)|"
+    r"trimmed(?:\s+(?:and\s+)?(?:thinly|thickly|finely))?\s+"
+    r"(?:sliced|cut|diced|chopped|minced|julienned)(?:\s+on\s+an\s+angle)?|"
+    r"(?:thinly|thickly|finely|roughly)\s+"
+    r"(?:sliced|cut|diced|chopped|minced|julienned)(?:\s+on\s+an\s+angle)?|"
+    r"(?:sliced|diced|chopped|minced|julienned|halved|quartered|peeled|seeded)"
+    r"(?:\s+into)?(?:\s+(?:\d+[- ]inch\s+)?pieces?)?"
+    r")\s*$",
+    re.IGNORECASE,
+)
+
+_INCOMPLETE_PREP_SUFFIX_RE = re.compile(
+    r"\b(?:peeled|rolled|drained|rinsed|smashed|halved|trimmed|seeded|grated|"
+    r"chopped|diced|minced|sliced|julienned|cubed|mashed)\s+and\s*$",
+    re.IGNORECASE,
+)
+
+_HERB_LEAVES_RE = re.compile(
+    r"^(?:(?:fresh|chopped|loosely|firmly)\s+)*(?:packed\s+)?"
+    r"(cilantro|basil|parsley|mint|dill|thyme|oregano|sage|rosemary|celery)\s+leaves$",
+    re.IGNORECASE,
+)
+
+# Known grocery nouns for splitting recipe-title bleed (no qty/unit on the line).
+_GROCERY_NOUNS = frozenset(
+    {
+        "asparagus",
+        "basil",
+        "beans",
+        "beef",
+        "bread",
+        "broccoli",
+        "carrots",
+        "celery",
+        "cheese",
+        "chicken",
+        "chickpeas",
+        "chimichurri",
+        "cilantro",
+        "corn",
+        "cucumber",
+        "eggs",
+        "feta",
+        "fish",
+        "garlic",
+        "ginger",
+        "gnocchi",
+        "gochujang",
+        "kale",
+        "kimchi",
+        "leeks",
+        "lemon",
+        "lemons",
+        "lime",
+        "limes",
+        "mushrooms",
+        "onion",
+        "onions",
+        "orzo",
+        "parsley",
+        "pasta",
+        "pepper",
+        "potatoes",
+        "rice",
+        "salmon",
+        "scallions",
+        "shrimp",
+        "spinach",
+        "tofu",
+        "tomatoes",
+        "tortellini",
+        "tuna",
+        "turkey",
+        "veggie",
+        "zucchini",
+    }
+)
+
+_RECIPE_TITLE_FILLER = frozenset({"sauce", "with", "w", "and", "for"})
+
 # Standalone prep/cut instructions (often scraped as their own line).
 _INSTRUCTION_ONLY_RE = re.compile(
     r"^(?:(?:thinly|thickly|roughly|finely|lightly)\s+)?"
@@ -337,15 +433,97 @@ _PLURALS: dict[str, str] = {
 def _normalize_unicode_dashes(text: str) -> str:
     for dash in _UNICODE_DASHES:
         text = text.replace(dash, "-")
+    for char, replacement in _UNICODE_FRACTIONS.items():
+        text = text.replace(char, replacement)
+    return text
+
+
+def _normalize_unicode_fractions(text: str) -> str:
+    for char, replacement in _UNICODE_FRACTIONS.items():
+        text = text.replace(char, replacement)
     return text
 
 
 def expand_ingredient_line(line: str) -> list[str]:
     """Split compound ingredient lines into separate grocery items."""
-    text = _normalize_unicode_dashes(line.strip())
+    text = _normalize_unicode_fractions(_normalize_unicode_dashes(line.strip()))
     if not text:
         return []
-    return _split_compound_parts(text)
+
+    title_bleed = split_recipe_title_bleed(text)
+    if len(title_bleed) > 1:
+        expanded: list[str] = []
+        for part in title_bleed:
+            expanded.extend(_split_compound_parts_recursive(part))
+        return expanded
+
+    return _split_compound_parts_recursive(text)
+
+
+def split_recipe_title_bleed(text: str) -> list[str]:
+    """Split concatenated recipe-title artifacts into separate grocery items."""
+    stripped = text.strip()
+    if not stripped or re.match(r"^[\d¼½¾⅓⅔⅛⅜⅝⅞]", stripped):
+        return [text]
+
+    # Real compound ingredients use conjunctions; title bleed does not.
+    if _CONJUNCTION_SPLIT_RE.search(stripped):
+        return [text]
+
+    # ``gnocchi sauce veggie for gnocchi`` → ``gnocchi``, ``veggie for gnocchi``
+    repeat_match = re.match(
+        r"^(\w+)\s+(?:\w+\s+)*(\w+)\s+for\s+\1\s*$",
+        stripped,
+        re.IGNORECASE,
+    )
+    if repeat_match:
+        noun = repeat_match.group(1)
+        middle = repeat_match.group(2)
+        return [noun, f"{middle} for {noun}"]
+
+    words = stripped.lower().split()
+    if len(words) < 2:
+        return [text]
+
+    if any(word in _UNITS for word in words):
+        return [text]
+
+    # Only split when every token is a known noun or title filler — avoids
+    # breaking ``sesame oil gochujang kimchi`` or ``chopped fresh cilantro``.
+    if not all(word in _GROCERY_NOUNS or word in _RECIPE_TITLE_FILLER for word in words):
+        return [text]
+
+    noun_positions = [index for index, word in enumerate(words) if word in _GROCERY_NOUNS]
+    if len(noun_positions) < 2:
+        return [text]
+
+    parts: list[str] = []
+    start = 0
+    for position in noun_positions:
+        chunk_words = words[start : position + 1]
+        while chunk_words and chunk_words[0] in _RECIPE_TITLE_FILLER:
+            chunk_words.pop(0)
+        if chunk_words:
+            parts.append(" ".join(chunk_words))
+        start = position + 1
+
+    if start < len(words):
+        trailing = [word for word in words[start:] if word not in _RECIPE_TITLE_FILLER]
+        if trailing:
+            parts.append(" ".join(trailing))
+
+    if len(parts) < 2:
+        return [text]
+
+    return parts
+
+
+def _split_compound_parts_recursive(text: str) -> list[str]:
+    split = _try_split_on_conjunction(text)
+    if split is None:
+        return [text]
+    left, right = split
+    return _split_compound_parts_recursive(left) + _split_compound_parts_recursive(right)
 
 
 def split_compound_ingredients(text: str) -> list[str]:
@@ -363,11 +541,7 @@ def split_compound_ingredients(text: str) -> list[str]:
 
 
 def _split_compound_parts(text: str) -> list[str]:
-    split = _try_split_on_conjunction(text)
-    if split is None:
-        return [text]
-    left, right = split
-    return _split_compound_parts(left) + _split_compound_parts(right)
+    return _split_compound_parts_recursive(text)
 
 
 def _try_split_on_conjunction(text: str) -> tuple[str, str] | None:
@@ -536,8 +710,11 @@ def normalize_ingredient(line: str) -> str:
     text = " ".join(words).strip()
 
     text = _simplify_ingredient_name(text)
+    text = _strip_trailing_cut_instructions(text)
     text = _strip_trailing_prep(text)
+    text = _strip_incomplete_prep_suffix(text)
     text = _strip_leading_prep(text)
+    text = _simplify_herb_leaves(text)
     text = re.sub(r"\s+", " ", text).strip()
 
     if not text:
@@ -559,7 +736,15 @@ def _ingredient_base_text(text: str) -> str:
         return segments[0]
     if all(_is_alternative_segment(segment) for segment in segments[1:]):
         return segments[0]
-    return " ".join(segments)
+
+    kept = [segments[0]]
+    for segment in segments[1:]:
+        if _is_prep_only_segment(segment):
+            break
+        kept.append(segment)
+    if len(kept) == 1:
+        return segments[0]
+    return " ".join(kept)
 
 
 def _strip_optional_prefix(text: str) -> str:
@@ -639,6 +824,32 @@ def _strip_trailing_prep(text: str) -> str:
     return text.strip(" ,")
 
 
+def _strip_incomplete_prep_suffix(text: str) -> str:
+    while True:
+        match = _INCOMPLETE_PREP_SUFFIX_RE.search(text)
+        if match is None:
+            return text.strip(" ,")
+        text = text[: match.start()].strip(" ,")
+
+
+def _strip_trailing_cut_instructions(text: str) -> str:
+    changed = True
+    while changed:
+        changed = False
+        updated = _TRAILING_CUT_INSTRUCTION_RE.sub("", text).strip(" ,")
+        if updated != text:
+            text = updated
+            changed = True
+    return text
+
+
+def _simplify_herb_leaves(text: str) -> str:
+    match = _HERB_LEAVES_RE.match(text.strip())
+    if match:
+        return match.group(1).lower()
+    return text
+
+
 def _strip_leading_prep(text: str) -> str:
     lowered = text.lower()
     changed = True
@@ -685,6 +896,19 @@ def _is_prep_alternative_phrase(text: str) -> bool:
     return bool(_PREP_ALTERNATIVE_RE.match(text.strip()))
 
 
+def _strip_prep_words(words: list[str]) -> list[str]:
+    while words:
+        token = words[0].rstrip(".,")
+        if token == "and" and len(words) > 1 and words[1].rstrip(".,") in _PREP_WORDS:
+            words.pop(0)
+            continue
+        if token in _PREP_WORDS:
+            words.pop(0)
+            continue
+        break
+    return words
+
+
 def _is_prep_only_segment(segment: str) -> bool:
     segment = _TRAILING_CLAUSE_RE.sub("", segment).strip()
     if not segment:
@@ -699,8 +923,7 @@ def _is_prep_only_segment(segment: str) -> bool:
     segment = _strip_leading_amount(segment)
     words = segment.split()
     words = _strip_leading_tokens(words, _UNITS | _SIZES)
-    while words and words[0].rstrip(".,") in _PREP_WORDS:
-        words.pop(0)
+    words = _strip_prep_words(words)
     return not words
 
 
@@ -884,7 +1107,7 @@ def parse_amount(line: str) -> tuple[str, str | None]:
 
     # No recognised unit — return a bare count for whole-item ingredients.
     try:
-        if _parse_qty(qty_str) >= 1:
+        if _parse_qty(qty_str) > 0:
             return normalized, qty_str
     except (ValueError, ZeroDivisionError):
         pass
@@ -926,8 +1149,8 @@ def aggregate_amounts(amounts: list[str | None]) -> str | None:
 
     qty_formatted = _format_qty(total)
     if canonical is None:
-        # Bare counts (no unit).
-        return qty_formatted
+        # Bare counts (no unit) — round up for shopping lists.
+        return str(math.ceil(total))
 
     orig_unit = parsed[0][1]  # e.g. "can" or "cans" from the first amount
     singular, plural = _UNIT_DISPLAY.get(canonical, (orig_unit, orig_unit + "s"))

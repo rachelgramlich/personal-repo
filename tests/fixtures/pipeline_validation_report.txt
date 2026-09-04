@@ -3,32 +3,32 @@ Recipes in Notion: 71
 Runs: 3
 
 --- Run 1 ---
-Plan source: suggest_meals (meals=7, seed=1)
-Recipes (7): Bibimbap, Sticky Harissa Tofu Tacos, Red Curry Lentils with Sweet Potatoes and Spinach, Grilled Chimichurri Chicken w/ zucchini and orzo, Celery Salad, Miso lime shrimp burgers w/ cabbage slaw & cilantro lime rice , Tomato Basil Pasta Salad
-Grocery items: 29
+Plan source: suggest_meals (meals=5, seed=1)
+Recipes (5): Bibimbap, Sticky Harissa Tofu Tacos, Red Curry Lentils with Sweet Potatoes and Spinach, Grilled Chimichurri Chicken w/ zucchini and orzo, Celery Salad
+Grocery items: 36
 
 Sample grocery items:
-  - ½ limes
+  - 1/2 limes
+  - avocado oil
+  - juice of half a lemons
+  - lemons
+  - zest of 1 lemons
   - 1 pint small tomatoes
-  - 1 red onions
   - 1 sweet potatoes
   - 1 yellow onions
+  - 1/4 cup thinly sliced red onions
+  - 2 red onions
   - 4 or 6 small celery stalks
-  - chimichurri zucchini orzo
-  - cilantro leaves
-  - ginger peeled and
-  - juices from a grated tomatoes
+  - 8 corn tortillas
+  - basil
+  - cilantro
   - oyster mushrooms
-  - spinach
-  - to 2 cups loosely packed celery leaves
-  - ¼ cup loosely packed basil leaves rolled and
-  - ¼ cup thinly sliced red onions
 
 Missing from Notion (0):
   (none)
 
-Recipes without ingredients (1):
-  - Sticky Harissa Tofu Tacos
+Recipes without ingredients (0):
+  (none)
 
 Suspicious stored ingredient text (0):
   (none)
@@ -43,32 +43,32 @@ Suspicious normalized names (0):
   (none)
 
 --- Run 2 ---
-Plan source: suggest_meals (meals=7, seed=2)
-Recipes (7): Bibimbap, Red Curry Lentils with Sweet Potatoes and Spinach, Sticky Harissa Tofu Tacos, Grilled Chimichurri Chicken w/ zucchini and orzo, Celery Salad, Baked Gnocchi with Sauce and Veggies, Turmeric-Black Pepper Chicken With Asparagus
-Grocery items: 29
+Plan source: suggest_meals (meals=5, seed=2)
+Recipes (5): Bibimbap, Red Curry Lentils with Sweet Potatoes and Spinach, Sticky Harissa Tofu Tacos, Grilled Chimichurri Chicken w/ zucchini and orzo, Celery Salad
+Grocery items: 36
 
 Sample grocery items:
-  - 1 limes
-  - ½ limes
+  - 1/2 limes
+  - avocado oil
+  - juice of half a lemons
+  - lemons
+  - zest of 1 lemons
   - 1 pint small tomatoes
-  - 1 red onions
   - 1 sweet potatoes
   - 1 yellow onions
+  - 1/4 cup thinly sliced red onions
+  - 2 red onions
   - 4 or 6 small celery stalks
-  - asparagus trimmed thinly sliced on an angle
-  - chimichurri zucchini orzo
-  - cilantro leaves
-  - ginger peeled and
+  - 8 corn tortillas
+  - basil
+  - cilantro
   - oyster mushrooms
-  - spinach
-  - to 2 cups loosely packed celery leaves
-  - ¼ cup loosely packed basil leaves rolled and
 
 Missing from Notion (0):
   (none)
 
-Recipes without ingredients (1):
-  - Sticky Harissa Tofu Tacos
+Recipes without ingredients (0):
+  (none)
 
 Suspicious stored ingredient text (0):
   (none)
@@ -83,32 +83,32 @@ Suspicious normalized names (0):
   (none)
 
 --- Run 3 ---
-Plan source: suggest_meals (meals=7, seed=3)
-Recipes (7): Bibimbap, Sticky Harissa Tofu Tacos, Grilled Chimichurri Chicken w/ zucchini and orzo, Red Curry Lentils with Sweet Potatoes and Spinach, Homemade Sushi, Baked Gnocchi with Sauce and Veggies, Turmeric-Black Pepper Chicken With Asparagus
-Grocery items: 26
+Plan source: suggest_meals (meals=5, seed=3)
+Recipes (5): Bibimbap, Sticky Harissa Tofu Tacos, Grilled Chimichurri Chicken w/ zucchini and orzo, Red Curry Lentils with Sweet Potatoes and Spinach, Homemade Sushi
+Grocery items: 33
 
 Sample grocery items:
-  - 1 limes
+  - 1/2 limes
+  - avocado oil
   - avocados
-  - ½ limes
-  - 1 red onions
+  - juice of half a lemons
+  - lemons
+  - zest of 1 lemons
   - 1 sweet potatoes
   - 1 yellow onions
-  - asparagus trimmed thinly sliced on an angle
-  - chimichurri zucchini orzo
-  - cilantro leaves
+  - 2 red onions
+  - 8 corn tortillas
+  - cilantro
   - edamame
-  - ginger peeled and
   - mini cucumbers
   - oyster mushrooms
-  - scallions
-  - spinach
+  - red cabbage
 
 Missing from Notion (0):
   (none)
 
-Recipes without ingredients (1):
-  - Sticky Harissa Tofu Tacos
+Recipes without ingredients (0):
+  (none)
 
 Suspicious stored ingredient text (0):
   (none)
