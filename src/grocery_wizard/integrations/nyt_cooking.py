@@ -7,12 +7,9 @@ import re
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from html import unescape
-from pathlib import Path
 from typing import Any
 
 import requests
-
-from src.grocery_wizard.config import NYT_CREDENTIALS_PATH
 
 SITE = "https://cooking.nytimes.com"
 API_HEADERS = {"x-cooking-api": "cooking-frontend", "accept": "*/*"}
@@ -91,14 +88,6 @@ def load_credentials() -> NytCredentials | None:
     if cookie and regi_id:
         return NytCredentials(nyt_s_cookie=cookie, regi_id=regi_id)
     return None
-
-
-def clear_legacy_credentials_file(path: Path = NYT_CREDENTIALS_PATH) -> bool:
-    """Remove a legacy nyt_credentials.json file, if present."""
-    if path.exists():
-        path.unlink()
-        return True
-    return False
 
 
 def credentials_status() -> dict[str, Any]:
