@@ -14,6 +14,7 @@ from src.grocery_wizard.shopping.grocery_list import (
     _recipes_needing_backfill,
     build_grocery_list,
     format_grocery_item,
+    format_meals_and_grocery_list,
     match_excluded_items,
     parse_readd_excluded,
     run_grocery_list,
@@ -47,6 +48,37 @@ def pantry_file(tmp_path: Path) -> Path:
 )
 def test_format_grocery_item(name: str, amount: str | None, expected: str) -> None:
     assert format_grocery_item(name, amount) == expected
+
+
+def test_format_meals_and_grocery_list_includes_both_sections() -> None:
+    meals = [
+        ("Chicken Tikka", "https://example.com/tikka"),
+        ("Salad", None),
+    ]
+    grocery_items = ["onions", "chicken breast", "lettuce"]
+
+    text = format_meals_and_grocery_list(meals, grocery_items)
+
+    assert text == (
+        "Meals\n"
+        "- Chicken Tikka (https://example.com/tikka)\n"
+        "- Salad\n"
+        "\n"
+        "Grocery List\n"
+        "- lettuce\n"
+        "- onions\n"
+        "- chicken breast"
+    )
+
+
+def test_format_meals_and_grocery_list_empty_grocery_items() -> None:
+    text = format_meals_and_grocery_list([("Soup", "https://example.com/soup")], [])
+    assert text == (
+        "Meals\n"
+        "- Soup (https://example.com/soup)\n"
+        "\n"
+        "Grocery List"
+    )
 
 
 def test_build_grocery_list_excludes_pantry_by_default(pantry_file: Path) -> None:

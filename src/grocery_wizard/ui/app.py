@@ -32,6 +32,7 @@ from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text,
 from src.grocery_wizard.shopping.grocery_list import (
     _load_week_plan_names,
     build_grocery_list,
+    format_meals_and_grocery_list,
 )
 from src.grocery_wizard.shopping.recurring_weekly_items import (
     load_recurring_weekly_items,
@@ -40,8 +41,17 @@ from src.grocery_wizard.shopping.recurring_weekly_items import (
 from src.grocery_wizard.shopping.store_aisles import sort_grocery_items
 
 
-def _format_sorted_grocery_list(items: list[str]) -> str:
-    return "\n".join(sort_grocery_items(items))
+def _meal_entries_with_links(
+    db: NotionRecipesDB,
+    meal_names: list[str],
+) -> list[tuple[str, str | None]]:
+    recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
+    entries: list[tuple[str, str | None]] = []
+    for name in meal_names:
+        recipe = recipes_by_name.get(name.lower())
+        link = recipe.link if recipe else None
+        entries.append((name, link))
+    return entries
 
 
 def _render_copy_button(text: str, *, label: str = "Copy list", key: str) -> None:
@@ -773,6 +783,7 @@ def _render_grocery_result() -> None:
     items: list[str] = result["items"]
     excluded: list[str] = result["excluded"]
     sync_failures: list[str] = result.get("sync_failures", [])
+    meal_names = list(result.get("week_plan") or result.get("source_recipes") or [])
 
     for failure in sync_failures:
         st.warning(f"Failed to scrape ingredients: {failure}")
@@ -802,27 +813,29 @@ def _render_grocery_result() -> None:
 
     _, final_items = _compute_grocery_drafts(items, readd, additional_text)
 
-    if final_items:
-        list_text = _format_sorted_grocery_list(final_items)
+    if final_items or meal_names:
+        db = get_db()
+        meals = _meal_entries_with_links(db, meal_names)
+        list_text = format_meals_and_grocery_list(meals, final_items)
         col_copy, col_download = st.columns(2)
         with col_copy:
-            _render_copy_button(list_text, key="grocery_copy")
+            _render_copy_button(list_text, label="Copy plan", key="grocery_copy")
         with col_download:
             st.download_button(
                 "Download",
                 data=list_text,
-                file_name="grocery_list.txt",
+                file_name="weekly_plan.txt",
                 mime="text/plain",
                 use_container_width=True,
             )
         st.text_area(
-            "Your list",
+            "Your plan",
             value=list_text,
             height=320,
             label_visibility="collapsed",
             key="grocery_final_list",
         )
-    elif not excluded:
+    elif not excluded and not meal_names:
         st.warning("No grocery items found.")
 
     if st.button("Edit meals", key="grocery_edit_meals"):
