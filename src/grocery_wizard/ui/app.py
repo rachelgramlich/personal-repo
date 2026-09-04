@@ -2,22 +2,168 @@
 
 from __future__ import annotations
 
-import streamlit as st
+import sys
+from pathlib import Path
 
-from src.grocery_wizard.config import WEEK_PLAN_PATH, load_config
-from src.grocery_wizard.ingredients.sync import (
-    find_recipes_needing_sync,
-    format_sync_summary,
-    run_sync,
+# Streamlit executes this file as a script; add repo root so `src.*` imports work.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+import json
+from typing import Any
+
+import streamlit as st
+import streamlit.components.v1 as components
+
+from src.grocery_wizard.config import RECURRING_WEEKLY_ITEMS_PATH, WEEK_PLAN_PATH, load_config
+from src.grocery_wizard.ingredients.sync import prepare_ingredients_for_notion
+from src.grocery_wizard.integrations.notion import ColumnInfo, NotionRecipesDB
+from src.grocery_wizard.planning.meal_planner import (
+    MealPlanFilters,
+    default_filters,
+    filter_recipes,
+    replace_meals_in_plan,
+    save_week_plan,
+    suggest_meals,
 )
-from src.grocery_wizard.integrations.notion import NotionRecipesDB
 from src.grocery_wizard.recipes.classify import classify_recipe
 from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text, scrape_recipe
 from src.grocery_wizard.recipes.weeknight import DEFAULT_WEEKNIGHT_COLUMN
 from src.grocery_wizard.shopping.grocery_list import (
     _load_week_plan_names,
     build_grocery_list,
+    format_meals_and_grocery_list,
 )
+from src.grocery_wizard.shopping.recurring_weekly_items import (
+    load_recurring_weekly_items,
+    write_recurring_weekly_items,
+)
+from src.grocery_wizard.shopping.store_aisles import sort_grocery_items
+
+
+def _meal_entries_with_links(
+    db: NotionRecipesDB,
+    meal_names: list[str],
+) -> list[tuple[str, str | None]]:
+    recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
+    entries: list[tuple[str, str | None]] = []
+    for name in meal_names:
+        recipe = recipes_by_name.get(name.lower())
+        link = recipe.link if recipe else None
+        entries.append((name, link))
+    return entries
+
+
+def _render_copy_button(text: str, *, label: str = "Copy list", key: str) -> None:
+    """One-click copy for the final grocery list (falls back to manual copy on HTTP)."""
+    components.html(
+        f"""
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <button id="btn_{key}" style="
+            background: #8b1a5c;
+            border: 1px solid #5c1040;
+            border-radius: 0.5rem;
+            color: #ffffff;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0.45rem 1rem;
+            width: 100%;
+          ">{label}</button>
+          <span id="status_{key}" style="
+            color:#5c1040; font-size:0.9rem; white-space:nowrap;
+          "></span>
+        </div>
+        <script>
+          const text = {json.dumps(text)};
+          document.getElementById("btn_{key}").onclick = async () => {{
+            const status = document.getElementById("status_{key}");
+            try {{
+              await navigator.clipboard.writeText(text);
+              status.textContent = "Copied!";
+            }} catch (err) {{
+              status.textContent = "Tap list below to copy";
+            }}
+            setTimeout(() => {{ status.textContent = ""; }}, 2000);
+          }};
+        </script>
+        """,
+        height=52,
+    )
+
+
+def _parse_line_items(text: str) -> list[str]:
+    return [
+        line.strip().lstrip("-•* ").strip()
+        for line in text.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+
+
+def _compute_grocery_drafts(
+    items: list[str],
+    readd: list[str],
+    additional_text: str,
+) -> tuple[list[str], list[str]]:
+    draft_items = list(items)
+    existing = {item.lower() for item in draft_items}
+    for item in readd:
+        if item.lower() not in existing:
+            draft_items.append(item)
+            existing.add(item.lower())
+    draft_items = sort_grocery_items(draft_items)
+
+    final_items = list(draft_items)
+    for item in _parse_line_items(additional_text):
+        if item.lower() not in existing:
+            final_items.append(item)
+            existing.add(item.lower())
+    final_items = sort_grocery_items(final_items)
+    return draft_items, final_items
+
+
+def _render_meal_plan_filters(
+    filter_columns: list[ColumnInfo],
+    defaults: MealPlanFilters,
+    *,
+    key_prefix: str,
+) -> MealPlanFilters:
+    values: dict[str, Any] = {}
+    for column in filter_columns:
+        default_val = defaults.values.get(column.name)
+        if column.type in ("select", "status"):
+            options = ["Any", *column.options]
+            current = default_val if default_val in column.options else "Any"
+            picked = st.selectbox(
+                column.name,
+                options,
+                index=options.index(current),
+                key=f"{key_prefix}_{column.name}",
+            )
+            if picked != "Any":
+                values[column.name] = picked
+        elif column.type == "multi_select":
+            default_list = default_val if isinstance(default_val, list) else []
+            picked = st.multiselect(
+                column.name,
+                column.options,
+                default=default_list,
+                key=f"{key_prefix}_{column.name}",
+            )
+            if picked:
+                values[column.name] = picked
+        elif column.type == "checkbox":
+            checked = st.checkbox(
+                column.name,
+                value=bool(default_val) if isinstance(default_val, bool) else False,
+                key=f"{key_prefix}_{column.name}",
+            )
+            if isinstance(default_val, bool):
+                values[column.name] = checked
+            elif checked:
+                values[column.name] = True
+    return MealPlanFilters(values=values)
 
 
 @st.cache_resource
@@ -32,97 +178,356 @@ def main() -> None:
         page_icon="🛒",
         layout="centered",
     )
+    _inject_app_styles()
     st.title("Grocery Wizard")
 
-    tab_add, tab_sync, tab_plan, tab_grocery = st.tabs(
-        ["Add Recipe", "Sync Ingredients", "Plan Meals", "Grocery List"]
-    )
+    tab_add, tab_weekly = st.tabs(["Add Recipe", "Create weekly plan"])
 
     with tab_add:
         render_add_recipe()
-    with tab_sync:
-        render_sync()
-    with tab_plan:
-        render_plan_meals()
-    with tab_grocery:
-        render_grocery_list()
+    with tab_weekly:
+        render_create_weekly_plan()
+
+
+def _inject_app_styles() -> None:
+    st.markdown(
+        """
+        <style>
+        :root {
+            --gw-bg: #ffe4f0;
+            --gw-text: #5c1040;
+            --gw-text-muted: #7a2858;
+            --gw-input-bg: #fff9fc;
+            --gw-accent: #8b1a5c;
+            --gw-blue: #b8d9f0;
+            --gw-blue-strong: #6baee0;
+            --gw-blue-text: #1a4a6e;
+        }
+
+        .stApp {
+            background-color: var(--gw-bg);
+            color: var(--gw-text);
+        }
+
+        .stApp h1, .stApp h2, .stApp h3, .stApp h4,
+        .stApp label, .stApp p, .stApp li,
+        .stApp [data-testid="stMarkdownContainer"] {
+            color: var(--gw-text);
+        }
+
+        .stApp .stCaption, .stApp small {
+            color: var(--gw-text-muted);
+        }
+
+        .stTextInput input,
+        .stTextArea textarea,
+        .stNumberInput input,
+        [data-baseweb="select"] > div,
+        [data-baseweb="input"] > div {
+            background-color: var(--gw-input-bg) !important;
+            color: var(--gw-text) !important;
+            border-color: #d48aad !important;
+        }
+
+        [data-testid="stText"] pre,
+        [data-testid="stText"] code {
+            background-color: var(--gw-input-bg) !important;
+            color: var(--gw-text) !important;
+        }
+
+        .stTextArea textarea:disabled {
+            color: var(--gw-text) !important;
+            -webkit-text-fill-color: var(--gw-text) !important;
+            opacity: 1 !important;
+        }
+
+        [data-baseweb="tab"] {
+            color: var(--gw-text-muted) !important;
+        }
+
+        [data-baseweb="tab"][aria-selected="true"] {
+            color: var(--gw-text) !important;
+            border-bottom-color: var(--gw-accent) !important;
+        }
+
+        .stButton button[kind="primary"],
+        .stButton button[data-testid="baseButton-primary"],
+        .stDownloadButton button {
+            background-color: var(--gw-accent) !important;
+            border-color: var(--gw-accent) !important;
+            color: #ffffff !important;
+            font-weight: 600 !important;
+        }
+
+        .stButton button[kind="primary"] p,
+        .stButton button[kind="primary"] span,
+        .stButton button[kind="primary"] div,
+        .stButton button[data-testid="baseButton-primary"] p,
+        .stButton button[data-testid="baseButton-primary"] span,
+        .stButton button[data-testid="baseButton-primary"] div,
+        .stDownloadButton button p,
+        .stDownloadButton button span,
+        .stDownloadButton button div {
+            color: #ffffff !important;
+            font-weight: 600 !important;
+        }
+
+        .stButton button[kind="secondary"],
+        .stButton button[data-testid="baseButton-secondary"] {
+            background-color: var(--gw-input-bg) !important;
+            border-color: #d48aad !important;
+            color: var(--gw-text) !important;
+        }
+
+        .stButton button[kind="secondary"] p,
+        .stButton button[kind="secondary"] span,
+        .stButton button[data-testid="baseButton-secondary"] p,
+        .stButton button[data-testid="baseButton-secondary"] span {
+            color: var(--gw-text) !important;
+        }
+
+        [data-testid="stExpander"] summary {
+            color: var(--gw-text) !important;
+        }
+
+        /* Checkboxes */
+        .stCheckbox label[data-baseweb="checkbox"] > span[data-checked="true"],
+        label[data-baseweb="checkbox"] > span[aria-checked="true"] {
+            background-color: var(--gw-blue-strong) !important;
+            border-color: var(--gw-blue-strong) !important;
+        }
+
+        .stCheckbox label[data-baseweb="checkbox"] > span[data-checked="false"],
+        label[data-baseweb="checkbox"] > span[aria-checked="false"] {
+            border-color: var(--gw-blue-strong) !important;
+        }
+
+        /* Radio buttons */
+        .stRadio label[data-baseweb="radio"] > div:first-child {
+            border-color: var(--gw-blue-strong) !important;
+        }
+
+        .stRadio label[data-baseweb="radio"] > div:first-child[aria-checked="true"],
+        label[data-baseweb="radio"] div[data-checked="true"] {
+            background-color: var(--gw-blue-strong) !important;
+            border-color: var(--gw-blue-strong) !important;
+        }
+
+        /* Multiselect tags / bubbles */
+        [data-baseweb="tag"] {
+            background-color: var(--gw-blue) !important;
+            color: var(--gw-blue-text) !important;
+            border-color: var(--gw-blue-strong) !important;
+        }
+
+        [data-baseweb="tag"] svg {
+            fill: var(--gw-blue-text) !important;
+        }
+
+        /* Dropdown selected rows */
+        li[role="option"][aria-selected="true"] {
+            background-color: var(--gw-blue) !important;
+            color: var(--gw-blue-text) !important;
+        }
+
+        [data-testid="stToolbar"], footer, #MainMenu {
+            visibility: hidden;
+        }
+        [data-testid="stToolbar"] {
+            height: 0;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_add_recipe() -> None:
     st.subheader("Add Recipe")
-    st.caption("Paste recipe URL(s). Ingredients are scraped once and saved to Notion.")
+    st.caption("Paste a link to pull in name and ingredients, then save to Notion.")
 
     db = get_db()
     schema = db.schema
 
     urls_text = st.text_area(
-        "Recipe URL(s)",
-        placeholder="https://example.com/recipe\n(one per line)",
-        height=100,
+        "Recipe URL",
+        placeholder="https://example.com/my-recipe",
+        height=80,
+        key="add_recipe_urls",
     )
-
-    if st.button("Scrape & preview", type="primary"):
+    if st.button("Add recipe", type="primary"):
         urls = [line.strip() for line in urls_text.splitlines() if line.strip()]
         if not urls:
-            st.warning("Enter at least one URL.")
+            st.warning("Paste a recipe URL first.")
         else:
             st.session_state["preview_recipes"] = _preview_recipes(db, urls)
 
+    with st.expander("Type it in myself", expanded=False):
+        if st.button("Start blank recipe"):
+            st.session_state["preview_recipes"] = [
+                {
+                    "status": "manual",
+                    "url": "",
+                    "fields": _base_recipe_fields(schema),
+                }
+            ]
+
     previews = st.session_state.get("preview_recipes", [])
-    for i, preview in enumerate(previews):
+    for index, preview in enumerate(previews):
         if preview.get("status") == "duplicate":
             st.info(f"Already in Notion: {preview['name']} ({preview['url']})")
             continue
-        if preview.get("status") == "error":
-            st.error(f"Failed to scrape {preview['url']}: {preview['error']}")
+        if preview.get("status") == "saved":
+            st.success(f"Saved to Notion: {preview.get('saved_name', 'Recipe')}")
             continue
 
-        with st.expander(
-            f"Review: {preview['fields'].get(schema.name_column, 'Recipe')}", expanded=True
-        ):
-            edited = {}
-            for field_name, value in preview["fields"].items():
-                column = schema.all_columns.get(field_name)
-                if column and column.type in ("select", "status"):
-                    options = [""] + column.options
-                    current = value if value in column.options else ""
-                    edited[field_name] = st.selectbox(
-                        field_name,
-                        options,
-                        index=options.index(current) if current else 0,
-                        key=f"sel_{i}_{field_name}",
-                    )
-                elif column and column.type == "multi_select":
-                    edited[field_name] = st.multiselect(
-                        field_name,
-                        column.options,
-                        default=value if isinstance(value, list) else [],
-                        key=f"ms_{i}_{field_name}",
-                    )
-                elif column and column.type == "checkbox":
-                    edited[field_name] = st.checkbox(
-                        field_name,
-                        value=bool(value),
-                        key=f"cb_{i}_{field_name}",
-                    )
-                elif field_name == schema.ingredients_column:
-                    edited[field_name] = st.text_area(
-                        field_name,
-                        value=value or "",
-                        height=150,
-                        key=f"ing_{i}",
-                    )
-                else:
-                    edited[field_name] = st.text_input(
-                        field_name, value=str(value or ""), key=f"txt_{i}_{field_name}"
-                    )
+        _render_recipe_review(db, schema, preview, index)
 
-            if st.button("Save to Notion", key=f"save_{i}"):
-                cleaned = {k: v for k, v in edited.items() if v not in (None, "", [])}
-                recipe = db.create_recipe(cleaned)
-                st.success(f"Created: {recipe.name}")
-                previews[i]["status"] = "saved"
-                st.session_state["preview_recipes"] = previews
+
+def _ordered_recipe_field_names(schema) -> list[str]:
+    names = [schema.name_column, schema.link_column]
+    if schema.ingredients_column:
+        names.append(schema.ingredients_column)
+    names.extend(col.name for col in schema.review_columns)
+    return names
+
+
+def _guess_recipe_name_from_url(url: str) -> str:
+    slug = url.rstrip("/").rsplit("/", maxsplit=1)[-1]
+    slug = slug.split("?")[0]
+    if not slug or slug.startswith("http"):
+        return ""
+    return slug.replace("-", " ").replace("_", " ").strip().title()
+
+
+def _base_recipe_fields(
+    schema,
+    *,
+    url: str = "",
+    name: str = "",
+    ingredients: str = "",
+    inferred: dict | None = None,
+) -> dict:
+    fields: dict = {
+        schema.name_column: name,
+        schema.link_column: url,
+    }
+    if schema.ingredients_column:
+        fields[schema.ingredients_column] = ingredients
+    if inferred:
+        fields.update(inferred)
+    for col in schema.checkbox_columns:
+        fields.setdefault(col.name, False)
+    return fields
+
+
+def _render_recipe_review(
+    db: NotionRecipesDB,
+    schema,
+    preview: dict,
+    index: int,
+) -> None:
+    status = preview.get("status", "ready")
+    fields = preview["fields"]
+    recipe_name = fields.get(schema.name_column) or "New recipe"
+
+    if preview.get("error"):
+        st.warning(preview["error"])
+
+    title = "Review before saving"
+    if status == "manual" and not fields.get(schema.name_column):
+        title = "Add recipe details"
+    elif status == "ready":
+        title = f"Review: {recipe_name}"
+
+    with st.expander(title, expanded=True):
+        edited = _render_recipe_field_editors(schema, fields, key_prefix=f"recipe_{index}")
+
+        if st.button("Save to Notion", key=f"save_{index}", type="primary"):
+            cleaned = {key: value for key, value in edited.items() if value not in (None, "", [])}
+            name = cleaned.get(schema.name_column, "").strip()
+            if not name:
+                st.warning("Add a recipe name before saving.")
+                return
+            if schema.ingredients_column and not cleaned.get(schema.ingredients_column, "").strip():
+                st.warning("Add ingredients before saving (one per line).")
+                return
+
+            if schema.ingredients_column:
+                cleaned[schema.ingredients_column] = prepare_ingredients_for_notion(
+                    cleaned[schema.ingredients_column]
+                )
+                if not cleaned[schema.ingredients_column].strip():
+                    st.warning("Add ingredients before saving (one per line).")
+                    return
+
+            recipe = db.create_recipe(cleaned)
+            preview["status"] = "saved"
+            preview["saved_name"] = recipe.name
+            st.rerun()
+
+
+def _render_recipe_field_editors(schema, fields: dict, *, key_prefix: str) -> dict:
+    edited: dict = {}
+    for field_name in _ordered_recipe_field_names(schema):
+        if field_name not in fields and field_name not in schema.all_columns:
+            continue
+        value = fields.get(field_name)
+        column = schema.all_columns.get(field_name)
+        widget_key = f"{key_prefix}_{field_name}"
+
+        if column and column.type in ("select", "status"):
+            options = [""] + column.options
+            current = value if value in column.options else ""
+            edited[field_name] = st.selectbox(
+                field_name,
+                options,
+                index=options.index(current) if current else 0,
+                key=widget_key,
+            )
+        elif column and column.type == "multi_select":
+            edited[field_name] = st.multiselect(
+                field_name,
+                column.options,
+                default=value if isinstance(value, list) else [],
+                key=widget_key,
+            )
+        elif column and column.type == "checkbox":
+            edited[field_name] = st.checkbox(
+                field_name,
+                value=bool(value),
+                key=widget_key,
+            )
+        elif field_name == schema.ingredients_column:
+            edited[field_name] = st.text_area(
+                field_name,
+                value=value or "",
+                height=180,
+                placeholder="One ingredient per line\neggs\n2 cups flour\n1 lb chicken",
+                help="Paste or edit ingredients here. One line per ingredient.",
+                key=widget_key,
+            )
+        elif field_name == schema.name_column:
+            edited[field_name] = st.text_input(
+                field_name,
+                value=str(value or ""),
+                placeholder="Recipe name",
+                key=widget_key,
+            )
+        elif field_name == schema.link_column:
+            edited[field_name] = st.text_input(
+                field_name,
+                value=str(value or ""),
+                placeholder="https://... (optional for manual recipes)",
+                key=widget_key,
+            )
+        else:
+            edited[field_name] = st.text_input(
+                field_name,
+                value=str(value or ""),
+                key=widget_key,
+            )
+    return edited
 
 
 def _preview_recipes(db: NotionRecipesDB, urls: list[str]) -> list[dict]:
@@ -137,170 +542,317 @@ def _preview_recipes(db: NotionRecipesDB, urls: list[str]) -> list[dict]:
 
         try:
             scraped = scrape_recipe(url)
-            filter_columns = [(col.name, col.type, col.options) for col in schema.filter_columns]
-            weeknight_column = (
-                DEFAULT_WEEKNIGHT_COLUMN
-                if DEFAULT_WEEKNIGHT_COLUMN in schema.all_columns
-                else None
-            )
-            inferred = classify_recipe(
-                scraped.title,
-                scraped.ingredients,
-                filter_columns,
-                total_minutes=scraped.total_time_minutes,
-                weeknight_column=weeknight_column,
-            )
-
-            fields: dict = {
-                schema.name_column: scraped.title,
-                schema.link_column: url,
-            }
-            if schema.ingredients_column:
-                fields[schema.ingredients_column] = ingredients_to_text(scraped.ingredients)
-            fields.update(inferred)
-            for col in schema.checkbox_columns:
-                if col.name not in fields:
-                    fields[col.name] = False
-
-            previews.append({"status": "ready", "url": url, "fields": fields})
         except ScrapeError as exc:
-            previews.append({"status": "error", "url": url, "error": str(exc)})
+            previews.append(
+                {
+                    "status": "manual",
+                    "url": url,
+                    "error": str(exc),
+                    "fields": _base_recipe_fields(
+                        schema,
+                        url=url,
+                        name=_guess_recipe_name_from_url(url),
+                    ),
+                }
+            )
+            continue
+
+        filter_columns = [(col.name, col.type, col.options) for col in schema.filter_columns]
+        weeknight_column = (
+            DEFAULT_WEEKNIGHT_COLUMN
+            if DEFAULT_WEEKNIGHT_COLUMN in schema.all_columns
+            else None
+        )
+        inferred = classify_recipe(
+            scraped.title,
+            scraped.ingredients,
+            filter_columns,
+            total_minutes=scraped.total_time_minutes,
+            weeknight_column=weeknight_column,
+        )
+        ingredients_text = (
+            ingredients_to_text(scraped.ingredients) if schema.ingredients_column else ""
+        )
+        fields = _base_recipe_fields(
+            schema,
+            url=url,
+            name=scraped.title,
+            ingredients=ingredients_text,
+            inferred=inferred,
+        )
+
+        if schema.ingredients_column and not scraped.ingredients:
+            previews.append(
+                {
+                    "status": "manual",
+                    "url": url,
+                    "error": "No ingredients found on this page. Paste them below.",
+                    "fields": fields,
+                }
+            )
+        else:
+            previews.append({"status": "ready", "url": url, "fields": fields})
 
     return previews
 
 
-def render_sync() -> None:
-    st.subheader("Sync Ingredients")
-    st.caption(
-        "For recipes added directly in Notion (Link filled, Ingredients empty), "
-        "scrape once and save to the Ingredients column."
-    )
-
-    db = get_db()
-    dry_run = st.checkbox("Dry run (preview only)")
-    force = st.checkbox("Force re-scrape (overwrite existing Ingredients)")
-
-    needing = find_recipes_needing_sync(db, force=force)
-    if needing:
-        st.write(f"**{len(needing)} recipe(s) need syncing:**")
-        for recipe in needing:
-            st.write(f"- {recipe.name}")
-    else:
-        st.success("All recipes with links already have ingredients.")
-
-    if st.button("Run sync", type="primary"):
-        with st.spinner("Syncing..."):
-            summary = run_sync(db, dry_run=dry_run, force=force)
-        st.info(format_sync_summary(summary, dry_run=dry_run))
-        if summary.synced:
-            get_db.clear()
+def _current_plan_names() -> list[str]:
+    return _parse_line_items(st.session_state.get("plan_meals_text", "").replace(",", "\n"))
 
 
-def render_plan_meals() -> None:
-    st.subheader("Plan Meals")
-    st.info("Coming soon — weekly meal planning will live here.")
-    st.caption(
-        "For now, use the Grocery List tab to pick recipes manually, "
-        "or run `plan-recipes` from the CLI when meal planning is built."
-    )
+def _invalidate_stale_grocery_result() -> None:
+    """Drop cached grocery results when the meal plan has changed."""
+    result = st.session_state.get("grocery_result")
+    if not result:
+        return
+
+    current_plan = tuple(_current_plan_names())
+    cached_plan = result.get("week_plan")
+    if cached_plan is not None and cached_plan != current_plan:
+        st.session_state.pop("grocery_result", None)
 
 
-def render_grocery_list() -> None:
-    st.subheader("Grocery List")
-    st.caption("Reads Ingredients from Notion. Normalizes and excludes pantry staples.")
+def _run_grocery_list_generation(
+    db: NotionRecipesDB,
+    selected: list[str],
+    *,
+    sync_first: bool,
+    exclude_pantry: bool,
+    recurring_text: str,
+    default_recurring: list[str],
+) -> bool:
+    if not selected:
+        st.warning("Add at least one meal to your plan.")
+        return False
 
-    db = get_db()
-    all_recipes = db.query_recipes()
-    recipe_names = [r.name for r in all_recipes]
-
-    week_plan_names = _load_week_plan_names(WEEK_PLAN_PATH)
-    use_week_plan = False
-    if week_plan_names:
-        use_week_plan = st.checkbox(
-            f"Use week plan ({len(week_plan_names)} recipes)",
-            value=True,
+    recurring_weekly_items = _parse_line_items(recurring_text)
+    if recurring_weekly_items != default_recurring:
+        write_recurring_weekly_items(
+            RECURRING_WEEKLY_ITEMS_PATH,
+            recurring_weekly_items,
         )
 
-    if use_week_plan and week_plan_names:
-        selected = week_plan_names
-        st.write("Recipes from week plan:", ", ".join(week_plan_names))
-    else:
-        selected = st.multiselect("Select recipes", recipe_names)
+    with st.spinner("Building grocery list..."):
+        items, excluded, sync_summary = build_grocery_list(
+            db,
+            recipe_names=selected,
+            backfill_missing=sync_first,
+            exclude_pantry=exclude_pantry,
+            recurring_weekly_items=recurring_weekly_items,
+            include_recurring_weekly_items=True,
+        )
 
-    sync_first = st.checkbox("Sync ingredients first (scrape missing)")
-    exclude_pantry = st.checkbox("Exclude pantry items", value=True)
+    if sync_summary is not None and sync_summary.synced:
+        get_db.clear()
 
-    if st.button("Generate list", type="primary"):
-        if not selected:
-            st.warning("Select at least one recipe.")
-            return
+    sync_failures: list[str] = []
+    if sync_summary is not None and sync_summary.failed:
+        sync_failures = list(sync_summary.failed)
 
-        with st.spinner("Building grocery list..."):
-            items, excluded, sync_summary = build_grocery_list(
-                db,
-                recipe_names=selected,
-                backfill_missing=sync_first,
-                exclude_pantry=exclude_pantry,
+    if not items and not excluded:
+        st.warning("No grocery items found.")
+        return False
+
+    st.session_state.grocery_result = {
+        "items": items,
+        "excluded": excluded,
+        "sync_failures": sync_failures,
+        "readd": [],
+        "additional_text": "",
+        "source_recipes": tuple(selected),
+        "week_plan": tuple(selected),
+    }
+    return True
+
+
+def render_create_weekly_plan() -> None:
+    st.subheader("Create weekly plan")
+    st.caption("Pick your meals, then get a grocery list.")
+
+    _invalidate_stale_grocery_result()
+
+    db = get_db()
+    schema = db.schema
+    config = load_config()
+    all_recipes = db.query_recipes()
+    recipe_names = [recipe.name for recipe in all_recipes]
+
+    week_plan_names = _load_week_plan_names(WEEK_PLAN_PATH)
+    if "plan_meals_text" not in st.session_state:
+        st.session_state.plan_meals_text = "\n".join(week_plan_names)
+
+    st.markdown("### 1. Meals")
+    meal_count = st.number_input(
+        "How many meals this week?",
+        min_value=1,
+        max_value=21,
+        value=config.default_meals,
+        step=1,
+    )
+
+    filter_defaults = default_filters(schema.all_columns)
+    filter_columns = [*schema.filter_columns, *schema.checkbox_columns]
+    locked: list[str] = []
+    with st.expander("More options", expanded=False):
+        locked = st.multiselect(
+            "Keep these recipes",
+            recipe_names,
+            default=[],
+            key="plan_locked_recipes",
+        )
+        filters = _render_meal_plan_filters(
+            filter_columns,
+            filter_defaults,
+            key_prefix="plan_filter",
+        )
+
+    suggestion_pool = filter_recipes(all_recipes, filters, schema.all_columns)
+
+    if st.button("Build my plan", type="primary", key="build_plan"):
+        plan = suggest_meals(
+            all_recipes,
+            meals=int(meal_count),
+            locked_names=locked,
+            filters=filters,
+            schema_columns=schema.all_columns,
+        )
+        st.session_state.plan_meals_text = "\n".join(plan)
+        st.session_state.plan_rejected_names = []
+        st.session_state.pop("grocery_result", None)
+        st.rerun()
+
+    current_plan = _current_plan_names()
+    if current_plan:
+        for index, name in enumerate(current_plan, start=1):
+            st.write(f"{index}. {name}")
+
+        with st.expander("Swap or edit meals", expanded=False):
+            swap_out = st.multiselect(
+                "Meals to replace",
+                options=current_plan,
+                key="plan_meals_to_swap",
+            )
+            if st.button("Swap selected", disabled=not swap_out, key="swap_meals"):
+                rejected = set(st.session_state.get("plan_rejected_names", []))
+                new_plan, rejected = replace_meals_in_plan(
+                    current_plan,
+                    swap_out,
+                    all_recipes=all_recipes,
+                    pool=suggestion_pool,
+                    rejected_names=rejected,
+                )
+                st.session_state.plan_meals_text = "\n".join(new_plan)
+                st.session_state.plan_rejected_names = sorted(rejected)
+                st.session_state.pop("grocery_result", None)
+                st.rerun()
+
+            st.text_area(
+                "Edit manually — one recipe per line",
+                height=160,
+                key="plan_meals_text",
             )
 
-        if sync_summary is not None and sync_summary.failed:
-            for failure in sync_summary.failed:
-                st.warning(f"⚠️ Failed to scrape ingredients: {failure}")
+    st.divider()
+    st.markdown("### 2. Grocery list")
 
-        if not items and not excluded:
-            st.warning("No grocery items found.")
-            return
+    if st.session_state.get("grocery_result"):
+        _render_grocery_result()
+        return
 
+    if not current_plan:
+        st.caption("Build a meal plan above to continue.")
+        return
+
+    default_recurring = load_recurring_weekly_items()
+    sync_first = False
+    exclude_pantry = True
+    recurring_text = "\n".join(default_recurring)
+
+    with st.expander("Grocery list options", expanded=False):
+        sync_first = st.checkbox("Sync ingredients first (scrape missing)")
+        exclude_pantry = st.checkbox("Exclude pantry items", value=True)
+        recurring_text = st.text_area(
+            "Recurring weekly items (one per line)",
+            value="\n".join(default_recurring),
+            height=100,
+        )
+
+    if st.button("Create grocery list", type="primary", key="create_grocery"):
+        save_week_plan(current_plan, WEEK_PLAN_PATH)
+        if _run_grocery_list_generation(
+            db,
+            current_plan,
+            sync_first=sync_first,
+            exclude_pantry=exclude_pantry,
+            recurring_text=recurring_text,
+            default_recurring=default_recurring,
+        ):
+            st.rerun()
+
+
+def _render_grocery_result() -> None:
+    result = st.session_state.grocery_result
+    items: list[str] = result["items"]
+    excluded: list[str] = result["excluded"]
+    sync_failures: list[str] = result.get("sync_failures", [])
+    meal_names = list(result.get("week_plan") or result.get("source_recipes") or [])
+
+    for failure in sync_failures:
+        st.warning(f"Failed to scrape ingredients: {failure}")
+
+    readd: list[str] = []
+    additional_text = result.get("additional_text", "")
+
+    with st.expander("Customize list", expanded=bool(excluded)):
         if excluded:
-            st.write("**Excluded staples (already in your pantry)**")
-            for index, item in enumerate(excluded, start=1):
-                st.write(f"{index}. {item}")
+            st.caption("These pantry staples were left off your list.")
             readd = st.multiselect(
-                "Add excluded staples back?",
+                "Add any back",
                 options=excluded,
-                default=[],
+                default=result.get("readd", []),
+                key="grocery_readd",
             )
-        else:
-            readd = []
-
-        draft_items = list(items)
-        existing = {item.lower() for item in draft_items}
-        for item in readd:
-            if item.lower() not in existing:
-                draft_items.append(item)
-                existing.add(item.lower())
-        draft_items.sort(key=str.lower)
-
-        if draft_items:
-            st.write("**Draft grocery list**")
-            st.text("\n".join(draft_items))
-
-        staples_text = st.text_area(
-            "Additional items (one per line)",
-            placeholder="milk\neggs\nbread",
+        additional_text = st.text_area(
+            "Extra items (one per line)",
+            value=result.get("additional_text", ""),
+            placeholder="milk\neggs",
             height=80,
             key="grocery_additional_items",
         )
-        staples = [
-            line.strip().lstrip("-•* ").strip()
-            for line in staples_text.splitlines()
-            if line.strip()
-        ]
 
-        final_items = list(draft_items)
-        existing = {item.lower() for item in final_items}
-        for item in staples:
-            if item.lower() not in existing:
-                final_items.append(item)
-                existing.add(item.lower())
-        final_items.sort(key=str.lower)
+    result["readd"] = readd
+    result["additional_text"] = additional_text
 
-        if final_items:
-            st.write("**Final grocery list**")
-            list_text = "\n".join(final_items)
-            st.text_area("Copy-ready list", value=list_text, height=300)
-        elif not excluded:
-            st.warning("No grocery items found.")
+    _, final_items = _compute_grocery_drafts(items, readd, additional_text)
+
+    if final_items or meal_names:
+        db = get_db()
+        meals = _meal_entries_with_links(db, meal_names)
+        list_text = format_meals_and_grocery_list(meals, final_items)
+        col_copy, col_download = st.columns(2)
+        with col_copy:
+            _render_copy_button(list_text, label="Copy plan", key="grocery_copy")
+        with col_download:
+            st.download_button(
+                "Download",
+                data=list_text,
+                file_name="weekly_plan.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+        st.text_area(
+            "Your plan",
+            value=list_text,
+            height=320,
+            label_visibility="collapsed",
+            key="grocery_final_list",
+        )
+    elif not excluded and not meal_names:
+        st.warning("No grocery items found.")
+
+    if st.button("Edit meals", key="grocery_edit_meals"):
+        st.session_state.pop("grocery_result", None)
+        st.rerun()
 
 
 if __name__ == "__main__":

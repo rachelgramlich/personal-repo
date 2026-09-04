@@ -14,6 +14,7 @@ from src.grocery_wizard.shopping.grocery_list import (
     _recipes_needing_backfill,
     build_grocery_list,
     format_grocery_item,
+    format_meals_and_grocery_list,
     match_excluded_items,
     parse_readd_excluded,
     run_grocery_list,
@@ -47,6 +48,37 @@ def pantry_file(tmp_path: Path) -> Path:
 )
 def test_format_grocery_item(name: str, amount: str | None, expected: str) -> None:
     assert format_grocery_item(name, amount) == expected
+
+
+def test_format_meals_and_grocery_list_includes_both_sections() -> None:
+    meals = [
+        ("Chicken Tikka", "https://example.com/tikka"),
+        ("Salad", None),
+    ]
+    grocery_items = ["onions", "chicken breast", "lettuce"]
+
+    text = format_meals_and_grocery_list(meals, grocery_items)
+
+    assert text == (
+        "Meals\n"
+        "- Chicken Tikka (https://example.com/tikka)\n"
+        "- Salad\n"
+        "\n"
+        "Grocery List\n"
+        "- lettuce\n"
+        "- onions\n"
+        "- chicken breast"
+    )
+
+
+def test_format_meals_and_grocery_list_empty_grocery_items() -> None:
+    text = format_meals_and_grocery_list([("Soup", "https://example.com/soup")], [])
+    assert text == (
+        "Meals\n"
+        "- Soup (https://example.com/soup)\n"
+        "\n"
+        "Grocery List"
+    )
 
 
 def test_build_grocery_list_excludes_pantry_by_default(pantry_file: Path) -> None:
@@ -102,8 +134,10 @@ def test_build_grocery_list_splits_compound_ingredients(tmp_path: Path) -> None:
     db.query_recipes.return_value = [
         _recipe(
             "Chana Masala",
-            "Naan bread and rice, to serve (optional)\n"
-            "Chopped fresh cilantro and lime wedges, for garnish (optional)",
+            "Naan bread\n"
+            "rice, to serve (optional)\n"
+            "Chopped fresh cilantro\n"
+            "lime wedges, for garnish (optional)",
         )
     ]
 
@@ -124,22 +158,22 @@ def test_build_grocery_list_splits_compound_ingredients(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "ingredient_line",
+    "ingredient_text",
     [
-        "cauliflower and rice",
-        "cauliflower & rice",
+        "cauliflower\nrice",
+        "cauliflower\nrice",
     ],
 )
 def test_build_grocery_list_splits_cauliflower_and_rice(
     tmp_path: Path,
-    ingredient_line: str,
+    ingredient_text: str,
 ) -> None:
     pantry_path = tmp_path / "pantry.txt"
     pantry_path.write_text("rice\n", encoding="utf-8")
 
     db = MagicMock()
     db.query_recipes.return_value = [
-        _recipe("Stir Fry", ingredient_line),
+        _recipe("Stir Fry", "cauliflower\nrice"),
     ]
 
     items, excluded, _sync = build_grocery_list(
@@ -213,6 +247,10 @@ def test_run_grocery_list_interactive_flow_order(
     inputs = iter(["", "eggs", "", ""])
     with (
         patch("src.grocery_wizard.shopping.grocery_list.input", side_effect=inputs),
+        patch(
+            "src.grocery_wizard.shopping.grocery_list.prompt_recurring_weekly_items",
+            return_value=[],
+        ),
         patch("src.grocery_wizard.shopping.grocery_list._prompt_staples", return_value=["eggs"]),
         patch(
             "src.grocery_wizard.shopping.grocery_list._prompt_accept_or_edit",
@@ -240,7 +278,7 @@ def test_run_grocery_list_interactive_flow_order(
     assert "chicken breast" in output
 
 
-def test_sync_writes_full_ingredients_including_pantry() -> None:
+def test_sync_writes_prepared_ingredients() -> None:
     db = MagicMock()
     db.schema.ingredients_column = "Ingredients"
     recipe = Recipe(
@@ -250,19 +288,20 @@ def test_sync_writes_full_ingredients_including_pantry() -> None:
         ingredients=None,
         properties={},
     )
-    full_text = "2 tbsp olive oil\nkosher salt\n3 cloves garlic\n1 lb chicken"
+    raw_text = "2 sweet potatoes and 1 red onion\nsliced into half-moons"
 
     with patch(
         "src.grocery_wizard.ingredients.sync.scrape_ingredients_text",
-        return_value=full_text,
+        return_value=raw_text,
     ):
         result = sync_ingredients_for_recipe(db, recipe)
 
     assert result.status == "synced"
-    db.update_recipe.assert_called_once_with(
-        "p1",
-        {"Ingredients": full_text},
-    )
+    db.update_recipe.assert_called_once()
+    written = db.update_recipe.call_args[0][1]["Ingredients"]
+    assert "sweet potatoes" in written
+    assert "red onion" in written
+    assert "half-moons" not in written
 
 
 def test_match_excluded_items_substring() -> None:
@@ -320,6 +359,55 @@ def test_run_grocery_list_quiet_skips_excluded_display(
     assert code == 0
     output = capsys.readouterr().out
     assert "Excluded staples" not in output
+
+
+def test_run_grocery_list_quiet_includes_recurring_weekly_items_by_default(
+    pantry_file: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Test Recipe", "1 lb chicken breast"),
+    ]
+    week_plan = pantry_file.parent / "week_plan.json"
+    week_plan.write_text('{"recipes": ["Test Recipe"]}', encoding="utf-8")
+
+    with patch("src.grocery_wizard.shopping.grocery_list._prompt_staples", return_value=[]):
+        code = run_grocery_list(
+            db,
+            quiet=True,
+            week_plan_path=week_plan,
+            pantry_path=pantry_file,
+            recurring_weekly_items=["milk"],
+        )
+
+    assert code == 0
+    assert "milk" in capsys.readouterr().out
+
+
+def test_run_grocery_list_quiet_can_skip_recurring_weekly_items(
+    pantry_file: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Test Recipe", "1 lb chicken breast"),
+    ]
+    week_plan = pantry_file.parent / "week_plan.json"
+    week_plan.write_text('{"recipes": ["Test Recipe"]}', encoding="utf-8")
+
+    with patch("src.grocery_wizard.shopping.grocery_list._prompt_staples", return_value=[]):
+        code = run_grocery_list(
+            db,
+            quiet=True,
+            include_recurring_weekly_items=False,
+            recurring_weekly_items=["milk"],
+            week_plan_path=week_plan,
+            pantry_path=pantry_file,
+        )
+
+    assert code == 0
+    assert "milk" not in capsys.readouterr().out
 
 
 def test_load_week_plan_names_falls_back_to_legacy_path(tmp_path: Path, monkeypatch) -> None:
@@ -404,6 +492,49 @@ def test_build_grocery_list_only_syncs_empty_recipes(tmp_path: Path) -> None:
     assert captured[0].name == "Empty"
 
 
+def test_build_grocery_list_splits_title_bleed(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Chimichurri Chicken", "chimichurri zucchini orzo"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Chimichurri Chicken"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert "chimichurri" in items
+    assert "zucchini" in items
+    assert "orzo" in items
+    assert "chimichurri zucchini orzo" not in items
+
+
+def test_build_grocery_list_aggregates_fractional_limes(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Recipe A", "1 lime, cut into wedges"),
+        _recipe("Recipe B", "1/2 lime"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Recipe A", "Recipe B"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert "2 limes" in items
+    assert len([item for item in items if "lime" in item.lower()]) == 1
+
+
 def test_build_grocery_list_shows_amounts(tmp_path: Path) -> None:
     """Amounts parsed from ingredient lines appear in the grocery list."""
     pantry_path = tmp_path / "pantry.txt"
@@ -465,3 +596,102 @@ def test_build_grocery_list_no_amount_fallback(tmp_path: Path) -> None:
     )
 
     assert "chicken breast" in items
+
+
+def test_build_grocery_list_includes_recurring_weekly_items(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Soup", "1 lb chicken breast"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Soup"],
+        pantry_path=pantry_path,
+        recurring_weekly_items=["berries", "bananas", "milk"],
+        include_recurring_weekly_items=True,
+    )
+
+    assert "berries" in items
+    assert "bananas" in items
+    assert "milk" in items
+
+
+def test_build_grocery_list_skips_duplicate_recurring_weekly_items(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Soup", "2 cups milk"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Soup"],
+        pantry_path=pantry_path,
+        recurring_weekly_items=["milk"],
+        include_recurring_weekly_items=True,
+    )
+
+    assert len([item for item in items if "milk" in item.lower()]) == 1
+
+
+def test_build_grocery_list_skips_duplicate_recurring_banana_plural(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Smoothie", "2 bananas"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Smoothie"],
+        pantry_path=pantry_path,
+        recurring_weekly_items=["bananas"],
+        include_recurring_weekly_items=True,
+    )
+
+    assert len([item for item in items if "banana" in item.lower()]) == 1
+
+
+def test_print_grocery_list_has_no_aisle_headers(capsys: pytest.CaptureFixture[str]) -> None:
+    from src.grocery_wizard.shopping.grocery_list import _print_grocery_list
+
+    _print_grocery_list(["eggs", "onions", "bananas"], heading=None)
+
+    output = capsys.readouterr().out
+    assert "Fruit" not in output
+    assert "Vegetables" not in output
+    assert "====" not in output
+    assert "----" not in output
+    assert output.strip().splitlines() == ["bananas", "onions", "eggs"]
+
+
+def test_build_grocery_list_consolidates_lemon_variants(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe(
+            "Lemon Dish",
+            "juice of half a lemon\n1 lemon\nzest of 1 lemon",
+        )
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Lemon Dish"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    lemon_items = [item for item in items if "lemon" in item.lower()]
+    assert len(lemon_items) == 1
+    assert lemon_items[0] == "3 lemons"

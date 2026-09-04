@@ -101,6 +101,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Don't exclude pantry staples (salt, oil, etc.) from the list",
     )
+    grocery_parser.add_argument(
+        "--no-recurring-weekly-items",
+        action="store_true",
+        help="Omit recurring weekly items (berries, milk, etc.) from the list",
+    )
     grocery_parser.set_defaults(func=cmd_grocery)
 
     pantry_parser = subparsers.add_parser(
@@ -173,6 +178,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     refresh_parser.set_defaults(func=cmd_dev_refresh_all)
 
+    reformat_parser = dev_subparsers.add_parser(
+        "reformat-ingredients",
+        help="Clean up stored ingredient text (split compounds, drop junk)",
+    )
+    reformat_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would change without writing to Notion",
+    )
+    reformat_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show ingredient lines for each recipe",
+    )
+    reformat_parser.set_defaults(func=cmd_dev_reformat)
+
     audit_parser = dev_subparsers.add_parser(
         "audit-recipes",
         help="Show which recipes need attention",
@@ -190,6 +211,33 @@ def main(argv: list[str] | None = None) -> int:
         help="Show feedback collected from production commands",
     )
     list_feedback_parser.set_defaults(func=cmd_dev_list_feedback)
+
+    validate_pipeline_parser = dev_subparsers.add_parser(
+        "validate-pipeline",
+        help="Run Notion → meal plan → grocery list validation report",
+    )
+    validate_pipeline_parser.add_argument(
+        "--seeds",
+        default="1,2,3",
+        help="Comma-separated random seeds for suggest_meals (default: 1,2,3)",
+    )
+    validate_pipeline_parser.add_argument(
+        "--meals",
+        type=int,
+        default=None,
+        help="Meal count when no saved week plan exists (default: from config)",
+    )
+    validate_pipeline_parser.add_argument(
+        "--output",
+        default="tests/fixtures/pipeline_validation_report.txt",
+        help="Where to write the report (default: tests/fixtures/pipeline_validation_report.txt)",
+    )
+    validate_pipeline_parser.add_argument(
+        "--suggest-meals",
+        action="store_true",
+        help="Ignore saved week plan and use suggest_meals with --seeds",
+    )
+    validate_pipeline_parser.set_defaults(func=cmd_dev_validate_pipeline)
 
     nyt_parser = subparsers.add_parser(
         "nyt",
@@ -311,6 +359,7 @@ def cmd_grocery(args: argparse.Namespace) -> int:
         quiet=args.quiet,
         backfill_missing=args.backfill_missing,
         exclude_pantry=not args.include_staples,
+        include_recurring_weekly_items=not args.no_recurring_weekly_items,
     )
 
 
@@ -467,6 +516,12 @@ def cmd_dev_refresh_all(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dev_reformat(args: argparse.Namespace) -> int:
+    """Re-run ingest cleanup on stored Notion ingredients without re-scraping."""
+    args.split_only = True
+    return cmd_dev_refresh_all(args)
+
+
 def cmd_dev_audit(_args: argparse.Namespace) -> int:
     from src.grocery_wizard.dev.audit import audit_recipes, format_audit_report
 
@@ -481,6 +536,38 @@ def cmd_dev_list_feedback(_args: argparse.Namespace) -> int:
     from src.grocery_wizard.lib.feedback import list_feedback
 
     print(list_feedback())
+    return 0
+
+
+def cmd_dev_validate_pipeline(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from src.grocery_wizard.dev.validate_pipeline import (
+        format_pipeline_report,
+        run_pipeline_validation,
+    )
+
+    config = load_config()
+    db = NotionRecipesDB(config)
+
+    seed_values: list[int | None]
+    if args.seeds.strip().lower() in ("none", "saved"):
+        seed_values = [None]
+    else:
+        seed_values = [int(part.strip()) for part in args.seeds.split(",") if part.strip()]
+
+    output_path = Path(args.output)
+    report = run_pipeline_validation(
+        db,
+        meals=args.meals,
+        seeds=seed_values,
+        use_saved_week_plan=not args.suggest_meals,
+    )
+    text = format_pipeline_report(report)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(text, encoding="utf-8")
+    print(text)
+    print(f"\nReport saved to {output_path}")
     return 0
 
 

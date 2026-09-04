@@ -11,6 +11,7 @@ from src.grocery_wizard.ingredients.sync import (
     merge_ingredients,
     parse_ingredients_text,
     parse_removal_target,
+    prepare_ingredients_for_notion,
     recipe_needs_merge,
     recipe_needs_sync,
     refresh_ingredients_for_recipe,
@@ -68,6 +69,48 @@ def test_is_directive() -> None:
     assert is_directive("remove: pepper")
     assert is_directive("# comment")
     assert not is_directive("2 cups rice")
+
+
+def test_prepare_ingredients_for_notion_strips_trailing_prep() -> None:
+    text = "2 small yellow onions, sliced 1/4 inch thick lengthwise"
+    prepared = prepare_ingredients_for_notion(text)
+    assert prepared == "2 small yellow onions"
+
+
+def test_prepare_ingredients_for_notion_splits_and_drops_junk() -> None:
+    text = "2 sweet potatoes and 1 red onion\n" "sliced into half-moons\n" "remove: garlic\n"
+    prepared = prepare_ingredients_for_notion(text)
+    lines = [line for line in prepared.splitlines() if line.strip()]
+    assert any("sweet potatoes" in line for line in lines)
+    assert any("red onion" in line for line in lines)
+    assert "remove: garlic" in lines
+    assert not any("half-moons" in line for line in lines)
+
+
+def test_prepare_ingredients_for_notion_drops_instructions_and_metadata() -> None:
+    text = (
+        "Recipe serves 2\n"
+        "2 tablespoons olive oil\n"
+        "1.\tHeat the olive oil\n"
+        "stir to combine."
+    )
+    prepared = prepare_ingredients_for_notion(text)
+    lines = prepared.splitlines()
+    assert lines == ["2 tablespoons olive oil"]
+
+
+def test_prepare_ingredients_for_notion_repairs_mangled_lines() -> None:
+    text = (
+        "2 pounds Idaho Burbank Russets2 Tablespoons scallions, finely mincedSalt\n"
+        "fresh black pepper1/4 cup chicken stock"
+    )
+    prepared = prepare_ingredients_for_notion(text)
+    lines = prepared.splitlines()
+    assert "2 pounds Idaho Burbank Russets" in lines
+    assert any("scallions" in line for line in lines)
+    assert "Salt" in lines
+    assert "fresh black pepper" in lines
+    assert any("chicken stock" in line for line in lines)
 
 
 def test_merge_keeps_notion_additions_not_in_scrape() -> None:
@@ -163,3 +206,40 @@ def test_refresh_ingredients_skips_without_link(monkeypatch: pytest.MonkeyPatch)
     result = refresh_ingredients_for_recipe(FakeDB(), recipe)
     assert result.status == "skipped"
     assert result.message == "no link"
+
+
+def test_notion_fixture_prepare(notion_case: dict) -> None:
+    """Notion-derived lines: prepare_ingredients_for_notion matches fixture expectations."""
+    raw = notion_case["raw_line"]
+    expected = notion_case["expect_after_prepare"]
+    result = prepare_ingredients_for_notion(raw)
+
+    if expected is None:
+        assert result == raw.strip()
+    else:
+        assert result == expected
+
+
+def test_notion_fixture_preserves_removal_directives(notion_case: dict) -> None:
+    if notion_case.get("notes") != "removal directive":
+        pytest.skip("removal directive case only")
+    prepared = prepare_ingredients_for_notion(notion_case["raw_line"])
+    assert "remove: garlic" in prepared.splitlines()
+
+
+def test_backfill_preserves_manual_substitution_notes() -> None:
+    """Reformat must not drop manual substitution / note lines from real recipes."""
+    text = (
+        "2 cans (15 oz each) black beans, rinsed\n"
+        "1 chicken bouillon cube (or substitute 2 cups chicken broth for the water bouillon)\n"
+        "5 oz fresh spinach (or frozen, see notes below)\n"
+        "Salt, to taste\n"
+        "1 tablespoon plain Greek yogurt (optional)\n"
+        "remove: salt\n"
+    )
+    prepared = prepare_ingredients_for_notion(text)
+    lines = prepared.splitlines()
+    assert any("bouillon" in line for line in lines)
+    assert any("see notes" in line for line in lines)
+    assert any("to taste" in line.lower() for line in lines)
+    assert any(line.startswith("remove:") for line in lines)

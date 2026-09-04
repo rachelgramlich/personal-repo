@@ -9,20 +9,26 @@ from pathlib import Path
 
 from src.grocery_wizard.config import LEGACY_WEEK_PLAN_PATH, WEEK_PLAN_PATH
 from src.grocery_wizard.ingredients.normalize import (
-    _normalize_unicode_dashes,
     aggregate_amounts,
     expand_ingredient_line,
-    is_junk_ingredient,
+    normalize_ingredient,
     parse_amount,
+    should_show_amount,
 )
 from src.grocery_wizard.ingredients.sync import (
     SyncSummary,
+    parse_ingredients_text,
     recipe_needs_empty_sync,
     run_sync_recipes,
 )
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
 from src.grocery_wizard.recipes.scraper import scrape_recipe
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
+from src.grocery_wizard.shopping.recurring_weekly_items import prompt_recurring_weekly_items
+from src.grocery_wizard.shopping.store_aisles import (
+    ingredient_name,
+    sort_grocery_items,
+)
 
 
 def run_grocery_list(
@@ -34,6 +40,9 @@ def run_grocery_list(
     staples: list[str] | None = None,
     week_plan_path: Path = WEEK_PLAN_PATH,
     pantry_path: Path | None = None,
+    recurring_weekly_items_path: Path | None = None,
+    recurring_weekly_items: list[str] | None = None,
+    include_recurring_weekly_items: bool = True,
     exclude_pantry: bool = True,
 ) -> int:
     """Generate a merged grocery list from week plan or explicit recipe names."""
@@ -98,7 +107,15 @@ def run_grocery_list(
                     grocery_items.append(item)
                     existing.add(item.lower())
 
-        grocery_items.sort(key=str.lower)
+        recurring = _resolve_recurring_weekly_items(
+            recurring_weekly_items=recurring_weekly_items,
+            recurring_weekly_items_path=recurring_weekly_items_path,
+            include=include_recurring_weekly_items,
+            interactive=True,
+        )
+        _append_unique_items(grocery_items, seen, recurring)
+
+        grocery_items = sort_grocery_items(grocery_items)
         _print_grocery_list(grocery_items, heading="Draft grocery list")
 
         extra_staples = staples if staples is not None else _prompt_staples()
@@ -108,17 +125,24 @@ def run_grocery_list(
                 seen.add(key)
                 grocery_items.append(staple)
 
-        grocery_items.sort(key=str.lower)
+        grocery_items = sort_grocery_items(grocery_items)
         _print_grocery_list(grocery_items, heading="Grocery list")
         grocery_items = _prompt_accept_or_edit(grocery_items)
         _print_grocery_list(grocery_items, heading="Final grocery list")
     else:
+        recurring = _resolve_recurring_weekly_items(
+            recurring_weekly_items=recurring_weekly_items,
+            recurring_weekly_items_path=recurring_weekly_items_path,
+            include=include_recurring_weekly_items,
+            interactive=False,
+        )
+        _append_unique_items(grocery_items, seen, recurring)
         for staple in staples or []:
             key = staple.lower()
             if key not in seen:
                 seen.add(key)
                 grocery_items.append(staple)
-        grocery_items.sort(key=str.lower)
+        grocery_items = sort_grocery_items(grocery_items)
         _print_grocery_list(grocery_items)
 
     return 0
@@ -132,6 +156,9 @@ def build_grocery_list(
     staples: list[str] | None = None,
     week_plan_path: Path = WEEK_PLAN_PATH,
     pantry_path: Path | None = None,
+    recurring_weekly_items_path: Path | None = None,
+    recurring_weekly_items: list[str] | None = None,
+    include_recurring_weekly_items: bool = False,
     exclude_pantry: bool = True,
 ) -> tuple[list[str], list[str], SyncSummary | None]:
     """Build grocery list items, excluded pantry items, and optional sync summary (for UI use)."""
@@ -175,7 +202,18 @@ def build_grocery_list(
             seen.add(key)
             grocery_items.append(staple)
 
-    grocery_items.sort(key=str.lower)
+    if include_recurring_weekly_items:
+        recurring = (
+            recurring_weekly_items
+            if recurring_weekly_items is not None
+            else prompt_recurring_weekly_items(
+                path=recurring_weekly_items_path,
+                interactive=False,
+            )
+        )
+        _append_unique_items(grocery_items, seen, recurring)
+
+    grocery_items = sort_grocery_items(grocery_items)
     excluded_pantry.sort(key=str.lower)
     return grocery_items, excluded_pantry, sync_summary
 
@@ -210,7 +248,7 @@ def _load_week_plan_names(path: Path) -> list[str]:
 
 def _get_ingredient_lines(recipe: Recipe) -> list[str]:
     if recipe.ingredients and recipe.ingredients.strip():
-        return _split_ingredient_text(recipe.ingredients)
+        return parse_ingredients_text(recipe.ingredients)[0]
 
     if recipe.link:
         print(
@@ -236,6 +274,74 @@ def format_grocery_item(name: str, amount: str | None) -> str:
     return f"{amount} {name}"
 
 
+def format_meals_and_grocery_list(
+    meals: list[tuple[str, str | None]],
+    grocery_items: list[str],
+) -> str:
+    """Format meals and grocery items as a single copy/pasteable block."""
+    lines = ["Meals"]
+    for name, link in meals:
+        if link:
+            lines.append(f"- {name} ({link})")
+        else:
+            lines.append(f"- {name}")
+
+    lines.append("")
+    lines.append("Grocery List")
+    for item in sort_grocery_items(grocery_items):
+        lines.append(f"- {item}")
+
+    return "\n".join(lines)
+
+
+def _resolve_recurring_weekly_items(
+    *,
+    recurring_weekly_items: list[str] | None,
+    recurring_weekly_items_path: Path | None,
+    include: bool,
+    interactive: bool,
+) -> list[str]:
+    if not include:
+        return []
+    if recurring_weekly_items is not None:
+        return recurring_weekly_items
+    return prompt_recurring_weekly_items(
+        path=recurring_weekly_items_path,
+        interactive=interactive,
+    )
+
+
+def _normalized_item_key(name: str) -> str:
+    return (normalize_ingredient(name) or name.strip()).lower()
+
+
+def _append_unique_items(
+    grocery_items: list[str],
+    seen: set[str],
+    new_items: list[str],
+) -> None:
+    """Add items that are not already present on the list or in *seen*."""
+    for item in new_items:
+        cleaned = item.strip()
+        if not cleaned:
+            continue
+        key = _normalized_item_key(cleaned)
+        if _item_already_present(cleaned, seen, grocery_items):
+            continue
+        seen.add(key)
+        grocery_items.append(cleaned)
+
+
+def _item_already_present(name: str, seen: set[str], grocery_items: list[str]) -> bool:
+    key = _normalized_item_key(name)
+    if key in seen:
+        return True
+    for item in grocery_items:
+        if _normalized_item_key(ingredient_name(item)) == key:
+            return True
+    return False
+
+
 def _collect_ingredient_line(
     line: str,
     *,
@@ -247,15 +353,14 @@ def _collect_ingredient_line(
     """Parse *line*, deduplicate by normalised name, and accumulate amounts.
 
     Pantry items are routed to *excluded_pantry* instead of *collected*.
-    Duplicate ingredient names across recipes have their amounts appended so
-    they can later be aggregated.
+    Ingredient lines are expected to be pre-cleaned at Notion ingest time.
     """
-    if is_junk_ingredient(line):
-        return
-    for piece in expand_ingredient_line(line):
-        normalized, amount = parse_amount(piece)
+    for part in expand_ingredient_line(line):
+        normalized, amount = parse_amount(part)
         if not normalized:
             continue
+        if not should_show_amount(amount, part):
+            amount = None
         if exclude_pantry and is_pantry_item(normalized, pantry):
             if normalized not in excluded_pantry:
                 excluded_pantry.append(normalized)
@@ -268,17 +373,8 @@ def _collect_ingredient_line(
 
 
 def _split_ingredient_text(text: str) -> list[str]:
-    lines: list[str] = []
-    for raw_line in text.splitlines():
-        line = _normalize_unicode_dashes(raw_line.strip())
-        if not line:
-            continue
-        if line.startswith(("- ", "* ", "• ")):
-            line = line[2:].strip()
-        elif len(line) > 1 and line[0] == "-" and line[1].isdigit():
-            line = line[1:].strip()
-        lines.append(line)
-    return lines
+    """Deprecated: use parse_ingredients_text from sync instead."""
+    return parse_ingredients_text(text)[0]
 
 
 def match_excluded_items(query: str, excluded: list[str]) -> list[str]:
@@ -330,7 +426,9 @@ def _print_grocery_list(items: list[str], *, heading: str | None = "Grocery list
         print()
         print(heading)
         print("=" * 40)
-    for item in items:
+
+    sorted_items = sort_grocery_items(items)
+    for item in sorted_items:
         print(item)
 
 
@@ -430,7 +528,7 @@ def _prompt_accept_or_edit(items: list[str]) -> list[str]:
             print("Paste your edited list (one per line, empty line when done):")
             edited = _prompt_staples()
             if edited:
-                return sorted(edited, key=str.lower)
+                return sort_grocery_items(edited)
             return items
 
         print("Press Enter to accept or type 'e' to edit.")

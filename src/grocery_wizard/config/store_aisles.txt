@@ -1,0 +1,329 @@
+# Store aisle walk order for grocery lists.
+# One keyword per line under each section header. Longer phrases should appear first.
+# Section headers: # --- aisle_id: Display label ---
+# Comment-only lines and blank lines are ignored.
+
+# --- fruit: Fruit ---
+berry
+berries
+banana
+bananas
+apple
+apples
+avocado
+avocados
+lime
+lemon
+lemons
+orange
+grape
+melon
+mango
+pineapple
+peach
+pear
+plum
+fruit
+strawberry
+blueberry
+raspberry
+
+# --- vegetables: Vegetables ---
+bell pepper
+sweet potato
+green onion
+bok choy
+brussels sprouts
+butternut squash
+spaghetti squash
+onion
+onions
+garlic
+shallot
+ginger
+cilantro
+parsley
+basil
+mint
+dill
+thyme
+rosemary
+sage
+chive
+tomato
+lettuce
+spinach
+kale
+arugula
+carrot
+celery
+cucumber
+cucumbers
+mini cucumber
+zucchini
+squash
+broccoli
+cauliflower
+mushroom
+potato
+jalapeño
+jalapeno
+serrano
+habanero
+corn
+peas
+bean sprouts
+cabbage
+fennel
+leek
+scallion
+scallions
+radish
+beet
+asparagus
+eggplant
+edamame
+chard
+herb
+salad greens
+greens
+
+# --- refrigerated: Refrigerated (cheese/tofu) ---
+goat cheese
+cream cheese
+parmesan
+mozzarella
+feta
+cheddar
+gruyere
+pecorino
+ricotta
+mascarpone
+provolone
+swiss cheese
+cheese
+tofu
+tempeh
+miso paste
+kimchi
+sauerkraut
+chimichurri
+
+# --- canned drinks: Canned drinks ---
+sparkling water
+ginger ale
+club soda
+la croix
+seltzer
+kombucha
+soda
+cola
+
+# --- dairy/eggs: Dairy & eggs ---
+sour cream
+heavy cream
+whipping cream
+half and half
+greek yogurt
+cottage cheese
+cream cheese
+milk
+yogurt
+egg
+eggs
+butter
+
+# --- meat/fish: Meat & fish ---
+sweet italian sausage
+italian sausage
+sausage links
+sausage
+chicken breast
+chicken thigh
+chicken wing
+chicken
+ground chicken
+ground beef
+ground turkey
+ground pork
+pork chop
+pork tenderloin
+pork shoulder
+bacon
+ham
+prosciutto
+salmon
+tuna
+cod
+halibut
+tilapia
+trout
+shrimp
+scallop
+crab
+lobster
+fish
+seafood
+meat
+turkey
+beef
+lamb
+steak
+poultry
+
+# --- bakery: Bakery ---
+english muffin
+hot dog bun
+hamburger bun
+dinner roll
+baguette
+tortilla
+pita
+naan
+bagel
+bread
+bun
+roll
+croissant
+
+# --- dry goods: Dry goods / cans / cereal / rice ---
+avocado oil
+olive oil
+vegetable oil
+canola oil
+sesame oil
+chicken broth
+beef broth
+vegetable broth
+chicken stock
+beef stock
+vegetable stock
+gochujang
+artichoke hearts
+coconut milk
+tomato paste
+tomato sauce
+diced tomatoes
+crushed tomatoes
+canned tomatoes
+white beans
+black beans
+kidney beans
+chickpeas
+garbanzo
+lentils
+split peas
+brown rice
+jasmine rice
+basmati rice
+wild rice
+rice
+quinoa
+couscous
+farro
+barley
+bulgur
+oats
+oatmeal
+cereal
+granola
+pasta
+spaghetti
+penne
+rigatoni
+fettuccine
+linguine
+orzo
+noodle
+noodles
+ramen
+tortellini
+ravioli
+broth
+stock
+beans
+seaweed
+canned
+
+# --- baking: Baking ---
+chocolate chips
+baking powder
+baking soda
+powdered sugar
+brown sugar
+granulated sugar
+all-purpose flour
+bread flour
+cake flour
+vanilla extract
+cocoa powder
+flour
+sugar
+cornstarch
+yeast
+honey
+maple syrup
+molasses
+
+# --- frozen: Frozen ---
+frozen peas
+frozen corn
+frozen berries
+ice cream
+frozen
+popsicle
+
+# --- crackers/cookies: Crackers & cookies ---
+graham cracker
+ritz cracker
+cookie
+cookies
+cracker
+crackers
+biscuit
+biscuits
+
+# --- coffee: Coffee & tea ---
+coffee beans
+coffee
+espresso
+tea
+matcha
+
+# --- nuts/dried fruit: Nuts & dried fruit ---
+dried cranberries
+dried apricot
+dried mango
+sun-dried tomato
+pine nut
+macadamia
+pistachio
+walnut
+almonds
+almond
+pecan
+cashew
+peanut
+hazelnut
+raisin
+raisins
+dates
+prune
+prunes
+dried fruit
+
+# --- snacks: Snacks ---
+potato chips
+tortilla chips
+pita chips
+popcorn
+pretzel
+pretzels
+trail mix
+granola bar
+protein bar
+chips
+snack
+
+# --- other: Other ---
+# Catch-all for unmatched items (no keywords).

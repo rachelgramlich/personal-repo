@@ -188,7 +188,8 @@ Same subfolders as source — e.g. `recipes/test_scraper.py` tests `recipes/scra
 uv run python -m src.grocery_wizard.cli <command>
 
 # Streamlit (secondary)
-uv run streamlit run src/grocery_wizard/ui/app.py
+just grocery-ui
+# or: uv run streamlit run src/grocery_wizard/ui/app.py
 ```
 
 ```
@@ -239,6 +240,8 @@ Committed config lives in the package; per-week data stays local:
 | Path | Committed? | Purpose |
 |------|------------|---------|
 | `src/grocery_wizard/config/pantry.txt` | yes | Pantry staples excluded from grocery lists |
+| `src/grocery_wizard/config/recurring_weekly_items.txt` | yes | Items added to every grocery list |
+| `src/grocery_wizard/config/store_aisles.txt` | yes | Store walk order, aisle labels, and ingredient keywords |
 | `src/grocery_wizard/config/__init__.py` | yes | Env vars, Notion IDs, file paths |
 | `.local/grocery_wizard/week_plan.json` | no | This week's planned recipes |
 
@@ -253,13 +256,35 @@ Committed config lives in the package; per-week data stays local:
 
 Matching uses phrase boundaries: `kosher salt` matches pantry item `salt`, but `beef` does not match `beef stock`.
 
+## Recurring weekly items
+
+`config/recurring_weekly_items.txt` lists items added every week (berries, bananas, milk, etc.). During `create-grocery-list`, you can accept, edit, or skip them for the current week — and optionally save edits back to the config file for future weeks.
+
+## Grocery list aisle order
+
+`create-grocery-list` sorts items by store walk order and prints aisle section headers. Edit `src/grocery_wizard/config/store_aisles.txt` to change walk order, labels, or keywords — same section-header style as `pantry.txt`:
+
+```text
+# --- fruit: Fruit ---
+banana
+berries
+
+# --- vegetables: Vegetables ---
+onion
+garlic
+...
+```
+
+Unmatched items land in **Other** (always last). Longer keyword phrases win over shorter ones (`potato chips` → snacks, not produce).
+
 ## Streamlit UI
 
 ```shell
-uv run streamlit run src/grocery_wizard/ui/app.py
+just grocery-ui
+# or: uv run streamlit run src/grocery_wizard/ui/app.py
 ```
 
-Tabs: Add Recipe, Sync Ingredients, Plan Meals (stub), Grocery List.
+Tabs: Add Recipe, Plan Meals, Grocery List.
 
 ## Supported recipe sources
 

@@ -10,6 +10,8 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup, Tag
 
+from src.grocery_wizard.ingredients.normalize import drop_junk_ingredient_lines
+
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
@@ -604,8 +606,8 @@ def _normalize_ingredient_lines(lines: list[str]) -> list[str]:
     if _looks_fragmented(lines):
         joined = _join_fragmented_lines(lines)
         if joined:
-            return joined
-    return lines
+            return drop_junk_ingredient_lines(joined)
+    return drop_junk_ingredient_lines(lines)
 
 
 def _looks_fragmented(lines: list[str]) -> bool:
