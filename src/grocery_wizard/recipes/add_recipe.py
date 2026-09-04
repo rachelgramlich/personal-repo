@@ -5,10 +5,13 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
 
 from src.grocery_wizard.ingredients.sync import prepare_ingredients_for_notion
-from src.grocery_wizard.integrations.notion import NotionRecipesDB
+from src.grocery_wizard.integrations.notion import (
+    DatabaseSchema,
+    NotionFieldValues,
+    NotionRecipesDB,
+)
 from src.grocery_wizard.lib.prompts import confirm_no_default
 from src.grocery_wizard.recipes.classify import classify_recipe
 from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text, scrape_recipe
@@ -20,7 +23,7 @@ class PrefetchedCreateResult:
     page_id: str
     name: str
     url: str
-    field_values: dict[str, Any]
+    field_values: NotionFieldValues
 
 
 def add_prefetched_recipes(
@@ -64,7 +67,7 @@ def add_prefetched_recipes(
             weeknight_column=weeknight_column,
         )
 
-        field_values: dict[str, Any] = {
+        field_values: NotionFieldValues = {
             schema.name_column: title,
             schema.link_column: url,
         }
@@ -154,7 +157,7 @@ def add_recipes_from_urls(
             weeknight_column=weeknight_column,
         )
 
-        field_values: dict[str, Any] = {
+        field_values: NotionFieldValues = {
             schema.name_column: scraped.title,
             schema.link_column: url,
         }
@@ -192,12 +195,12 @@ def add_recipes_from_urls(
 
 def _review_fields(
     db: NotionRecipesDB,
-    field_values: dict[str, Any],
+    field_values: NotionFieldValues,
     prompt_fn: Callable[[str], str],
     select_fn: Callable[[str, list[str], str | None], str | None],
-) -> dict[str, Any] | None:
+) -> NotionFieldValues | None:
     schema = db.schema
-    reviewed: dict[str, Any] = {}
+    reviewed: NotionFieldValues = {}
 
     ordered_fields = [schema.name_column, schema.link_column]
     if schema.ingredients_column:
@@ -252,7 +255,7 @@ def _review_fields(
 
 def _prompt_ingredients(
     field_name: str,
-    current: Any,
+    current: object,
     prompt_fn: Callable[[str], str],
 ) -> str | None:
     lines = _ingredients_to_lines(current)
@@ -292,7 +295,7 @@ def _read_multiline_ingredients(prompt_fn: Callable[[str], str], mode: str) -> s
     return ingredients_to_text(lines)
 
 
-def _ingredients_to_lines(value: Any) -> list[str]:
+def _ingredients_to_lines(value: object) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
@@ -349,7 +352,7 @@ def _prompt_multi_select(
 
 def _prompt_checkbox(
     field_name: str,
-    current: Any,
+    current: object,
     prompt_fn: Callable[[str], str],
 ) -> bool | None:
     current_label = "yes" if current else "no" if current is False else "(unset)"
@@ -366,7 +369,7 @@ def _prompt_checkbox(
         print("  Enter y, n, or Enter to keep.")
 
 
-def _format_value(value: Any) -> str:
+def _format_value(value: object) -> str:
     if value is None:
         return ""
     if isinstance(value, list):
@@ -374,7 +377,7 @@ def _format_value(value: Any) -> str:
     return str(value)
 
 
-def _weeknight_column_name(schema: Any) -> str | None:
+def _weeknight_column_name(schema: DatabaseSchema) -> str | None:
     if DEFAULT_WEEKNIGHT_COLUMN in schema.all_columns:
         return DEFAULT_WEEKNIGHT_COLUMN
     return None

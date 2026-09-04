@@ -21,7 +21,12 @@ from pathlib import Path
 from typing import Any
 
 from src.grocery_wizard.config import WEEK_PLAN_PATH
-from src.grocery_wizard.integrations.notion import ColumnInfo, NotionRecipesDB, Recipe
+from src.grocery_wizard.integrations.notion import (
+    ColumnInfo,
+    DatabaseSchema,
+    NotionRecipesDB,
+    Recipe,
+)
 from src.grocery_wizard.lib.prompts import confirm_yes_default, parse_yes_no
 
 DIVERSITY_COLUMNS = ("Protein", "Dinner Category", "Cuisine")
@@ -494,7 +499,7 @@ def _resolve_slot_interactive(
     *,
     accepted_names: set[str],
     rejected_names: set[str],
-    schema,
+    schema: DatabaseSchema,
     prompt_fn: Callable[[str], str],
     exclude_recipe: Recipe | None = None,
 ) -> Recipe | None:
@@ -550,7 +555,7 @@ def _review_plan_interactive(
     *,
     all_recipes: list[Recipe],
     rejected_names: set[str],
-    schema,
+    schema: DatabaseSchema,
     prompt_fn: Callable[[str], str],
 ) -> list[str]:
     """Let user regenerate individual slots before saving."""
@@ -596,7 +601,7 @@ def _review_plan_interactive(
 def _build_plan_interactive(
     pool: list[Recipe],
     meals: int,
-    schema,
+    schema: DatabaseSchema,
     prompt_fn: Callable[[str], str],
     *,
     start_slot: int = 1,
@@ -674,7 +679,7 @@ def _pick_from_list(
         print("  Invalid choice, try again.")
 
 
-def _print_recipe_summary(recipe: Recipe, schema) -> None:
+def _print_recipe_summary(recipe: Recipe, schema: DatabaseSchema) -> None:
     del schema  # suggestions show recipe name only
     print(f"Suggested: {recipe.name}")
 

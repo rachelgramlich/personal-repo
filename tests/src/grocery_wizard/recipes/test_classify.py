@@ -94,7 +94,9 @@ def test_meal_lunch_is_sandwich_only() -> None:
 
 def test_meal_salad_is_snack_side_not_dinner() -> None:
     assert (
-        classify_column("Meal", "Corn Salad With Mango and Halloumi", [], allowed_options=MEAL_OPTIONS)
+        classify_column(
+            "Meal", "Corn Salad With Mango and Halloumi", [], allowed_options=MEAL_OPTIONS
+        )
         == "Snack/Side"
     )
 
@@ -105,7 +107,9 @@ def test_meal_dessert_for_baking() -> None:
         == "Dessert"
     )
     assert (
-        classify_column("Meal", "Salted Chocolate Chunk Shortbread Cookies", [], allowed_options=MEAL_OPTIONS)
+        classify_column(
+            "Meal", "Salted Chocolate Chunk Shortbread Cookies", [], allowed_options=MEAL_OPTIONS
+        )
         == "Dessert"
     )
 
@@ -115,10 +119,7 @@ def test_meal_savory_pie_stays_dinner() -> None:
         classify_column("Meal", "Skillet Chicken Potpie", [], allowed_options=MEAL_OPTIONS)
         == "Dinner"
     )
-    assert (
-        classify_column("Meal", "Samosa Pie", [], allowed_options=MEAL_OPTIONS)
-        == "Dinner"
-    )
+    assert classify_column("Meal", "Samosa Pie", [], allowed_options=MEAL_OPTIONS) == "Dinner"
 
 
 def test_meal_snack_side_alias_for_legacy_snack_option() -> None:

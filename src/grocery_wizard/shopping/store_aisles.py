@@ -88,8 +88,7 @@ def load_store_aisles(path: str | None = None) -> StoreAisleConfig:
 
     if not resolved.exists():
         print(
-            f"Warning: store aisle config not found ({resolved}); "
-            "items will appear under Other.",
+            f"Warning: store aisle config not found ({resolved}); items will appear under Other.",
             file=sys.stderr,
         )
 

@@ -97,9 +97,7 @@ def test_parse_recipe_payload() -> None:
             "name": "Simple Pasta",
             "url": "/recipes/1019049-simple-pasta",
             "byline": "sam sifton",
-            "parts": [
-                {"ingredients": [{"display_quantity": "8 oz", "display_text": "spaghetti"}]}
-            ],
+            "parts": [{"ingredients": [{"display_quantity": "8 oz", "display_text": "spaghetti"}]}],
         }
     )
     assert recipe.id == "1019049"
@@ -303,7 +301,10 @@ def test_sync_creates_missing_recipes(credentials: NytCredentials) -> None:
                 page_id="page-1",
                 name="Fresh Recipe",
                 url="https://cooking.nytimes.com/recipes/42-fresh",
-                field_values={"Name": "Fresh Recipe", "Link": "https://cooking.nytimes.com/recipes/42-fresh"},
+                field_values={
+                    "Name": "Fresh Recipe",
+                    "Link": "https://cooking.nytimes.com/recipes/42-fresh",
+                },
             )
         ],
     ) as add_mock:
@@ -410,15 +411,19 @@ def test_prompt_collection_choice_fallback_when_collections_unavailable(
 
 def test_prompt_collection_choice_cancelled(credentials: NytCredentials) -> None:
     client = NYTCookingClient(credentials, session=MagicMock())
-    with patch.object(
-        client,
-        "list_collections",
-        return_value=[NytCollection(id="1", name="Weeknight", recipe_count=2)],
-    ), patch.object(
-        client,
-        "list_saved_recipes",
-        return_value={"collectables": [], "collectables_count": 2},
-    ), pytest.raises(NytSyncCancelledError):
+    with (
+        patch.object(
+            client,
+            "list_collections",
+            return_value=[NytCollection(id="1", name="Weeknight", recipe_count=2)],
+        ),
+        patch.object(
+            client,
+            "list_saved_recipes",
+            return_value={"collectables": [], "collectables_count": 2},
+        ),
+        pytest.raises(NytSyncCancelledError),
+    ):
         prompt_collection_choice(client, prompt_fn=lambda _msg: "")
 
 
@@ -515,9 +520,7 @@ def test_cli_nyt_saved_lists_recipes(capsys: pytest.CaptureFixture[str]) -> None
             author="Chef",
         )
     ]
-    with patch(
-        "src.grocery_wizard.integrations.nyt_cooking.NYTCookingClient"
-    ) as client_cls:
+    with patch("src.grocery_wizard.integrations.nyt_cooking.NYTCookingClient") as client_cls:
         client_cls.return_value.iter_all_saved_recipes.return_value = iter(saved)
         code = cmd_nyt_saved(argparse_namespace(collection=None))
 
