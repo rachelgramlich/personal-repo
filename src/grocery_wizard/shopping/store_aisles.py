@@ -174,6 +174,21 @@ def _contains_word_phrase(haystack_words: list[str], needle_words: list[str]) ->
         return False
     width = len(needle_words)
     for index in range(len(haystack_words) - width + 1):
-        if haystack_words[index : index + width] == needle_words:
+        if all(
+            _word_matches(haystack_words[index + offset], needle_words[offset])
+            for offset in range(width)
+        ):
             return True
+    return False
+
+
+def _word_matches(haystack_word: str, needle_word: str) -> bool:
+    if haystack_word == needle_word:
+        return True
+    if haystack_word == needle_word + "s":
+        return True
+    if haystack_word == needle_word + "es":
+        return True
+    if needle_word.endswith("y") and haystack_word == needle_word[:-1] + "ies":
+        return True
     return False

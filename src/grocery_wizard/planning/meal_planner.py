@@ -211,6 +211,90 @@ def parse_meal_requests(raw: str) -> list[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 
+def _resolve_locked_by_names(
+    locked_names: list[str],
+    all_recipes: list[Recipe],
+) -> list[Recipe]:
+    """Resolve locked recipe names to Recipe objects, preserving order and skipping duplicates."""
+    recipe_by_name = {recipe.name: recipe for recipe in all_recipes}
+    locked: list[Recipe] = []
+    seen_ids: set[str] = set()
+    for name in locked_names:
+        recipe = recipe_by_name.get(name)
+        if recipe is None or recipe.page_id in seen_ids:
+            continue
+        locked.append(recipe)
+        seen_ids.add(recipe.page_id)
+    return locked
+
+
+def suggest_meals(
+    all_recipes: list[Recipe],
+    *,
+    meals: int,
+    locked_names: list[str] | None = None,
+    filters: MealPlanFilters | None = None,
+    schema_columns: dict[str, ColumnInfo],
+) -> list[str]:
+    """Suggest a meal plan: locked recipes first, then diverse auto-filled slots."""
+    active_filters = filters if filters is not None else default_filters(schema_columns)
+    locked_recipes = _resolve_locked_by_names(locked_names or [], all_recipes)[:meals]
+
+    full_pool = filter_recipes(all_recipes, active_filters, schema_columns)
+    locked_ids = {recipe.page_id for recipe in locked_recipes}
+    pool = [recipe for recipe in full_pool if recipe.page_id not in locked_ids]
+
+    remaining_slots = meals - len(locked_recipes)
+    suggested: list[str] = []
+    if remaining_slots > 0 and pool:
+        picked = select_diverse_meals(pool, remaining_slots)
+        suggested = [recipe.name for recipe in picked]
+
+    return [recipe.name for recipe in locked_recipes] + suggested
+
+
+def replace_meals_in_plan(
+    plan_names: list[str],
+    names_to_replace: list[str],
+    *,
+    all_recipes: list[Recipe],
+    pool: list[Recipe],
+    rejected_names: set[str] | None = None,
+) -> tuple[list[str], set[str]]:
+    """Swap named meals for diverse alternatives, tracking rejected names for the session."""
+    if not names_to_replace:
+        return list(plan_names), set(rejected_names or ())
+
+    recipe_by_name = {recipe.name: recipe for recipe in all_recipes}
+    updated = list(plan_names)
+    session_rejected = set(rejected_names or ())
+    replace_set = set(names_to_replace)
+
+    for index, name in enumerate(updated):
+        if name not in replace_set:
+            continue
+
+        session_rejected.add(name)
+        accepted_names = {plan_name for slot, plan_name in enumerate(updated) if slot != index}
+        plan_recipes = [
+            recipe_by_name[plan_name] for plan_name in accepted_names if plan_name in recipe_by_name
+        ]
+        candidates = eligible_suggestion_pool(pool, accepted_names, session_rejected)
+        old_recipe = recipe_by_name.get(name)
+        if old_recipe is not None:
+            without_old = [recipe for recipe in candidates if recipe.page_id != old_recipe.page_id]
+            if without_old:
+                candidates = without_old
+
+        if not candidates:
+            continue
+
+        replacement = pick_diverse_recipe(candidates, plan_recipes)
+        updated[index] = replacement.name
+
+    return updated, session_rejected
+
+
 def save_week_plan(recipe_names: list[str], path: Path = WEEK_PLAN_PATH) -> Path:
     """Persist finalized plan for grocery_list.py."""
     path.parent.mkdir(parents=True, exist_ok=True)

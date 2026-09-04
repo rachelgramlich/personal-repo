@@ -11,8 +11,10 @@ bananas
 apple
 apples
 avocado
+avocados
 lime
 lemon
+lemons
 orange
 grape
 melon
@@ -56,6 +58,8 @@ arugula
 carrot
 celery
 cucumber
+cucumbers
+mini cucumber
 zucchini
 squash
 broccoli
@@ -73,10 +77,12 @@ cabbage
 fennel
 leek
 scallion
+scallions
 radish
 beet
 asparagus
 eggplant
+edamame
 chard
 herb
 salad greens
@@ -126,6 +132,43 @@ egg
 eggs
 butter
 
+# --- meat/fish: Meat & fish ---
+sweet italian sausage
+italian sausage
+sausage links
+sausage
+chicken breast
+chicken thigh
+chicken wing
+ground chicken
+ground beef
+ground turkey
+ground pork
+pork chop
+pork tenderloin
+pork shoulder
+bacon
+ham
+prosciutto
+salmon
+tuna
+cod
+halibut
+tilapia
+trout
+shrimp
+scallop
+crab
+lobster
+fish
+seafood
+meat
+turkey
+beef
+lamb
+steak
+poultry
+
 # --- bakery: Bakery ---
 english muffin
 hot dog bun
@@ -148,6 +191,8 @@ vegetable broth
 chicken stock
 beef stock
 vegetable stock
+gochujang
+artichoke hearts
 coconut milk
 tomato paste
 tomato sauce
@@ -190,6 +235,7 @@ ravioli
 broth
 stock
 beans
+seaweed
 canned
 
 # --- baking: Baking ---
