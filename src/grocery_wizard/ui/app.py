@@ -40,12 +40,13 @@ from src.grocery_wizard.shopping.grocery_list import (
     _load_week_plan_names,
     build_grocery_list,
     format_meals_and_grocery_list,
+    merge_grocery_items,
 )
+from src.grocery_wizard.shopping.line_items import parse_line_items
 from src.grocery_wizard.shopping.recurring_weekly_items import (
     load_recurring_weekly_items,
     write_recurring_weekly_items,
 )
-from src.grocery_wizard.shopping.store_aisles import sort_grocery_items
 
 
 def _meal_entries_with_links(
@@ -100,11 +101,8 @@ def _render_copy_button(text: str, *, label: str = "Copy list", key: str) -> Non
 
 
 def _parse_line_items(text: str) -> list[str]:
-    return [
-        line.strip().lstrip("-•* ").strip()
-        for line in text.splitlines()
-        if line.strip() and not line.strip().startswith("#")
-    ]
+    """Thin wrapper around the shared :func:`parse_line_items` helper."""
+    return parse_line_items(text)
 
 
 def _compute_grocery_drafts(
@@ -112,20 +110,8 @@ def _compute_grocery_drafts(
     readd: list[str],
     additional_text: str,
 ) -> tuple[list[str], list[str]]:
-    draft_items = list(items)
-    existing = {item.lower() for item in draft_items}
-    for item in readd:
-        if item.lower() not in existing:
-            draft_items.append(item)
-            existing.add(item.lower())
-    draft_items = sort_grocery_items(draft_items)
-
-    final_items = list(draft_items)
-    for item in _parse_line_items(additional_text):
-        if item.lower() not in existing:
-            final_items.append(item)
-            existing.add(item.lower())
-    final_items = sort_grocery_items(final_items)
+    draft_items = merge_grocery_items(items, readd)
+    final_items = merge_grocery_items(items, readd, _parse_line_items(additional_text))
     return draft_items, final_items
 
 
@@ -657,6 +643,12 @@ def _current_plan_names() -> list[str]:
     return _parse_line_items(st.session_state.get("plan_meals_text", "").replace(",", "\n"))
 
 
+def _clear_grocery_result() -> None:
+    """Remove the cached grocery result and its associated widget state."""
+    for key in ("grocery_result", "grocery_additional_items", "grocery_readd", "grocery_final_list"):
+        st.session_state.pop(key, None)
+
+
 def _invalidate_stale_grocery_result() -> None:
     """Drop cached grocery results when the meal plan has changed."""
     result = st.session_state.get("grocery_result")
@@ -666,17 +658,17 @@ def _invalidate_stale_grocery_result() -> None:
     current_plan = tuple(_current_plan_names())
     cached_plan = result.get("week_plan")
     if cached_plan is not None and cached_plan != current_plan:
-        st.session_state.pop("grocery_result", None)
+        _clear_grocery_result()
 
 
 def _run_grocery_list_generation(
     db: NotionRecipesDB,
     selected: list[str],
     *,
-    sync_first: bool,
     exclude_pantry: bool,
     recurring_text: str,
     default_recurring: list[str],
+    extra_items_text: str = "",
 ) -> bool:
     if not selected:
         st.warning("Add at least one meal to your plan.")
@@ -690,32 +682,31 @@ def _run_grocery_list_generation(
         )
 
     with st.spinner("Building grocery list..."):
-        items, excluded, sync_summary = build_grocery_list(
+        items, excluded, _sync_summary, missing_ingredients = build_grocery_list(
             db,
             recipe_names=selected,
-            backfill_missing=sync_first,
             exclude_pantry=exclude_pantry,
             recurring_weekly_items=recurring_weekly_items,
             include_recurring_weekly_items=True,
         )
 
-    if sync_summary is not None and sync_summary.synced:
-        get_db.clear()
-
-    sync_failures: list[str] = []
-    if sync_summary is not None and sync_summary.failed:
-        sync_failures = list(sync_summary.failed)
-
-    if not items and not excluded:
-        st.warning("No grocery items found.")
+    if not items and not excluded and not _parse_line_items(extra_items_text):
+        if missing_ingredients:
+            st.warning(
+                "No grocery items found — all selected recipes are missing ingredients in Notion. "
+                f"Affected recipes: {', '.join(missing_ingredients)}. "
+                "Run `dev backfill-ingredients` to populate them from their links."
+            )
+        else:
+            st.warning("No grocery items found.")
         return False
 
     st.session_state.grocery_result = {
         "items": items,
         "excluded": excluded,
-        "sync_failures": sync_failures,
+        "missing_ingredients": missing_ingredients,
         "readd": [],
-        "additional_text": "",
+        "additional_text": extra_items_text,
         "source_recipes": tuple(selected),
         "week_plan": tuple(selected),
     }
@@ -787,7 +778,7 @@ def render_create_weekly_plan() -> None:
         )
         st.session_state.plan_meals_text = "\n".join(plan)
         st.session_state.plan_rejected_names = []
-        st.session_state.pop("grocery_result", None)
+        _clear_grocery_result()
         st.rerun()
 
     current_plan = _current_plan_names()
@@ -807,7 +798,7 @@ def render_create_weekly_plan() -> None:
                 ingredient_index=ingredient_index,
             )
             st.session_state.plan_meals_text = "\n".join(plan)
-            st.session_state.pop("grocery_result", None)
+            _clear_grocery_result()
             st.rerun()
 
         with st.expander("Swap or edit meals", expanded=False):
@@ -827,7 +818,7 @@ def render_create_weekly_plan() -> None:
                 )
                 st.session_state.plan_meals_text = "\n".join(new_plan)
                 st.session_state.plan_rejected_names = sorted(rejected)
-                st.session_state.pop("grocery_result", None)
+                _clear_grocery_result()
                 st.rerun()
 
             st.text_area(
@@ -848,28 +839,34 @@ def render_create_weekly_plan() -> None:
         return
 
     default_recurring = load_recurring_weekly_items()
-    sync_first = False
     exclude_pantry = True
     recurring_text = "\n".join(default_recurring)
 
     with st.expander("Grocery list options", expanded=False):
-        sync_first = st.checkbox("Sync ingredients first (scrape missing)")
         exclude_pantry = st.checkbox("Exclude pantry items", value=True)
         recurring_text = st.text_area(
             "Recurring weekly items (one per line)",
             value="\n".join(default_recurring),
             height=100,
         )
+        extra_items_text = st.text_area(
+            "Extra items (one per line)",
+            value="",
+            placeholder="milk\neggs\n- [ ] Flowers",
+            height=80,
+            key="grocery_pre_extra_items",
+        )
 
     if st.button("Create grocery list", type="primary", key="create_grocery"):
         save_week_plan(current_plan, WEEK_PLAN_PATH)
+        _clear_grocery_result()
         if _run_grocery_list_generation(
             db,
             current_plan,
-            sync_first=sync_first,
             exclude_pantry=exclude_pantry,
             recurring_text=recurring_text,
             default_recurring=default_recurring,
+            extra_items_text=extra_items_text,
         ):
             st.rerun()
 
@@ -878,11 +875,15 @@ def _render_grocery_result() -> None:
     result = st.session_state.grocery_result
     items: list[str] = result["items"]
     excluded: list[str] = result["excluded"]
-    sync_failures: list[str] = result.get("sync_failures", [])
+    missing_ingredients: list[str] = result.get("missing_ingredients", [])
     meal_names = list(result.get("week_plan") or result.get("source_recipes") or [])
 
-    for failure in sync_failures:
-        st.warning(f"Failed to scrape ingredients: {failure}")
+    if missing_ingredients:
+        st.warning(
+            f"Skipped {len(missing_ingredients)} recipe(s) with no ingredients in Notion: "
+            f"{', '.join(missing_ingredients)}. "
+            "Run `dev backfill-ingredients` to populate them from their links."
+        )
 
     readd: list[str] = []
     additional_text = result.get("additional_text", "")
@@ -935,7 +936,12 @@ def _render_grocery_result() -> None:
         st.warning("No grocery items found.")
 
     if st.button("Edit meals", key="grocery_edit_meals"):
-        st.session_state.pop("grocery_result", None)
+        _clear_grocery_result()
+        st.rerun()
+
+    if st.button("Update list", key="grocery_update_list"):
+        # Widget values are merged into result above; rerun refreshes copy/download output
+        # from cached base items + current customize settings (re-add, extras).
         st.rerun()
 
 

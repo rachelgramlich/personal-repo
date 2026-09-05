@@ -7,6 +7,8 @@ __all__ = [
     "format_grocery_item",
     "format_meals_and_grocery_list",
     "format_sync_message",
+    "merge_grocery_items",
+    "normalize_grocery_list_item",
     "run_grocery_list",
 ]
 
@@ -31,12 +33,14 @@ from src.grocery_wizard.ingredients.sync import (
     run_sync_recipes,
 )
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
-from src.grocery_wizard.recipes.scraper import scrape_recipe
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
 from src.grocery_wizard.shopping.recurring_weekly_items import prompt_recurring_weekly_items
 from src.grocery_wizard.shopping.store_aisles import (
+    aisle_label,
+    group_grocery_items_by_aisle,
     ingredient_name,
     sort_grocery_items,
+    strip_checklist_prefix,
 )
 
 
@@ -65,9 +69,9 @@ def run_grocery_list(
         return 1
 
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
-    if backfill_missing or _should_prompt_backfill(names, recipes_by_name):
+    if backfill_missing:
         needs_backfill = _recipes_needing_backfill(names, recipes_by_name)
-        if backfill_missing or _prompt_backfill(names, recipes_by_name):
+        if needs_backfill:
             summary = run_sync_recipes(db, needs_backfill)
             print(format_sync_message(summary))
             recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
@@ -86,7 +90,11 @@ def run_grocery_list(
 
         ingredient_lines = _get_ingredient_lines(recipe)
         if not ingredient_lines:
-            print(f"Warning: no ingredients for '{recipe.name}'", file=sys.stderr)
+            print(
+                f"Warning: skipping '{recipe.name}' — no ingredients in Notion. "
+                "Run `dev backfill-ingredients` to populate from the link.",
+                file=sys.stderr,
+            )
             continue
 
         for line in ingredient_lines:
@@ -110,11 +118,8 @@ def run_grocery_list(
         _print_excluded_summary(excluded_sorted)
         readded = _prompt_readd_excluded(excluded_sorted)
         if readded:
-            existing = {item.lower() for item in grocery_items}
-            for item in readded:
-                if item.lower() not in existing:
-                    grocery_items.append(item)
-                    existing.add(item.lower())
+            grocery_items = merge_grocery_items(grocery_items, readded)
+            seen.update(_normalized_item_key(item) for item in grocery_items)
 
         recurring = _resolve_recurring_weekly_items(
             recurring_weekly_items=recurring_weekly_items,
@@ -128,11 +133,7 @@ def run_grocery_list(
         _print_grocery_list(grocery_items, heading="Draft grocery list")
 
         extra_staples = staples if staples is not None else _prompt_staples()
-        for staple in extra_staples:
-            key = staple.lower()
-            if key not in seen:
-                seen.add(key)
-                grocery_items.append(staple)
+        _append_unique_items(grocery_items, seen, extra_staples)
 
         grocery_items = sort_grocery_items(grocery_items)
         _print_grocery_list(grocery_items, heading="Grocery list")
@@ -146,11 +147,7 @@ def run_grocery_list(
             interactive=False,
         )
         _append_unique_items(grocery_items, seen, recurring)
-        for staple in staples or []:
-            key = staple.lower()
-            if key not in seen:
-                seen.add(key)
-                grocery_items.append(staple)
+        _append_unique_items(grocery_items, seen, staples or [])
         grocery_items = sort_grocery_items(grocery_items)
         _print_grocery_list(grocery_items)
 
@@ -161,7 +158,6 @@ def build_grocery_list(
     db: NotionRecipesDB,
     *,
     recipe_names: list[str],
-    backfill_missing: bool = False,
     staples: list[str] | None = None,
     week_plan_path: Path = WEEK_PLAN_PATH,
     pantry_path: Path | None = None,
@@ -169,20 +165,20 @@ def build_grocery_list(
     recurring_weekly_items: list[str] | None = None,
     include_recurring_weekly_items: bool = False,
     exclude_pantry: bool = True,
-) -> tuple[list[str], list[str], SyncSummary | None]:
-    """Build grocery list items, excluded pantry items, and optional sync summary (for UI use)."""
+) -> tuple[list[str], list[str], None, list[str]]:
+    """Build grocery list items, excluded pantry items, and skipped recipe names (for UI use).
+
+    Reads ingredients exclusively from Notion — never scrapes. Recipes whose
+    Notion Ingredients field is empty are collected in the returned
+    ``missing_ingredients`` list so callers can surface a backfill hint.
+    """
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
-    sync_summary: SyncSummary | None = None
-    if backfill_missing:
-        needs_backfill = _recipes_needing_backfill(recipe_names, recipes_by_name)
-        if needs_backfill:
-            sync_summary = run_sync_recipes(db, needs_backfill)
-            recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
     pantry = load_pantry(pantry_path)
 
     # collected maps normalized_name_lower → (display_name, [amounts])
     collected: dict[str, tuple[str, list[str | None]]] = {}
     excluded_pantry: list[str] = []
+    missing_ingredients: list[str] = []
 
     for name in recipe_names:
         recipe = recipes_by_name.get(name.lower())
@@ -190,6 +186,10 @@ def build_grocery_list(
             continue
 
         ingredient_lines = _get_ingredient_lines(recipe)
+        if not ingredient_lines:
+            missing_ingredients.append(recipe.name)
+            continue
+
         for line in ingredient_lines:
             _collect_ingredient_line(
                 line,
@@ -206,10 +206,7 @@ def build_grocery_list(
     ]
 
     for staple in staples or []:
-        key = staple.lower()
-        if key not in seen:
-            seen.add(key)
-            grocery_items.append(staple)
+        _append_unique_items(grocery_items, seen, [staple])
 
     if include_recurring_weekly_items:
         recurring = (
@@ -224,7 +221,7 @@ def build_grocery_list(
 
     grocery_items = sort_grocery_items(grocery_items)
     excluded_pantry.sort(key=str.lower)
-    return grocery_items, excluded_pantry, sync_summary
+    return grocery_items, excluded_pantry, None, missing_ingredients
 
 
 def format_sync_message(summary: SyncSummary) -> str:
@@ -256,22 +253,6 @@ def _load_week_plan_names(path: Path) -> list[str]:
 def _get_ingredient_lines(recipe: Recipe) -> list[str]:
     if recipe.ingredients and recipe.ingredients.strip():
         return parse_ingredients_text(recipe.ingredients)[0]
-
-    if recipe.link:
-        print(
-            f"Warning: Ingredients empty for '{recipe.name}' — "
-            "scraping Link as fallback. Run `dev backfill-ingredients` to cache ingredients.",
-            file=sys.stderr,
-        )
-        try:
-            scraped = scrape_recipe(recipe.link)
-        except Exception as exc:
-            print(
-                f"Warning: failed to scrape '{recipe.name}' ({recipe.link}): {exc}",
-                file=sys.stderr,
-            )
-        else:
-            return scraped.ingredients
     return []
 
 
@@ -280,6 +261,42 @@ def format_grocery_item(name: str, amount: str | None) -> str:
     if amount is None:
         return name
     return f"{amount} {name}"
+
+
+def normalize_grocery_list_item(item: str) -> str:
+    """Normalize a raw grocery line for display, dedup, and aisle classification."""
+    cleaned = strip_checklist_prefix(item)
+    if not cleaned:
+        return ""
+    name, amount = parse_amount(cleaned)
+    if not name:
+        name = normalize_ingredient(cleaned) or cleaned.strip()
+        amount = None
+    else:
+        name = normalize_ingredient(name) or name
+    return format_grocery_item(name, amount)
+
+
+def merge_grocery_items(
+    *item_lists: list[str],
+    sort: bool = True,
+) -> list[str]:
+    """Merge grocery item lists, deduplicating on normalized keys."""
+    merged: list[str] = []
+    seen: set[str] = set()
+    for items in item_lists:
+        for raw in items:
+            normalized = normalize_grocery_list_item(raw)
+            if not normalized:
+                continue
+            key = _normalized_item_key(normalized)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(normalized)
+    if sort:
+        merged = sort_grocery_items(merged)
+    return merged
 
 
 def format_meals_and_grocery_list(
@@ -296,7 +313,12 @@ def format_meals_and_grocery_list(
 
     lines.append("")
     lines.append("Grocery List")
-    lines.extend(f"- {item}" for item in sort_grocery_items(grocery_items))
+
+    sorted_items = merge_grocery_items(grocery_items)
+    for aisle, aisle_items in group_grocery_items_by_aisle(sorted_items):
+        lines.append("")
+        lines.append(aisle_label(aisle))
+        lines.extend(f"- {item}" for item in aisle_items)
 
     return "\n".join(lines)
 
@@ -319,7 +341,8 @@ def _resolve_recurring_weekly_items(
 
 
 def _normalized_item_key(name: str) -> str:
-    return (normalize_ingredient(name) or name.strip()).lower()
+    cleaned = strip_checklist_prefix(name)
+    return (normalize_ingredient(cleaned) or ingredient_name(cleaned) or cleaned.strip()).lower()
 
 
 def _append_unique_items(
@@ -329,21 +352,18 @@ def _append_unique_items(
 ) -> None:
     """Add items that are not already present on the list or in *seen*."""
     for item in new_items:
-        cleaned = item.strip()
-        if not cleaned:
+        normalized = normalize_grocery_list_item(item)
+        if not normalized:
             continue
-        key = _normalized_item_key(cleaned)
-        if _item_already_present(cleaned, seen, grocery_items):
+        key = _normalized_item_key(normalized)
+        if key in seen or _item_already_present(key, grocery_items):
             continue
         seen.add(key)
-        grocery_items.append(cleaned)
+        grocery_items.append(normalized)
 
 
-def _item_already_present(name: str, seen: set[str], grocery_items: list[str]) -> bool:
-    key = _normalized_item_key(name)
-    if key in seen:
-        return True
-    return any(_normalized_item_key(ingredient_name(item)) == key for item in grocery_items)
+def _item_already_present(key: str, grocery_items: list[str]) -> bool:
+    return any(_normalized_item_key(existing) == key for existing in grocery_items)
 
 
 def _collect_ingredient_line(
