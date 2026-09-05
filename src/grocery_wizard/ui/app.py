@@ -40,6 +40,7 @@ from src.grocery_wizard.shopping.grocery_list import (
     build_grocery_list,
     format_meals_and_grocery_list,
 )
+from src.grocery_wizard.shopping.line_items import parse_line_items
 from src.grocery_wizard.shopping.recurring_weekly_items import (
     load_recurring_weekly_items,
     write_recurring_weekly_items,
@@ -99,11 +100,8 @@ def _render_copy_button(text: str, *, label: str = "Copy list", key: str) -> Non
 
 
 def _parse_line_items(text: str) -> list[str]:
-    return [
-        line.strip().lstrip("-•* ").strip()
-        for line in text.splitlines()
-        if line.strip() and not line.strip().startswith("#")
-    ]
+    """Thin wrapper around the shared :func:`parse_line_items` helper."""
+    return parse_line_items(text)
 
 
 def _compute_grocery_drafts(
@@ -610,6 +608,12 @@ def _current_plan_names() -> list[str]:
     return _parse_line_items(st.session_state.get("plan_meals_text", "").replace(",", "\n"))
 
 
+def _clear_grocery_result() -> None:
+    """Remove the cached grocery result and its associated widget state."""
+    for key in ("grocery_result", "grocery_additional_items", "grocery_readd", "grocery_final_list"):
+        st.session_state.pop(key, None)
+
+
 def _invalidate_stale_grocery_result() -> None:
     """Drop cached grocery results when the meal plan has changed."""
     result = st.session_state.get("grocery_result")
@@ -619,7 +623,7 @@ def _invalidate_stale_grocery_result() -> None:
     current_plan = tuple(_current_plan_names())
     cached_plan = result.get("week_plan")
     if cached_plan is not None and cached_plan != current_plan:
-        st.session_state.pop("grocery_result", None)
+        _clear_grocery_result()
 
 
 def _run_grocery_list_generation(
@@ -629,6 +633,7 @@ def _run_grocery_list_generation(
     exclude_pantry: bool,
     recurring_text: str,
     default_recurring: list[str],
+    extra_items_text: str = "",
 ) -> bool:
     if not selected:
         st.warning("Add at least one meal to your plan.")
@@ -650,7 +655,7 @@ def _run_grocery_list_generation(
             include_recurring_weekly_items=True,
         )
 
-    if not items and not excluded:
+    if not items and not excluded and not _parse_line_items(extra_items_text):
         if missing_ingredients:
             st.warning(
                 "No grocery items found — all selected recipes are missing ingredients in Notion. "
@@ -666,7 +671,7 @@ def _run_grocery_list_generation(
         "excluded": excluded,
         "missing_ingredients": missing_ingredients,
         "readd": [],
-        "additional_text": "",
+        "additional_text": extra_items_text,
         "source_recipes": tuple(selected),
         "week_plan": tuple(selected),
     }
@@ -726,7 +731,7 @@ def render_create_weekly_plan() -> None:
         )
         st.session_state.plan_meals_text = "\n".join(plan)
         st.session_state.plan_rejected_names = []
-        st.session_state.pop("grocery_result", None)
+        _clear_grocery_result()
         st.rerun()
 
     current_plan = _current_plan_names()
@@ -745,7 +750,7 @@ def render_create_weekly_plan() -> None:
                 rejected_names=rejected,
             )
             st.session_state.plan_meals_text = "\n".join(plan)
-            st.session_state.pop("grocery_result", None)
+            _clear_grocery_result()
             st.rerun()
 
         with st.expander("Swap or edit meals", expanded=False):
@@ -765,7 +770,7 @@ def render_create_weekly_plan() -> None:
                 )
                 st.session_state.plan_meals_text = "\n".join(new_plan)
                 st.session_state.plan_rejected_names = sorted(rejected)
-                st.session_state.pop("grocery_result", None)
+                _clear_grocery_result()
                 st.rerun()
 
             st.text_area(
@@ -796,15 +801,24 @@ def render_create_weekly_plan() -> None:
             value="\n".join(default_recurring),
             height=100,
         )
+        extra_items_text = st.text_area(
+            "Extra items (one per line)",
+            value="",
+            placeholder="milk\neggs\n- [ ] Flowers",
+            height=80,
+            key="grocery_pre_extra_items",
+        )
 
     if st.button("Create grocery list", type="primary", key="create_grocery"):
         save_week_plan(current_plan, WEEK_PLAN_PATH)
+        _clear_grocery_result()
         if _run_grocery_list_generation(
             db,
             current_plan,
             exclude_pantry=exclude_pantry,
             recurring_text=recurring_text,
             default_recurring=default_recurring,
+            extra_items_text=extra_items_text,
         ):
             st.rerun()
 
@@ -874,7 +888,12 @@ def _render_grocery_result() -> None:
         st.warning("No grocery items found.")
 
     if st.button("Edit meals", key="grocery_edit_meals"):
-        st.session_state.pop("grocery_result", None)
+        _clear_grocery_result()
+        st.rerun()
+
+    if st.button("Update list", key="grocery_update_list"):
+        # Widget values are merged into result above; rerun refreshes copy/download output
+        # from cached base items + current customize settings (re-add, extras).
         st.rerun()
 
 
