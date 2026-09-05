@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.grocery_wizard.shopping.grocery_list import format_meals_and_grocery_list
+from src.grocery_wizard.ui.app import _compute_grocery_drafts
+
 APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui" / "app.py"
 
 
@@ -40,3 +43,23 @@ st.text_area("display", key="display_key")
     at.button[0].click().run()
 
     assert at.text_area[0].value == "Value: 1"
+
+
+def test_user_flow_checklist_extras_strip_sort_dedupe() -> None:
+    """Simulate pasting Notion checklist extras through the UI display pipeline."""
+    extra_items_text = "- [ ] Bananas\n- [ ] Flowers\n- [ ] Bananas"
+    base_items = ["onions"]
+
+    _, final_items = _compute_grocery_drafts(base_items, [], extra_items_text)
+    list_text = format_meals_and_grocery_list([], final_items)
+
+    assert "[ ]" not in list_text
+    assert "[x]" not in list_text.lower()
+    assert list_text.lower().count("bananas") == 1
+    assert "flowers" in list_text.lower()
+    assert "onions" in list_text.lower()
+    # Store walk: flowers aisle before fruit (bananas) before vegetables (onions)
+    flowers_pos = list_text.lower().index("flowers")
+    bananas_pos = list_text.lower().index("bananas")
+    onions_pos = list_text.lower().index("onions")
+    assert flowers_pos < bananas_pos < onions_pos
