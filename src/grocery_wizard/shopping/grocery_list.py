@@ -7,6 +7,8 @@ __all__ = [
     "format_grocery_item",
     "format_meals_and_grocery_list",
     "format_sync_message",
+    "merge_grocery_items",
+    "normalize_grocery_list_item",
     "run_grocery_list",
 ]
 
@@ -34,8 +36,11 @@ from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
 from src.grocery_wizard.shopping.recurring_weekly_items import prompt_recurring_weekly_items
 from src.grocery_wizard.shopping.store_aisles import (
+    aisle_label,
+    group_grocery_items_by_aisle,
     ingredient_name,
     sort_grocery_items,
+    strip_checklist_prefix,
 )
 
 
@@ -113,11 +118,8 @@ def run_grocery_list(
         _print_excluded_summary(excluded_sorted)
         readded = _prompt_readd_excluded(excluded_sorted)
         if readded:
-            existing = {item.lower() for item in grocery_items}
-            for item in readded:
-                if item.lower() not in existing:
-                    grocery_items.append(item)
-                    existing.add(item.lower())
+            grocery_items = merge_grocery_items(grocery_items, readded)
+            seen.update(_normalized_item_key(item) for item in grocery_items)
 
         recurring = _resolve_recurring_weekly_items(
             recurring_weekly_items=recurring_weekly_items,
@@ -131,11 +133,7 @@ def run_grocery_list(
         _print_grocery_list(grocery_items, heading="Draft grocery list")
 
         extra_staples = staples if staples is not None else _prompt_staples()
-        for staple in extra_staples:
-            key = staple.lower()
-            if key not in seen:
-                seen.add(key)
-                grocery_items.append(staple)
+        _append_unique_items(grocery_items, seen, extra_staples)
 
         grocery_items = sort_grocery_items(grocery_items)
         _print_grocery_list(grocery_items, heading="Grocery list")
@@ -149,11 +147,7 @@ def run_grocery_list(
             interactive=False,
         )
         _append_unique_items(grocery_items, seen, recurring)
-        for staple in staples or []:
-            key = staple.lower()
-            if key not in seen:
-                seen.add(key)
-                grocery_items.append(staple)
+        _append_unique_items(grocery_items, seen, staples or [])
         grocery_items = sort_grocery_items(grocery_items)
         _print_grocery_list(grocery_items)
 
@@ -212,10 +206,7 @@ def build_grocery_list(
     ]
 
     for staple in staples or []:
-        key = staple.lower()
-        if key not in seen:
-            seen.add(key)
-            grocery_items.append(staple)
+        _append_unique_items(grocery_items, seen, [staple])
 
     if include_recurring_weekly_items:
         recurring = (
@@ -272,6 +263,42 @@ def format_grocery_item(name: str, amount: str | None) -> str:
     return f"{amount} {name}"
 
 
+def normalize_grocery_list_item(item: str) -> str:
+    """Normalize a raw grocery line for display, dedup, and aisle classification."""
+    cleaned = strip_checklist_prefix(item)
+    if not cleaned:
+        return ""
+    name, amount = parse_amount(cleaned)
+    if not name:
+        name = normalize_ingredient(cleaned) or cleaned.strip()
+        amount = None
+    else:
+        name = normalize_ingredient(name) or name
+    return format_grocery_item(name, amount)
+
+
+def merge_grocery_items(
+    *item_lists: list[str],
+    sort: bool = True,
+) -> list[str]:
+    """Merge grocery item lists, deduplicating on normalized keys."""
+    merged: list[str] = []
+    seen: set[str] = set()
+    for items in item_lists:
+        for raw in items:
+            normalized = normalize_grocery_list_item(raw)
+            if not normalized:
+                continue
+            key = _normalized_item_key(normalized)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(normalized)
+    if sort:
+        merged = sort_grocery_items(merged)
+    return merged
+
+
 def format_meals_and_grocery_list(
     meals: list[tuple[str, str | None]],
     grocery_items: list[str],
@@ -286,7 +313,12 @@ def format_meals_and_grocery_list(
 
     lines.append("")
     lines.append("Grocery List")
-    lines.extend(f"- {item}" for item in sort_grocery_items(grocery_items))
+
+    sorted_items = merge_grocery_items(grocery_items)
+    for aisle, aisle_items in group_grocery_items_by_aisle(sorted_items):
+        lines.append("")
+        lines.append(aisle_label(aisle))
+        lines.extend(f"- {item}" for item in aisle_items)
 
     return "\n".join(lines)
 
@@ -309,7 +341,8 @@ def _resolve_recurring_weekly_items(
 
 
 def _normalized_item_key(name: str) -> str:
-    return (normalize_ingredient(name) or name.strip()).lower()
+    cleaned = strip_checklist_prefix(name)
+    return (normalize_ingredient(cleaned) or ingredient_name(cleaned) or cleaned.strip()).lower()
 
 
 def _append_unique_items(
@@ -319,21 +352,18 @@ def _append_unique_items(
 ) -> None:
     """Add items that are not already present on the list or in *seen*."""
     for item in new_items:
-        cleaned = item.strip()
-        if not cleaned:
+        normalized = normalize_grocery_list_item(item)
+        if not normalized:
             continue
-        key = _normalized_item_key(cleaned)
-        if _item_already_present(cleaned, seen, grocery_items):
+        key = _normalized_item_key(normalized)
+        if key in seen or _item_already_present(key, grocery_items):
             continue
         seen.add(key)
-        grocery_items.append(cleaned)
+        grocery_items.append(normalized)
 
 
-def _item_already_present(name: str, seen: set[str], grocery_items: list[str]) -> bool:
-    key = _normalized_item_key(name)
-    if key in seen:
-        return True
-    return any(_normalized_item_key(ingredient_name(item)) == key for item in grocery_items)
+def _item_already_present(key: str, grocery_items: list[str]) -> bool:
+    return any(_normalized_item_key(existing) == key for existing in grocery_items)
 
 
 def _collect_ingredient_line(

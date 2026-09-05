@@ -39,13 +39,13 @@ from src.grocery_wizard.shopping.grocery_list import (
     _load_week_plan_names,
     build_grocery_list,
     format_meals_and_grocery_list,
+    merge_grocery_items,
 )
 from src.grocery_wizard.shopping.line_items import parse_line_items
 from src.grocery_wizard.shopping.recurring_weekly_items import (
     load_recurring_weekly_items,
     write_recurring_weekly_items,
 )
-from src.grocery_wizard.shopping.store_aisles import sort_grocery_items
 
 
 def _meal_entries_with_links(
@@ -109,20 +109,8 @@ def _compute_grocery_drafts(
     readd: list[str],
     additional_text: str,
 ) -> tuple[list[str], list[str]]:
-    draft_items = list(items)
-    existing = {item.lower() for item in draft_items}
-    for item in readd:
-        if item.lower() not in existing:
-            draft_items.append(item)
-            existing.add(item.lower())
-    draft_items = sort_grocery_items(draft_items)
-
-    final_items = list(draft_items)
-    for item in _parse_line_items(additional_text):
-        if item.lower() not in existing:
-            final_items.append(item)
-            existing.add(item.lower())
-    final_items = sort_grocery_items(final_items)
+    draft_items = merge_grocery_items(items, readd)
+    final_items = merge_grocery_items(items, readd, _parse_line_items(additional_text))
     return draft_items, final_items
 
 

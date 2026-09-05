@@ -12,6 +12,7 @@ from src.grocery_wizard.shopping.store_aisles import (
     load_store_aisles,
     parse_store_aisles_file,
     sort_grocery_items,
+    strip_checklist_prefix,
 )
 
 
@@ -162,3 +163,30 @@ def test_sort_grocery_items_is_stable_within_aisle() -> None:
 def test_aisle_order_has_other_last() -> None:
     config = load_store_aisles()
     assert config.aisle_order[-1] == "other"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("- [ ] Bananas", "Bananas"),
+        ("[ ] milk", "milk"),
+        ("- [x] Berries", "Berries"),
+        ("1. [ ] Apples", "Apples"),
+        ("• onions", "onions"),
+        ("  - [ ]  Asparagus  ", "Asparagus"),
+    ],
+)
+def test_strip_checklist_prefix(raw: str, expected: str) -> None:
+    assert strip_checklist_prefix(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("item", "expected_aisle"),
+    [
+        ("- [ ] Bananas", "fruit"),
+        ("[ ] milk", "dairy/eggs"),
+        ("- [ ] Asparagus", "vegetables"),
+    ],
+)
+def test_classify_aisle_strips_checklist_prefix(item: str, expected_aisle: str) -> None:
+    assert classify_aisle(item) == expected_aisle
