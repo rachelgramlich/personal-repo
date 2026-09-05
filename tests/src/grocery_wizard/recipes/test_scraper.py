@@ -86,6 +86,30 @@ HEADING_LIST_HTML = """
 </html>
 """
 
+MULTI_SECTION_HEADING_HTML = """
+<html>
+  <body>
+    <h1>Crispy Potato Tacos</h1>
+    <h2>Ingredients</h2>
+    <ul>
+      <li>2 pounds Yukon Gold potatoes, diced</li>
+      <li>2 tablespoons olive oil</li>
+      <li>1 teaspoon kosher salt</li>
+    </ul>
+    <ul>
+      <li>8 corn tortillas</li>
+      <li>1 cup Mexican crema</li>
+      <li>1/2 cup cotija cheese, crumbled</li>
+    </ul>
+    <h2>Instructions</h2>
+    <ol>
+      <li>Roast the potatoes until crisp.</li>
+      <li>Warm tortillas and assemble tacos.</li>
+    </ol>
+  </body>
+</html>
+"""
+
 JSON_LD_ONLY_HTML = """
 <html>
   <body>
@@ -259,6 +283,20 @@ def test_extract_ingredients_heading_ul_still_works() -> None:
         "8 oz spaghetti",
         "2 tablespoons olive oil",
         "2 cloves garlic, minced",
+    ]
+
+
+def test_extract_ingredients_multi_section_heading_lists() -> None:
+    soup = BeautifulSoup(MULTI_SECTION_HEADING_HTML, "html.parser")
+    ingredients = _extract_ingredients(soup)
+
+    assert ingredients == [
+        "2 pounds Yukon Gold potatoes, diced",
+        "2 tablespoons olive oil",
+        "1 teaspoon kosher salt",
+        "8 corn tortillas",
+        "1 cup Mexican crema",
+        "1/2 cup cotija cheese, crumbled",
     ]
 
 
