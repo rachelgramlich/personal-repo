@@ -542,3 +542,60 @@ def test_notion_fixture_normalize(notion_case: dict) -> None:
         assert result == ""
     else:
         assert result == expected
+
+
+# ---------------------------------------------------------------------------
+# Issue #27: remaining grocery list quality fixes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "ribs removed, then minced",
+        "shelled",
+    ],
+)
+def test_nyt_prep_only_lines_are_junk(raw: str) -> None:
+    assert is_junk_ingredient(raw)
+    assert normalize_ingredient(raw) == ""
+
+
+def test_nyt_minimal_cleanup_drops_prep_only_lines() -> None:
+    prepared = prepare_ingredients_for_notion(
+        "ribs removed, then minced\nshelled\n1 3/4 cups low-sodium chicken or vegetable stock",
+        source_url="https://cooking.nytimes.com/recipes/12345-test",
+    )
+    lines = prepared.splitlines()
+    assert "ribs removed, then minced" not in lines
+    assert "shelled" not in lines
+    assert any("low-sodium chicken or vegetable stock" in line for line in lines)
+
+
+def test_stock_or_alternative_not_split_on_expand() -> None:
+    line = "1 3/4 cups low-sodium chicken or vegetable stock"
+    assert expand_ingredient_line(line) == [line]
+    assert normalize_ingredient(line) == "low-sodium chicken or vegetable stock"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("1/2 lime, juiced", "limes"),
+        ("oyster mushrooms (torn into bite-size pieces)", "oyster mushrooms"),
+        ("Lemon wedges", "lemons"),
+    ],
+)
+def test_grocery_display_strips_prep_phrases(raw: str, expected: str) -> None:
+    assert normalize_ingredient(raw) == expected
+
+
+def test_corn_tortillas_not_split_by_title_bleed() -> None:
+    assert expand_ingredient_line("8 corn tortillas") == ["8 corn tortillas"]
+    name, amount = parse_amount("8 corn tortillas")
+    assert name == "corn tortillas"
+    assert amount == "8"
+
+
+def test_cilantro_sprigs_normalized_to_lowercase() -> None:
+    assert normalize_ingredient("Cilantro sprigs") == "cilantro sprigs"

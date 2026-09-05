@@ -299,10 +299,28 @@ _PREP_TRAILING_RE = re.compile(
     r",\s*(?:"
     r"beaten|chopped|diced|minced|sliced|grated|shredded|crushed|peeled|seeded|cored|"
     r"trimmed|halved|quartered|julienned|cubed|mashed|softened|melted|thawed|rinsed|drained|"
+    r"juiced|zested|"
     r"smashed(?:\s+and\s+peeled)?|peeled\s+and\s+grated|minced\s+or\s+grated"
     r")(?:\s+.*)?$",
     re.IGNORECASE,
 )
+
+# Parenthetical prep instructions (not product descriptors like ``(15-ounce)``).
+_PREP_PAREN_RE = re.compile(
+    r"\([^)]*(?:"
+    r"torn|cut\s+into|diced|chopped|minced|sliced|grated|peeled|seeded|"
+    r"bite[- ]size|into\s+\w+\s+pieces|reserve\s+the|optional"
+    r")[^)]*\)",
+    re.IGNORECASE,
+)
+
+
+def _needs_display_prep_strip(text: str) -> bool:
+    return bool(_PREP_TRAILING_RE.search(text) or _PREP_PAREN_RE.search(text))
+
+
+def _strip_prep_parenthetical_notes(text: str) -> str:
+    return _PREP_PAREN_RE.sub("", text).strip()
 
 
 def is_nyt_cooking_url(url: str | None) -> bool:
@@ -527,7 +545,7 @@ def _simplify_parsed_name(name: str) -> str:
     if _FLOUR_TYPE_RE.search(cleaned):
         return "flour"
     lowered = cleaned.lower()
-    if lowered in {"lemon", "lemons"}:
+    if lowered in {"lemon", "lemons", "lemon wedges"}:
         return "lemons"
     if lowered in {"lime", "limes", "lime wedges"}:
         return "limes"
@@ -902,10 +920,13 @@ def format_ingredient_for_storage(line: str) -> str:
 
 def minimal_clean_for_storage(line: str) -> str:
     """Light cleanup for NYT Cooking lines that are already well-structured."""
+    from src.grocery_wizard.ingredients.normalize import is_junk_ingredient
+
     text = _normalize_unicode(line.strip())
-    if not text:
+    if not text or is_junk_ingredient(text):
         return ""
     text = _strip_or_prefix(_strip_optional_prefix(text))
+    text = _strip_prep_parenthetical_notes(text)
     text = _strip_trailing_prep_commas(text)
     return re.sub(r"\s+", " ", text).strip()
 
