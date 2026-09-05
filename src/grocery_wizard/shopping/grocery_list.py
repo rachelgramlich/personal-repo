@@ -116,6 +116,7 @@ def run_grocery_list(
         readded = _prompt_readd_excluded(excluded_sorted)
         if readded:
             grocery_items = merge_grocery_items(grocery_items, readded)
+            seen.update(_normalized_item_key(item) for item in grocery_items)
 
         recurring = _resolve_recurring_weekly_items(
             recurring_weekly_items=recurring_weekly_items,
@@ -365,10 +366,14 @@ def _append_unique_items(
         if not normalized:
             continue
         key = _normalized_item_key(normalized)
-        if key in seen:
+        if key in seen or _item_already_present(key, grocery_items):
             continue
         seen.add(key)
         grocery_items.append(normalized)
+
+
+def _item_already_present(key: str, grocery_items: list[str]) -> bool:
+    return any(_normalized_item_key(existing) == key for existing in grocery_items)
 
 
 def _collect_ingredient_line(

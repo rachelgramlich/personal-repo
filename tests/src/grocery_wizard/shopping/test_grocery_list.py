@@ -10,6 +10,8 @@ import pytest
 from src.grocery_wizard.ingredients.sync import sync_ingredients_for_recipe
 from src.grocery_wizard.integrations.notion import Recipe
 from src.grocery_wizard.shopping.grocery_list import (
+    _append_unique_items,
+    _normalized_item_key,
     _print_excluded_summary,
     _recipes_needing_backfill,
     build_grocery_list,
@@ -788,3 +790,18 @@ def test_build_grocery_list_dedups_checklist_recurring_items(tmp_path: Path) -> 
     banana_index = next(i for i, item in enumerate(items) if "banana" in item.lower())
     berry_index = next(i for i, item in enumerate(items) if "berr" in item.lower())
     assert banana_index < berry_index
+
+
+def test_merge_grocery_items_then_append_skips_readded_duplicates() -> None:
+    """Re-added pantry items merged via merge_grocery_items must not be re-appended."""
+    base = ["1 lb chicken breast"]
+    readded = ["garlic"]
+    merged = merge_grocery_items(base, readded)
+
+    seen = {"chicken breast"}
+    seen.update(_normalized_item_key(item) for item in merged)
+    grocery_items = list(merged)
+    _append_unique_items(grocery_items, seen, ["garlic", "onions"])
+
+    assert grocery_items.count("garlic") == 1
+    assert "onions" in grocery_items
