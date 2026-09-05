@@ -42,6 +42,8 @@ from src.grocery_wizard.ingredients._patterns import (
     _MERGED_QTY_SPLIT_RE,
     _METADATA_LINE_RE,
     _RECIPE_STEP_RE,
+    _STOCK_OR_ALTERNATIVE_RE,
+    _TORTILLA_PREFIXES,
     _UNITS,
 )
 from src.grocery_wizard.ingredients.parsed import (  # noqa: F401
@@ -213,6 +215,15 @@ def _find_grocery_noun_positions(words: list[str]) -> list[int]:
                 positions.pop()
             positions.append(index)
             continue
+        if (
+            word in {"tortilla", "tortillas"}
+            and index > 0
+            and words[index - 1] in _TORTILLA_PREFIXES
+        ):
+            if positions and positions[-1] == index - 1:
+                positions.pop()
+            positions.append(index)
+            continue
         if word == "cream" and index > 0 and words[index - 1] in _CREAM_PREFIXES:
             if positions and positions[-1] == index - 1:
                 positions.pop()
@@ -304,6 +315,9 @@ def split_recipe_title_bleed(text: str) -> list[str]:
 
     # Real compound ingredients use conjunctions; title bleed does not.
     if _CONJUNCTION_SPLIT_RE.search(stripped):
+        return [text]
+
+    if _STOCK_OR_ALTERNATIVE_RE.search(stripped):
         return [text]
 
     if "(" in stripped and ")" in stripped:
@@ -430,6 +444,7 @@ def clean_ingredient_line_for_storage(line: str) -> str:
 def normalize_ingredient(line: str) -> str:
     """Return the canonical grocery item name from a stored or raw ingredient line."""
     from src.grocery_wizard.ingredients.parsed import (
+        _needs_display_prep_strip,
         _normalize_unicode,
         _parse_with_library,
         _prefer_plural_form,
@@ -468,8 +483,13 @@ def normalize_ingredient(line: str) -> str:
             name = name[:-1]
         return name.lower()
 
-    if looks_like_stored_ingredient_line(_prepare_line_for_parsing(line)):
-        name, _ = _parse_stored_ingredient(_prepare_line_for_parsing(line))
+    prepared = _prepare_line_for_parsing(line)
+    if (
+        prepared
+        and looks_like_stored_ingredient_line(prepared)
+        and not _needs_display_prep_strip(prepared)
+    ):
+        name, _ = _parse_stored_ingredient(prepared)
         return name.lower()
 
     stored = format_ingredient_for_storage(line)
@@ -481,10 +501,14 @@ def normalize_ingredient(line: str) -> str:
 
 def parse_amount(line: str) -> tuple[str, str | None]:
     """Parse an ingredient line into ``(name, amount | None)``."""
+    from src.grocery_wizard.ingredients.parsed import _needs_display_prep_strip
+
     if is_junk_ingredient(line):
         return "", None
     text = _prepare_line_for_parsing(line)
-    if text and not looks_like_stored_ingredient_line(text):
+    if not text:
+        return "", None
+    if not looks_like_stored_ingredient_line(text) or _needs_display_prep_strip(text):
         stored = format_ingredient_for_storage(line)
         if not stored:
             return "", None

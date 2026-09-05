@@ -787,6 +787,37 @@ def test_build_grocery_list_consolidates_lemon_variants(tmp_path: Path) -> None:
     assert lemon_items[0] == "3 lemons"
 
 
+def test_build_grocery_list_issue_27_quality_fixes(tmp_path: Path) -> None:
+    """Regression: corn tortillas, prep stripping, and lowercase display names."""
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe(
+            "Tacos",
+            "8 corn tortillas\n1/2 lime, juiced\nCilantro sprigs\n"
+            "oyster mushrooms (torn into bite-size pieces)",
+        )
+    ]
+
+    items, _, _, _, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Tacos"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert "8 corn tortillas" in items
+    assert "8 corn" not in items
+    assert "tortillas" not in items
+    assert any(item.startswith("1/2") and "limes" in item for item in items)
+    assert "cilantro sprigs" in items
+    assert "Cilantro" not in items
+    assert "oyster mushrooms" in items
+    assert all(item == item.lower() or item[0].isdigit() for item in items)
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [

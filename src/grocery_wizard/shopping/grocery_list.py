@@ -507,21 +507,22 @@ def _collect_ingredient_line(
     Ingredient lines are expected to be pre-cleaned at Notion ingest time.
     """
     for part in expand_ingredient_line(line):
-        normalized, amount = parse_amount(part)
-        if not normalized:
+        _name, amount = parse_amount(part)
+        display_name = normalize_ingredient(part) or _name
+        if not display_name:
             continue
         keeps_amount = amount and not amount.startswith(("head:", "clove:", "zest:"))
         if keeps_amount and not should_show_amount(amount, part):
             amount = None
-        if exclude_pantry and is_pantry_item(normalized, pantry):
-            if normalized not in excluded_pantry:
-                excluded_pantry.append(normalized)
+        if exclude_pantry and is_pantry_item(display_name, pantry):
+            if display_name not in excluded_pantry:
+                excluded_pantry.append(display_name)
             continue
-        key = normalized.lower()
+        key = display_name.lower()
         if key in collected:
             collected[key][1].append(amount)
         else:
-            collected[key] = (normalized, [amount])
+            collected[key] = (display_name, [amount])
         if recipe_name and provenance is not None:
             provenance.setdefault(key, set()).add(recipe_name)
 

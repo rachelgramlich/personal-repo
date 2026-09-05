@@ -170,6 +170,8 @@ _PREP_WORDS = {
     "rinsed",
     "drained",
     "optional",
+    "removed",
+    "shelled",
     "wedges",
 }
 
@@ -217,8 +219,25 @@ _JUNK_ONLY_PHRASES = frozenset(
         "if needed",
         "for serving",
         "for topping",
+        "shelled",
+        "then minced",
+        "then diced",
+        "then chopped",
+        "then sliced",
+        "then grated",
     }
 )
+
+# Prep-only segments like ``ribs removed`` or ``seeds removed, then minced``.
+_REMOVED_PREP_SEGMENT_RE = re.compile(
+    r"^(?:\w+\s+)?removed(?:,\s*then\s+(?:minced|diced|chopped|sliced|grated))?\s*$",
+    re.IGNORECASE,
+)
+
+# ``chicken or vegetable stock`` alternatives must not be split on ``or``.
+_STOCK_OR_ALTERNATIVE_RE = re.compile(r"\bor\b.*\b(?:stock|broth)\b", re.IGNORECASE)
+
+_TORTILLA_PREFIXES = frozenset({"corn", "flour", "wheat", "whole-wheat", "whole"})
 
 _DESCRIPTOR_WORDS = frozenset(
     {

@@ -12,6 +12,7 @@ from src.grocery_wizard.ingredients._patterns import (
     _PREP_ALTERNATIVE_RE,
     _PREP_WORDS,
     _QUANTITY_RE,
+    _REMOVED_PREP_SEGMENT_RE,
     _SIZES,
     _STANDALONE_INGREDIENT_WORDS,
     _TRAILING_CLAUSE_RE,
@@ -138,6 +139,8 @@ def _is_prep_only_segment(segment: str) -> bool:
     if _INSTRUCTION_ONLY_RE.match(segment):
         return True
     if _DIMENSION_PREP_SEGMENT_RE.match(segment):
+        return True
+    if _REMOVED_PREP_SEGMENT_RE.match(segment):
         return True
     if _is_prep_alternative_phrase(segment):
         return True
