@@ -116,6 +116,19 @@ def _compute_grocery_drafts(
     return draft_items, final_items
 
 
+def _persist_recurring_if_edited(
+    recurring_text: str,
+    default_recurring: list[str],
+    *,
+    path: Path = RECURRING_WEEKLY_ITEMS_PATH,
+) -> None:
+    """Save recurring weekly items only when the dedicated field was edited."""
+    parsed_recurring = _parse_line_items(recurring_text)
+    parsed_default = _parse_line_items("\n".join(default_recurring))
+    if parsed_recurring != parsed_default:
+        write_recurring_weekly_items(path, parsed_recurring)
+
+
 def _recipes_ingredient_cache_key(recipes: list) -> tuple[tuple[str, str], ...]:
     """Fingerprint recipe ingredient text so caches invalidate when content changes."""
     return tuple((recipe.page_id, recipe.ingredients or "") for recipe in recipes)
@@ -676,11 +689,7 @@ def _run_grocery_list_generation(
         return False
 
     recurring_weekly_items = _parse_line_items(recurring_text)
-    if recurring_weekly_items != default_recurring:
-        write_recurring_weekly_items(
-            RECURRING_WEEKLY_ITEMS_PATH,
-            recurring_weekly_items,
-        )
+    _persist_recurring_if_edited(recurring_text, default_recurring)
 
     with st.spinner("Building grocery list..."):
         items, excluded, _sync_summary, missing_ingredients, item_provenance, mismatches = (
