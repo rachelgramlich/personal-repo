@@ -40,7 +40,7 @@ from src.grocery_wizard.shopping.grocery_list import (
     build_grocery_list,
     format_meals_and_grocery_list,
 )
-from src.grocery_wizard.shopping.line_items import parse_line_items, strip_line_item  # noqa: F401
+from src.grocery_wizard.shopping.line_items import parse_line_items
 from src.grocery_wizard.shopping.recurring_weekly_items import (
     load_recurring_weekly_items,
     write_recurring_weekly_items,
@@ -664,7 +664,7 @@ def _run_grocery_list_generation(
     if sync_summary is not None and sync_summary.failed:
         sync_failures = list(sync_summary.failed)
 
-    if not items and not excluded:
+    if not items and not excluded and not _parse_line_items(extra_items_text):
         st.warning("No grocery items found.")
         return False
 
@@ -676,11 +676,6 @@ def _run_grocery_list_generation(
         "additional_text": extra_items_text,
         "source_recipes": tuple(selected),
         "week_plan": tuple(selected),
-        # Store settings so the list can be regenerated from the result view.
-        "_gen_sync_first": sync_first,
-        "_gen_exclude_pantry": exclude_pantry,
-        "_gen_recurring_text": recurring_text,
-        "_gen_default_recurring": default_recurring,
     }
     return True
 
@@ -728,18 +723,18 @@ def render_create_weekly_plan() -> None:
 
     suggestion_pool = filter_recipes(all_recipes, filters, schema.all_columns)
 
-        if st.button("Build my plan", type="primary", key="build_plan"):
-            plan = suggest_meals(
-                all_recipes,
-                meals=int(meal_count),
-                locked_names=locked,
-                filters=filters,
-                schema_columns=schema.all_columns,
-            )
-            st.session_state.plan_meals_text = "\n".join(plan)
-            st.session_state.plan_rejected_names = []
-            _clear_grocery_result()
-            st.rerun()
+    if st.button("Build my plan", type="primary", key="build_plan"):
+        plan = suggest_meals(
+            all_recipes,
+            meals=int(meal_count),
+            locked_names=locked,
+            filters=filters,
+            schema_columns=schema.all_columns,
+        )
+        st.session_state.plan_meals_text = "\n".join(plan)
+        st.session_state.plan_rejected_names = []
+        _clear_grocery_result()
+        st.rerun()
 
     current_plan = _current_plan_names()
     if current_plan:
@@ -898,20 +893,9 @@ def _render_grocery_result() -> None:
         st.rerun()
 
     if st.button("Update list", key="grocery_update_list"):
-        db = get_db()
-        selected = list(result.get("week_plan") or result.get("source_recipes") or [])
-        current_extra = result.get("additional_text", "")
-        _clear_grocery_result()
-        if _run_grocery_list_generation(
-            db,
-            selected,
-            sync_first=result.get("_gen_sync_first", False),
-            exclude_pantry=result.get("_gen_exclude_pantry", True),
-            recurring_text=result.get("_gen_recurring_text", ""),
-            default_recurring=result.get("_gen_default_recurring", []),
-            extra_items_text=current_extra,
-        ):
-            st.rerun()
+        # Widget values are merged into result above; rerun refreshes copy/download output
+        # from cached base items + current customize settings (re-add, extras).
+        st.rerun()
 
 
 if __name__ == "__main__":
