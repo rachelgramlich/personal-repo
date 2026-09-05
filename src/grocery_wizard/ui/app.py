@@ -24,8 +24,6 @@ from src.grocery_wizard.integrations.notion import (
     NotionFieldValues,
     NotionRecipesDB,
 )
-from src.grocery_wizard.ingredients.normalize import ingredient_name
-from src.grocery_wizard.ingredients.sync import parse_ingredients_text
 from src.grocery_wizard.planning.meal_planner import (
     MealPlanFilters,
     build_ingredient_index,
@@ -131,19 +129,14 @@ def _compute_grocery_drafts(
     return draft_items, final_items
 
 
-def _build_ingredient_options(recipes: list) -> list[str]:
-    """Return sorted unique normalized ingredient names across all recipes."""
-    names: set[str] = set()
-    for recipe in recipes:
-        raw = recipe.ingredients or ""
-        if not raw.strip():
-            continue
-        lines, _ = parse_ingredients_text(raw)
-        for line in lines:
-            name = ingredient_name(line)
-            if name:
-                names.add(name)
-    return sorted(names)
+def _recipes_ingredient_cache_key(recipes: list) -> tuple[tuple[str, str], ...]:
+    """Fingerprint recipe ingredient text so caches invalidate when content changes."""
+    return tuple((recipe.page_id, recipe.ingredients or "") for recipe in recipes)
+
+
+def _ingredient_options_from_index(ingredient_index: dict[str, set[str]]) -> list[str]:
+    """Return sorted unique normalized ingredient names from a precomputed index."""
+    return sorted({name for names in ingredient_index.values() for name in names})
 
 
 def _render_meal_plan_filters(
@@ -151,7 +144,7 @@ def _render_meal_plan_filters(
     defaults: MealPlanFilters,
     *,
     key_prefix: str,
-    all_recipes: list | None = None,
+    ingredient_index: dict[str, set[str]] | None = None,
 ) -> MealPlanFilters:
     values: dict[str, Any] = {}
     for column in filter_columns:
@@ -191,11 +184,8 @@ def _render_meal_plan_filters(
     ingredient_names: list[str] = []
     ingredient_mode = "include"
 
-    if all_recipes is not None:
-        cache_key = f"{key_prefix}_ingredient_options"
-        if cache_key not in st.session_state:
-            st.session_state[cache_key] = _build_ingredient_options(all_recipes)
-        ingredient_options: list[str] = st.session_state[cache_key]
+    if ingredient_index is not None:
+        ingredient_options = _ingredient_options_from_index(ingredient_index)
 
         st.markdown("**Ingredients**")
         if ingredient_options:
@@ -759,6 +749,14 @@ def render_create_weekly_plan() -> None:
 
     filter_defaults = default_filters(schema.all_columns)
     filter_columns = [*schema.filter_columns, *schema.checkbox_columns]
+
+    # Cache ingredient index per loaded recipe set to avoid re-parsing on every widget interaction.
+    recipes_cache_key = _recipes_ingredient_cache_key(all_recipes)
+    if st.session_state.get("_ingredient_index_key") != recipes_cache_key:
+        st.session_state["_ingredient_index_key"] = recipes_cache_key
+        st.session_state["_ingredient_index"] = build_ingredient_index(all_recipes)
+    ingredient_index: dict[str, set[str]] = st.session_state["_ingredient_index"]
+
     locked: list[str] = []
     with st.expander("More options", expanded=False):
         locked = st.multiselect(
@@ -771,15 +769,8 @@ def render_create_weekly_plan() -> None:
             filter_columns,
             filter_defaults,
             key_prefix="plan_filter",
-            all_recipes=all_recipes,
+            ingredient_index=ingredient_index,
         )
-
-    # Cache ingredient index per loaded recipe set to avoid re-parsing on every widget interaction.
-    recipes_cache_key = tuple(recipe.page_id for recipe in all_recipes)
-    if st.session_state.get("_ingredient_index_key") != recipes_cache_key:
-        st.session_state["_ingredient_index_key"] = recipes_cache_key
-        st.session_state["_ingredient_index"] = build_ingredient_index(all_recipes)
-    ingredient_index: dict[str, set[str]] = st.session_state["_ingredient_index"]
 
     suggestion_pool = filter_recipes(
         all_recipes, filters, schema.all_columns, ingredient_index=ingredient_index
