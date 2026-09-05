@@ -855,13 +855,14 @@ def render_create_weekly_plan() -> None:
             value="\n".join(default_recurring),
             height=100,
         )
-        extra_items_text = st.text_area(
-            "Extra items (one per line)",
-            value="",
-            placeholder="milk\neggs\n- [ ] Flowers",
-            height=80,
-            key="grocery_pre_extra_items",
-        )
+
+    extra_items_text = st.text_area(
+        "Extra items (one per line)",
+        value="",
+        placeholder="milk\neggs\n- [ ] Flowers",
+        height=80,
+        key="grocery_pre_extra_items",
+    )
 
     if st.button("Create grocery list", type="primary", key="create_grocery"):
         save_week_plan(current_plan, WEEK_PLAN_PATH)
