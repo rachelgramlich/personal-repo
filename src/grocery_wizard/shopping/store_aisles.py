@@ -18,11 +18,9 @@ from pathlib import Path
 
 from src.grocery_wizard.config import STORE_AISLES_PATH
 from src.grocery_wizard.ingredients.normalize import parse_amount
+from src.grocery_wizard.shopping.line_items import strip_checklist_prefix
 
 _SECTION_HEADER_RE = re.compile(r"^#\s*---\s*(?P<id>.+?)(?::\s*(?P<label>.+?))?\s*---\s*$")
-_NUMBERED_CHECKLIST_RE = re.compile(r"^\d+\.\s*(?:\[\s*[xX]?\s*\]\s*)?")
-_BULLET_CHECKLIST_RE = re.compile(r"^[-–—−•*]\s*(?:\[\s*[xX]?\s*\]\s*)?")  # noqa: RUF001
-_BARE_CHECKLIST_RE = re.compile(r"^\[\s*[xX]?\s*\]\s*")
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,17 +97,6 @@ def load_store_aisles(path: str | None = None) -> StoreAisleConfig:
     config = parse_store_aisles_file(resolved)
     _aisle_config_cache[cache_key] = (cache_stamp, config)
     return config
-
-
-def strip_checklist_prefix(text: str) -> str:
-    """Strip markdown checklist and bullet prefixes from a grocery list line."""
-    stripped = text.strip()
-    if not stripped:
-        return ""
-    stripped = _NUMBERED_CHECKLIST_RE.sub("", stripped)
-    stripped = _BULLET_CHECKLIST_RE.sub("", stripped)
-    stripped = _BARE_CHECKLIST_RE.sub("", stripped)
-    return stripped.strip()
 
 
 def ingredient_name(item: str) -> str:

@@ -44,6 +44,10 @@ class TestStripLineItem:
     def test_item_with_spaces_inside_preserved(self) -> None:
         assert strip_line_item("- [ ] Brown sugar") == "Brown sugar"
 
+    def test_numbered_checklist(self) -> None:
+        assert strip_line_item("1. [ ] Apples") == "Apples"
+        assert strip_line_item("2. onions") == "onions"
+
 
 class TestParseLineItems:
     def test_basic_multiline(self) -> None:

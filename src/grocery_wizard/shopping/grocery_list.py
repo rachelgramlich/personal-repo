@@ -33,6 +33,7 @@ from src.grocery_wizard.ingredients.sync import (
     run_sync_recipes,
 )
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
+from src.grocery_wizard.shopping.line_items import parse_line_items, strip_checklist_prefix
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
 from src.grocery_wizard.shopping.recurring_weekly_items import prompt_recurring_weekly_items
 from src.grocery_wizard.shopping.store_aisles import (
@@ -40,7 +41,6 @@ from src.grocery_wizard.shopping.store_aisles import (
     group_grocery_items_by_aisle,
     ingredient_name,
     sort_grocery_items,
-    strip_checklist_prefix,
 )
 
 
@@ -523,19 +523,16 @@ def _prompt_readd_excluded(excluded: list[str]) -> list[str]:
 def _prompt_staples() -> list[str]:
     print()
     print("Paste any additional items (one per line, empty line when done):")
-    staples: list[str] = []
+    lines: list[str] = []
     while True:
         try:
-            line = input().strip()
+            line = input()
         except EOFError:
             break
-        if not line:
+        if not line.strip():
             break
-        if line.startswith(("- ", "* ", "• ")):
-            line = line[2:].strip()
-        if line:
-            staples.append(line)
-    return staples
+        lines.append(line)
+    return parse_line_items("\n".join(lines))
 
 
 def _prompt_accept_or_edit(items: list[str]) -> list[str]:
@@ -552,7 +549,7 @@ def _prompt_accept_or_edit(items: list[str]) -> list[str]:
             print("Paste your edited list (one per line, empty line when done):")
             edited = _prompt_staples()
             if edited:
-                return sort_grocery_items(edited)
+                return merge_grocery_items(edited)
             return items
 
         print("Press Enter to accept or type 'e' to edit.")
