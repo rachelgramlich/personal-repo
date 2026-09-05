@@ -45,6 +45,21 @@ st.text_area("display", key="display_key")
     assert at.text_area[0].value == "Value: 1"
 
 
+def test_format_meals_and_grocery_list_keeps_aisle_sort_without_headers() -> None:
+    """Copy output is flat but still ordered by store walk (sort_grocery_items)."""
+    meals: list[tuple[str, str | None]] = []
+    grocery_items = ["onions", "Bananas", "Flowers"]
+
+    text = format_meals_and_grocery_list(meals, grocery_items)
+
+    assert "Vegetables" not in text
+    assert "Fruit" not in text
+    flowers_pos = text.lower().index("flowers")
+    bananas_pos = text.lower().index("bananas")
+    onions_pos = text.lower().index("onions")
+    assert flowers_pos < bananas_pos < onions_pos
+
+
 def test_user_flow_checklist_extras_strip_sort_dedupe() -> None:
     """Simulate pasting Notion checklist extras through the UI display pipeline."""
     extra_items_text = "- [ ] Bananas\n- [ ] Flowers\n- [ ] Bananas"
@@ -58,7 +73,9 @@ def test_user_flow_checklist_extras_strip_sort_dedupe() -> None:
     assert list_text.lower().count("bananas") == 1
     assert "flowers" in list_text.lower()
     assert "onions" in list_text.lower()
-    # Store walk: flowers aisle before fruit (bananas) before vegetables (onions)
+    assert "Vegetables" not in list_text
+    assert "Fruit" not in list_text
+    # Store walk order without aisle headers
     flowers_pos = list_text.lower().index("flowers")
     bananas_pos = list_text.lower().index("bananas")
     onions_pos = list_text.lower().index("onions")

@@ -40,12 +40,14 @@ from src.grocery_wizard.ingredients.sync import (
     run_sync_recipes,
 )
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
-from src.grocery_wizard.shopping.line_items import parse_line_items, strip_checklist_prefix
+from src.grocery_wizard.shopping.line_items import (
+    parse_line_items,
+    strip_checklist_prefix,
+    strip_line_item,
+)
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
 from src.grocery_wizard.shopping.recurring_weekly_items import prompt_recurring_weekly_items
 from src.grocery_wizard.shopping.store_aisles import (
-    aisle_label,
-    group_grocery_items_by_aisle,
     ingredient_name,
     sort_grocery_items,
 )
@@ -112,6 +114,11 @@ def format_name_link_mismatch_warning(mismatch: NameLinkMismatch) -> str:
     )
 
 
+def _provenance_display_item(item: str) -> str:
+    """Strip bullet/checkbox prefixes from a provenance item key for display."""
+    return strip_line_item(item) or item
+
+
 def format_item_provenance(item_provenance: dict[str, list[str]]) -> str:
     """Format grocery-item → recipe mapping for display."""
     if not item_provenance:
@@ -120,7 +127,8 @@ def format_item_provenance(item_provenance: dict[str, list[str]]) -> str:
     lines = ["Item sources"]
     for item in sort_grocery_items(list(item_provenance)):
         recipes = item_provenance[item]
-        lines.append(f"- {item}: {', '.join(recipes)}")
+        display_item = _provenance_display_item(item)
+        lines.append(f"- {display_item}: {', '.join(recipes)}")
     return "\n".join(lines)
 
 
@@ -421,8 +429,6 @@ def merge_grocery_items(
 def format_meals_and_grocery_list(
     meals: list[tuple[str, str | None]],
     grocery_items: list[str],
-    *,
-    item_provenance: dict[str, list[str]] | None = None,
 ) -> str:
     """Format meals and grocery items as a single copy/pasteable block."""
     lines = ["Meals"]
@@ -436,14 +442,7 @@ def format_meals_and_grocery_list(
     lines.append("Grocery List")
 
     sorted_items = merge_grocery_items(grocery_items)
-    for aisle, aisle_items in group_grocery_items_by_aisle(sorted_items):
-        lines.append("")
-        lines.append(aisle_label(aisle))
-        lines.extend(f"- {item}" for item in aisle_items)
-
-    if item_provenance:
-        lines.append("")
-        lines.append(format_item_provenance(item_provenance))
+    lines.extend(f"- {item}" for item in sorted_items)
 
     return "\n".join(lines)
 

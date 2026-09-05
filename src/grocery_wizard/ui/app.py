@@ -39,6 +39,7 @@ from src.grocery_wizard.recipes.weeknight import DEFAULT_WEEKNIGHT_COLUMN
 from src.grocery_wizard.shopping.grocery_list import (
     _load_week_plan_names,
     build_grocery_list,
+    format_item_provenance,
     format_meals_and_grocery_list,
     merge_grocery_items,
 )
@@ -47,7 +48,6 @@ from src.grocery_wizard.shopping.recurring_weekly_items import (
     load_recurring_weekly_items,
     write_recurring_weekly_items,
 )
-from src.grocery_wizard.shopping.store_aisles import sort_grocery_items
 
 
 def _meal_entries_with_links(
@@ -913,9 +913,7 @@ def _render_grocery_result() -> None:
 
     if item_provenance:
         with st.expander("Item sources (which recipe each item came from)"):
-            for item in sort_grocery_items(list(item_provenance)):
-                recipes = item_provenance[item]
-                st.markdown(f"- **{item}**: {', '.join(recipes)}")
+            st.text(format_item_provenance(item_provenance))
 
     readd: list[str] = []
     additional_text = result.get("additional_text", "")
@@ -948,7 +946,6 @@ def _render_grocery_result() -> None:
         list_text = format_meals_and_grocery_list(
             meals,
             final_items,
-            item_provenance=item_provenance or None,
         )
         col_copy, col_download = st.columns(2)
         with col_copy:
