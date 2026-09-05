@@ -16,6 +16,8 @@ from src.grocery_wizard.shopping.grocery_list import (
     format_grocery_item,
     format_meals_and_grocery_list,
     match_excluded_items,
+    merge_grocery_items,
+    normalize_grocery_list_item,
     parse_readd_excluded,
     run_grocery_list,
 )
@@ -60,7 +62,15 @@ def test_format_meals_and_grocery_list_includes_both_sections() -> None:
     text = format_meals_and_grocery_list(meals, grocery_items)
 
     assert text == (
-        "Meals\n- Chicken Tikka (https://example.com/tikka)\n- Salad\n\nGrocery List\n- lettuce\n- onions\n- chicken breast"
+        "Meals\n"
+        "- Chicken Tikka (https://example.com/tikka)\n"
+        "- Salad\n\n"
+        "Grocery List\n\n"
+        "Vegetables\n"
+        "- lettuce\n"
+        "- onions\n\n"
+        "Meat & fish\n"
+        "- chicken breast"
     )
 
 
@@ -715,3 +725,66 @@ def test_build_grocery_list_consolidates_lemon_variants(tmp_path: Path) -> None:
     lemon_items = [item for item in items if "lemon" in item.lower()]
     assert len(lemon_items) == 1
     assert lemon_items[0] == "3 lemons"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("- [ ] Bananas", "bananas"),
+        ("[ ] milk", "milk"),
+        ("- [x] Berries", "berries"),
+        ("1. [ ] Apples", "apples"),
+        ("• eggs", "eggs"),
+        ("2 carrots", "2 carrots"),
+    ],
+)
+def test_normalize_grocery_list_item_strips_checklist_prefixes(
+    raw: str,
+    expected: str,
+) -> None:
+    assert normalize_grocery_list_item(raw) == expected
+
+
+def test_merge_grocery_items_dedups_checklist_and_case_variants() -> None:
+    merged = merge_grocery_items(
+        ["bananas", "2 cups milk"],
+        ["- [ ] Bananas", "[ ] Milk", "MILK"],
+        ["- [ ] berries", "berries"],
+    )
+
+    assert merged == ["bananas", "berries", "milk"]
+
+
+def test_merge_grocery_items_follows_store_aisle_order() -> None:
+    merged = merge_grocery_items(
+        ["- [ ] Bananas", "onions"],
+        ["[ ] milk", "1 lb chicken breast"],
+    )
+
+    assert merged.index("bananas") < merged.index("onions")
+    assert merged.index("onions") < merged.index("milk")
+    assert merged.index("milk") < merged.index("1 lb chicken breast")
+
+
+def test_build_grocery_list_dedups_checklist_recurring_items(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Smoothie", "2 bananas"),
+    ]
+
+    items, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Smoothie"],
+        pantry_path=pantry_path,
+        recurring_weekly_items=["- [ ] Bananas", "[ ] berries", "berries"],
+        include_recurring_weekly_items=True,
+    )
+
+    assert len([item for item in items if "banana" in item.lower()]) == 1
+    assert len([item for item in items if "berr" in item.lower()]) == 1
+    banana_index = next(i for i, item in enumerate(items) if "banana" in item.lower())
+    berry_index = next(i for i, item in enumerate(items) if "berr" in item.lower())
+    assert banana_index < berry_index
