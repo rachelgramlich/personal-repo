@@ -19,6 +19,13 @@ def test_load_recurring_weekly_items_skips_comments_and_blanks(tmp_path: Path) -
     assert load_recurring_weekly_items(path) == ["berries", "bananas"]
 
 
+def test_load_recurring_weekly_items_strips_checklist_prefixes(tmp_path: Path) -> None:
+    path = tmp_path / "recurring_weekly_items.txt"
+    path.write_text("- [ ] berries\n- [x] milk\n[ ] bananas\n", encoding="utf-8")
+
+    assert load_recurring_weekly_items(path) == ["berries", "milk", "bananas"]
+
+
 def test_write_recurring_weekly_items_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "recurring_weekly_items.txt"
     write_recurring_weekly_items(path, ["berries", "milk"])
@@ -48,6 +55,14 @@ def test_prompt_recurring_weekly_items_edit_and_save(tmp_path: Path) -> None:
 
     assert result == ["yogurt"]
     assert load_recurring_weekly_items(path) == ["yogurt"]
+
+
+def test_prompt_recurring_weekly_items_edit_strips_checklist_syntax() -> None:
+    inputs = iter(["edit", "- [ ] yogurt", "- [x] milk", "", "", ""])
+    with patch("builtins.input", side_effect=inputs):
+        result = prompt_recurring_weekly_items(["berries"], interactive=True)
+
+    assert result == ["yogurt", "milk"]
 
 
 def test_prompt_recurring_weekly_items_edit_can_clear_list() -> None:
