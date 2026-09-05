@@ -73,6 +73,12 @@ After the grocery list is created, add a button to refresh the output without lo
 
 Minimum viable: **Update list** so pasting extra items in Customize and clicking the button refreshes copy/download output.
 
+### 4. Clear Streamlit widget keys when tearing down a list
+
+Extra items persist across rebuilds because Streamlit keeps `grocery_additional_items` (and `grocery_readd`) in session state even when `grocery_result` is cleared. The text area ignores `value=` once the widget key exists.
+
+Add `_clear_grocery_result()` that pops `grocery_result` **and** widget keys (`grocery_additional_items`, `grocery_readd`, `grocery_final_list`). Call it on Edit meals, plan rebuild/swap/regenerate, `_invalidate_stale_grocery_result()`, and before creating a new list.
+
 ## Relevant files
 
 - `src/grocery_wizard/ui/app.py` — `_parse_line_items()`, `_compute_grocery_drafts()`, `_run_grocery_list_generation()`, `_render_grocery_result()`, `render_create_weekly_plan()`
