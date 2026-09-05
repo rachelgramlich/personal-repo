@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from src.grocery_wizard.config import RECURRING_WEEKLY_ITEMS_PATH
+from src.grocery_wizard.shopping.line_items import parse_line_items, strip_line_item
 
 
 def load_recurring_weekly_items(path: Path | None = None) -> list[str]:
@@ -14,12 +15,7 @@ def load_recurring_weekly_items(path: Path | None = None) -> list[str]:
     if not items_path.exists():
         return []
 
-    items: list[str] = []
-    for raw_line in items_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if line and not line.startswith("#"):
-            items.append(line)
-    return items
+    return parse_line_items(items_path.read_text(encoding="utf-8"))
 
 
 def write_recurring_weekly_items(path: Path, items: list[str]) -> None:
@@ -89,8 +85,7 @@ def _prompt_edit_lines(items: list[str]) -> list[str]:
             break
         if not line:
             break
-        if line.startswith(("- ", "* ", "• ")):
-            line = line[2:].strip()
-        if line:
-            edited.append(line)
+        item = strip_line_item(line)
+        if item:
+            edited.append(item)
     return edited

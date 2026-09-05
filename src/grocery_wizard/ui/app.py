@@ -952,9 +952,11 @@ def _render_grocery_result() -> None:
                 mime="text/plain",
                 use_container_width=True,
             )
+        # Keyed text_area ignores value= on reruns; sync session state so Update list
+        # refreshes copy/download preview (checklist strip + aisle sort).
+        st.session_state["grocery_final_list"] = list_text
         st.text_area(
             "Your plan",
-            value=list_text,
             height=320,
             label_visibility="collapsed",
             key="grocery_final_list",
