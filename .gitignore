@@ -14,3 +14,4 @@ pycache/
 
 # uv
 .uv/
+src/personal_repo.egg-info/

@@ -736,6 +736,20 @@ def render_create_weekly_plan() -> None:
         for index, name in enumerate(current_plan, start=1):
             st.write(f"{index}. {name}")
 
+        if st.button("Re-generate everything", key="regenerate_plan"):
+            rejected = set(st.session_state.get("plan_rejected_names", []))
+            plan = suggest_meals(
+                all_recipes,
+                meals=int(meal_count),
+                locked_names=locked,
+                filters=filters,
+                schema_columns=schema.all_columns,
+                rejected_names=rejected,
+            )
+            st.session_state.plan_meals_text = "\n".join(plan)
+            st.session_state.pop("grocery_result", None)
+            st.rerun()
+
         with st.expander("Swap or edit meals", expanded=False):
             swap_out = st.multiselect(
                 "Meals to replace",
