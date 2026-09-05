@@ -40,9 +40,9 @@ def test_create_grocery_list_help_lists_new_flags(capsys: pytest.CaptureFixture[
         main(["create-grocery-list", "--help"])
     output = capsys.readouterr().out
     assert "--quiet" in output
-    assert "--backfill-missing" in output
     assert "--include-staples" in output
     assert "--no-recurring-weekly-items" in output
+    assert "--backfill-missing" not in output
     assert "--verbose" not in output
     assert "--sync-first" not in output
     assert "--include-pantry" not in output
@@ -54,7 +54,6 @@ def test_cmd_grocery_passes_new_flags() -> None:
     args = argparse.Namespace(
         recipes="Soup,Salad",
         quiet=True,
-        backfill_missing=True,
         include_staples=True,
         no_recurring_weekly_items=True,
     )
@@ -70,7 +69,6 @@ def test_cmd_grocery_passes_new_flags() -> None:
     kwargs = run_mock.call_args.kwargs
     assert kwargs["recipe_names"] == ["Soup", "Salad"]
     assert kwargs["quiet"] is True
-    assert kwargs["backfill_missing"] is True
     assert kwargs["exclude_pantry"] is False
     assert kwargs["include_recurring_weekly_items"] is False
 

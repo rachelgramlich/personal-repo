@@ -10,8 +10,9 @@ import pytest
 from src.grocery_wizard.ingredients.sync import sync_ingredients_for_recipe
 from src.grocery_wizard.integrations.notion import Recipe
 from src.grocery_wizard.shopping.grocery_list import (
+    _get_ingredient_lines,
     _print_excluded_summary,
-    _recipes_needing_backfill,
+    _recipes_missing_ingredients,
     build_grocery_list,
     format_grocery_item,
     format_meals_and_grocery_list,
@@ -78,7 +79,7 @@ def test_build_grocery_list_excludes_pantry_by_default(pantry_file: Path) -> Non
         )
     ]
 
-    items, excluded, _sync = build_grocery_list(
+    items, excluded, skipped = build_grocery_list(
         db,
         recipe_names=["Test Recipe"],
         pantry_path=pantry_file,
@@ -101,7 +102,7 @@ def test_build_grocery_list_include_pantry(pantry_file: Path) -> None:
         )
     ]
 
-    items, excluded, _sync = build_grocery_list(
+    items, excluded, skipped = build_grocery_list(
         db,
         recipe_names=["Test Recipe"],
         pantry_path=pantry_file,
@@ -129,7 +130,7 @@ def test_build_grocery_list_splits_compound_ingredients(tmp_path: Path) -> None:
         )
     ]
 
-    items, excluded, _sync = build_grocery_list(
+    items, excluded, skipped = build_grocery_list(
         db,
         recipe_names=["Chana Masala"],
         pantry_path=pantry_path,
@@ -163,7 +164,7 @@ def test_build_grocery_list_splits_cauliflower_and_rice(
         _recipe("Stir Fry", "cauliflower\nrice"),
     ]
 
-    items, excluded, _sync = build_grocery_list(
+    items, excluded, skipped = build_grocery_list(
         db,
         recipe_names=["Stir Fry"],
         pantry_path=pantry_path,
@@ -185,7 +186,7 @@ def test_build_grocery_list_keeps_cauliflower_rice_without_conjunction(tmp_path:
         _recipe("Stir Fry", "cauliflower rice"),
     ]
 
-    items, excluded, _sync = build_grocery_list(
+    items, excluded, skipped = build_grocery_list(
         db,
         recipe_names=["Stir Fry"],
         pantry_path=pantry_path,
@@ -205,7 +206,7 @@ def test_build_grocery_list_white_beans_not_split(tmp_path: Path) -> None:
         _recipe("Soup", "2 cans white beans"),
     ]
 
-    items, _excluded, _sync = build_grocery_list(
+    items, _excluded, skipped = build_grocery_list(
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
@@ -311,14 +312,14 @@ def test_print_excluded_summary_always_numbered(capsys: pytest.CaptureFixture[st
     assert "2. olive oil" in output
 
 
-def test_recipes_needing_backfill_detects_empty_ingredients() -> None:
+def test_recipes_missing_ingredients_detects_empty_ingredients() -> None:
     recipes_by_name = {
         "soup": _recipe("Soup", ""),
         "salad": _recipe("Salad", "lettuce"),
     }
     recipes_by_name["soup"].ingredients = None
-    needs = _recipes_needing_backfill(["Soup", "Salad"], recipes_by_name)
-    assert [recipe.name for recipe in needs] == ["Soup"]
+    missing = _recipes_missing_ingredients(["Soup", "Salad"], recipes_by_name)
+    assert [recipe.name for recipe in missing] == ["Soup"]
 
 
 def test_run_grocery_list_quiet_skips_excluded_display(
@@ -439,10 +440,82 @@ def test_load_week_plan_names_oserror_returns_empty(
     assert "could not read week plan" in capsys.readouterr().err
 
 
-def test_build_grocery_list_only_syncs_empty_recipes(tmp_path: Path) -> None:
-    """Only week-plan recipes with empty ingredients should be passed to run_sync_recipes."""
-    from src.grocery_wizard.ingredients.sync import SyncSummary
+def test_get_ingredient_lines_reads_notion_only() -> None:
+    recipe = _recipe("Soup", "1 cup flour\n2 eggs")
+    assert _get_ingredient_lines(recipe) == ["1 cup flour", "2 eggs"]
 
+    empty = _recipe("Empty", "")
+    empty.ingredients = None
+    assert _get_ingredient_lines(empty) == []
+
+
+def test_build_grocery_list_never_scrapes_empty_ingredients(tmp_path: Path) -> None:
+    """List generation must not scrape when Notion Ingredients is empty."""
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    populated = _recipe("Populated", "1 cup flour")
+    empty = _recipe("Crispy Potato Quesadillas", "")
+    empty.ingredients = None
+    empty.link = "https://cooking.nytimes.com/recipes/1234-crispy-potato-quesadillas"
+
+    db = MagicMock()
+    db.query_recipes.return_value = [populated, empty]
+
+    with patch("src.grocery_wizard.recipes.scraper.scrape_recipe") as scrape_mock:
+        items, excluded, skipped = build_grocery_list(
+            db,
+            recipe_names=["Populated", "Crispy Potato Quesadillas"],
+            pantry_path=pantry_path,
+        )
+
+    scrape_mock.assert_not_called()
+    assert any("flour" in item for item in items)
+    assert skipped == ["Crispy Potato Quesadillas"]
+    assert "peas" not in items
+    assert "semi-soft cheese" not in items
+
+
+def test_run_grocery_list_never_scrapes_empty_ingredients(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    empty = _recipe("Crispy Potato Quesadillas", "")
+    empty.ingredients = None
+    empty.link = "https://cooking.nytimes.com/recipes/1234-crispy-potato-quesadillas"
+
+    db = MagicMock()
+    db.query_recipes.return_value = [empty]
+
+    week_plan = pantry_path.parent / "week_plan.json"
+    week_plan.write_text('{"recipes": ["Crispy Potato Quesadillas"]}', encoding="utf-8")
+
+    with (
+        patch("src.grocery_wizard.recipes.scraper.scrape_recipe") as scrape_mock,
+        patch("src.grocery_wizard.shopping.grocery_list._prompt_staples", return_value=[]),
+        patch(
+            "src.grocery_wizard.shopping.grocery_list.prompt_recurring_weekly_items",
+            return_value=[],
+        ),
+    ):
+        code = run_grocery_list(
+            db,
+            quiet=True,
+            week_plan_path=week_plan,
+            pantry_path=pantry_path,
+        )
+
+    scrape_mock.assert_not_called()
+    assert code == 0
+    err = capsys.readouterr().err
+    assert "no ingredients in Notion" in err
+    assert "Crispy Potato Quesadillas" in err
+
+
+def test_build_grocery_list_skips_recipes_with_empty_ingredients(tmp_path: Path) -> None:
     pantry_path = tmp_path / "pantry.txt"
     pantry_path.write_text("salt\n", encoding="utf-8")
 
@@ -451,32 +524,17 @@ def test_build_grocery_list_only_syncs_empty_recipes(tmp_path: Path) -> None:
     empty.ingredients = None
 
     db = MagicMock()
-    # First call: initial query; second call: after sync refresh
-    db.query_recipes.side_effect = [
-        [populated, empty],
-        [populated, empty],
-    ]
+    db.query_recipes.return_value = [populated, empty]
 
-    captured: list = []
+    items, excluded, skipped = build_grocery_list(
+        db,
+        recipe_names=["Populated", "Empty"],
+        pantry_path=pantry_path,
+    )
 
-    def fake_run_sync_recipes(db_arg, recipes, **kwargs):
-        captured.extend(recipes)
-        return SyncSummary()
-
-    with patch(
-        "src.grocery_wizard.shopping.grocery_list.run_sync_recipes",
-        side_effect=fake_run_sync_recipes,
-    ):
-        _items, _excluded, _sync_summary = build_grocery_list(
-            db,
-            recipe_names=["Populated", "Empty"],
-            backfill_missing=True,
-            pantry_path=pantry_path,
-        )
-
-    # Only the empty recipe should have been sent to sync
-    assert len(captured) == 1
-    assert captured[0].name == "Empty"
+    assert skipped == ["Empty"]
+    assert any("flour" in item for item in items)
+    assert any("eggs" in item for item in items)
 
 
 def test_build_grocery_list_splits_title_bleed(tmp_path: Path) -> None:

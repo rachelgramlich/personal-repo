@@ -626,7 +626,6 @@ def _run_grocery_list_generation(
     db: NotionRecipesDB,
     selected: list[str],
     *,
-    sync_first: bool,
     exclude_pantry: bool,
     recurring_text: str,
     default_recurring: list[str],
@@ -643,21 +642,19 @@ def _run_grocery_list_generation(
         )
 
     with st.spinner("Building grocery list..."):
-        items, excluded, sync_summary = build_grocery_list(
+        items, excluded, skipped_recipes = build_grocery_list(
             db,
             recipe_names=selected,
-            backfill_missing=sync_first,
             exclude_pantry=exclude_pantry,
             recurring_weekly_items=recurring_weekly_items,
             include_recurring_weekly_items=True,
         )
 
-    if sync_summary is not None and sync_summary.synced:
-        get_db.clear()
-
-    sync_failures: list[str] = []
-    if sync_summary is not None and sync_summary.failed:
-        sync_failures = list(sync_summary.failed)
+    for recipe_name in skipped_recipes:
+        st.warning(
+            f"No ingredients in Notion for **{recipe_name}** — skipped. "
+            "Run `dev backfill-ingredients` or edit the recipe in Notion, then rebuild the list."
+        )
 
     if not items and not excluded:
         st.warning("No grocery items found.")
@@ -666,7 +663,6 @@ def _run_grocery_list_generation(
     st.session_state.grocery_result = {
         "items": items,
         "excluded": excluded,
-        "sync_failures": sync_failures,
         "readd": [],
         "additional_text": "",
         "source_recipes": tuple(selected),
@@ -788,12 +784,10 @@ def render_create_weekly_plan() -> None:
         return
 
     default_recurring = load_recurring_weekly_items()
-    sync_first = False
     exclude_pantry = True
     recurring_text = "\n".join(default_recurring)
 
     with st.expander("Grocery list options", expanded=False):
-        sync_first = st.checkbox("Sync ingredients first (scrape missing)")
         exclude_pantry = st.checkbox("Exclude pantry items", value=True)
         recurring_text = st.text_area(
             "Recurring weekly items (one per line)",
@@ -806,7 +800,6 @@ def render_create_weekly_plan() -> None:
         if _run_grocery_list_generation(
             db,
             current_plan,
-            sync_first=sync_first,
             exclude_pantry=exclude_pantry,
             recurring_text=recurring_text,
             default_recurring=default_recurring,
@@ -818,11 +811,7 @@ def _render_grocery_result() -> None:
     result = st.session_state.grocery_result
     items: list[str] = result["items"]
     excluded: list[str] = result["excluded"]
-    sync_failures: list[str] = result.get("sync_failures", [])
     meal_names = list(result.get("week_plan") or result.get("source_recipes") or [])
-
-    for failure in sync_failures:
-        st.warning(f"Failed to scrape ingredients: {failure}")
 
     readd: list[str] = []
     additional_text = result.get("additional_text", "")

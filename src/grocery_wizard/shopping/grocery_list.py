@@ -27,11 +27,8 @@ from src.grocery_wizard.ingredients.sync import (
     SyncSummary,
     format_sync_summary,
     parse_ingredients_text,
-    recipe_needs_empty_sync,
-    run_sync_recipes,
 )
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
-from src.grocery_wizard.recipes.scraper import scrape_recipe
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
 from src.grocery_wizard.shopping.recurring_weekly_items import prompt_recurring_weekly_items
 from src.grocery_wizard.shopping.store_aisles import (
@@ -45,7 +42,6 @@ def run_grocery_list(
     *,
     recipe_names: list[str] | None = None,
     quiet: bool = False,
-    backfill_missing: bool = False,
     staples: list[str] | None = None,
     week_plan_path: Path = WEEK_PLAN_PATH,
     pantry_path: Path | None = None,
@@ -65,12 +61,6 @@ def run_grocery_list(
         return 1
 
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
-    if backfill_missing or _should_prompt_backfill(names, recipes_by_name):
-        needs_backfill = _recipes_needing_backfill(names, recipes_by_name)
-        if backfill_missing or _prompt_backfill(names, recipes_by_name):
-            summary = run_sync_recipes(db, needs_backfill)
-            print(format_sync_message(summary))
-            recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
 
     pantry = load_pantry(pantry_path)
 
@@ -86,7 +76,7 @@ def run_grocery_list(
 
         ingredient_lines = _get_ingredient_lines(recipe)
         if not ingredient_lines:
-            print(f"Warning: no ingredients for '{recipe.name}'", file=sys.stderr)
+            _warn_missing_ingredients(recipe)
             continue
 
         for line in ingredient_lines:
@@ -161,7 +151,6 @@ def build_grocery_list(
     db: NotionRecipesDB,
     *,
     recipe_names: list[str],
-    backfill_missing: bool = False,
     staples: list[str] | None = None,
     week_plan_path: Path = WEEK_PLAN_PATH,
     pantry_path: Path | None = None,
@@ -169,20 +158,15 @@ def build_grocery_list(
     recurring_weekly_items: list[str] | None = None,
     include_recurring_weekly_items: bool = False,
     exclude_pantry: bool = True,
-) -> tuple[list[str], list[str], SyncSummary | None]:
-    """Build grocery list items, excluded pantry items, and optional sync summary (for UI use)."""
+) -> tuple[list[str], list[str], list[str]]:
+    """Build grocery list items, excluded pantry items, and skipped recipe names (for UI use)."""
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
-    sync_summary: SyncSummary | None = None
-    if backfill_missing:
-        needs_backfill = _recipes_needing_backfill(recipe_names, recipes_by_name)
-        if needs_backfill:
-            sync_summary = run_sync_recipes(db, needs_backfill)
-            recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
     pantry = load_pantry(pantry_path)
 
     # collected maps normalized_name_lower → (display_name, [amounts])
     collected: dict[str, tuple[str, list[str | None]]] = {}
     excluded_pantry: list[str] = []
+    skipped_recipes: list[str] = []
 
     for name in recipe_names:
         recipe = recipes_by_name.get(name.lower())
@@ -190,6 +174,10 @@ def build_grocery_list(
             continue
 
         ingredient_lines = _get_ingredient_lines(recipe)
+        if not ingredient_lines:
+            skipped_recipes.append(recipe.name)
+            continue
+
         for line in ingredient_lines:
             _collect_ingredient_line(
                 line,
@@ -224,7 +212,7 @@ def build_grocery_list(
 
     grocery_items = sort_grocery_items(grocery_items)
     excluded_pantry.sort(key=str.lower)
-    return grocery_items, excluded_pantry, sync_summary
+    return grocery_items, excluded_pantry, skipped_recipes
 
 
 def format_sync_message(summary: SyncSummary) -> str:
@@ -256,23 +244,15 @@ def _load_week_plan_names(path: Path) -> list[str]:
 def _get_ingredient_lines(recipe: Recipe) -> list[str]:
     if recipe.ingredients and recipe.ingredients.strip():
         return parse_ingredients_text(recipe.ingredients)[0]
-
-    if recipe.link:
-        print(
-            f"Warning: Ingredients empty for '{recipe.name}' — "
-            "scraping Link as fallback. Run `dev backfill-ingredients` to cache ingredients.",
-            file=sys.stderr,
-        )
-        try:
-            scraped = scrape_recipe(recipe.link)
-        except Exception as exc:
-            print(
-                f"Warning: failed to scrape '{recipe.name}' ({recipe.link}): {exc}",
-                file=sys.stderr,
-            )
-        else:
-            return scraped.ingredients
     return []
+
+
+def _warn_missing_ingredients(recipe: Recipe) -> None:
+    print(
+        f"Warning: no ingredients in Notion for '{recipe.name}' — skipping. "
+        "Run `dev backfill-ingredients` to populate from the recipe link.",
+        file=sys.stderr,
+    )
 
 
 def format_grocery_item(name: str, amount: str | None) -> str:
@@ -436,41 +416,16 @@ def _print_grocery_list(items: list[str], *, heading: str | None = "Grocery list
         print(item)
 
 
-def _recipes_needing_backfill(
+def _recipes_missing_ingredients(
     names: list[str],
     recipes_by_name: dict[str, Recipe],
 ) -> list[Recipe]:
-    needs: list[Recipe] = []
+    missing: list[Recipe] = []
     for name in names:
         recipe = recipes_by_name.get(name.lower())
-        if recipe and recipe_needs_empty_sync(recipe):
-            needs.append(recipe)
-    return needs
-
-
-def _should_prompt_backfill(
-    names: list[str],
-    recipes_by_name: dict[str, Recipe],
-) -> bool:
-    return bool(_recipes_needing_backfill(names, recipes_by_name))
-
-
-def _prompt_backfill(
-    names: list[str],
-    recipes_by_name: dict[str, Recipe],
-) -> bool:
-    needs = _recipes_needing_backfill(names, recipes_by_name)
-    if not needs:
-        return False
-
-    missing = ", ".join(recipe.name for recipe in needs)
-    print(f"Some recipes are missing ingredients: {missing}")
-    try:
-        raw = input("Backfill from links now? [Y/n]: ")
-    except EOFError:
-        return False
-
-    return not raw.strip() or raw.strip().lower().startswith("y")
+        if recipe and not _get_ingredient_lines(recipe):
+            missing.append(recipe)
+    return missing
 
 
 def _print_excluded_summary(excluded: list[str]) -> None:

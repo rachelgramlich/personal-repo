@@ -46,8 +46,9 @@ Uses your saved week plan. No flags needed — it walks you through:
 |------|----------------|
 | `--recipes "A,B"` | Skip the week plan and use specific recipe names |
 | `--include-staples` | Keep salt, oil, etc. on the list instead of excluding them |
-| `--backfill-missing` | Scrape missing ingredients without asking first |
 | `--quiet` | Just the list — no excluded-staples display or re-add prompt |
+
+Recipes with empty Notion Ingredients are skipped with a warning. Populate them first with `dev backfill-ingredients`.
 
 ### My pantry staples changed
 

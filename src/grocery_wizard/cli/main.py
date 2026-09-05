@@ -92,11 +92,6 @@ def main(argv: list[str] | None = None) -> int:
         help="Minimal output: hide excluded staples and skip the re-add prompt",
     )
     grocery_parser.add_argument(
-        "--backfill-missing",
-        action="store_true",
-        help=("Scrape Notion recipes that have a link but no ingredients, then build the list"),
-    )
-    grocery_parser.add_argument(
         "--include-staples",
         action="store_true",
         help="Don't exclude pantry staples (salt, oil, etc.) from the list",
@@ -357,7 +352,6 @@ def cmd_grocery(args: argparse.Namespace) -> int:
         db,
         recipe_names=recipe_names,
         quiet=args.quiet,
-        backfill_missing=args.backfill_missing,
         exclude_pantry=not args.include_staples,
         include_recurring_weekly_items=not args.no_recurring_weekly_items,
     )
