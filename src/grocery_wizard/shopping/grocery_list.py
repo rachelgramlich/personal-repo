@@ -3,18 +3,25 @@
 from __future__ import annotations
 
 __all__ = [
+    "NameLinkMismatch",
     "build_grocery_list",
+    "detect_name_link_mismatch",
     "format_grocery_item",
+    "format_item_provenance",
     "format_meals_and_grocery_list",
+    "format_name_link_mismatch_warning",
     "format_sync_message",
     "merge_grocery_items",
     "normalize_grocery_list_item",
+    "recipe_title_from_url",
     "run_grocery_list",
 ]
 
 import difflib
 import json
+import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from src.grocery_wizard.config import LEGACY_WEEK_PLAN_PATH, WEEK_PLAN_PATH
@@ -42,6 +49,79 @@ from src.grocery_wizard.shopping.store_aisles import (
     ingredient_name,
     sort_grocery_items,
 )
+
+_NAME_LINK_MATCH_THRESHOLD = 0.85
+_NYT_SLUG_ID_PREFIX = re.compile(r"^\d+-")
+_TITLE_NORMALIZE = re.compile(r"[^a-z0-9\s]+")
+
+
+@dataclass(frozen=True)
+class NameLinkMismatch:
+    """Notion recipe Name does not match the title implied by Link."""
+
+    recipe_name: str
+    link: str
+    link_title: str
+
+
+def recipe_title_from_url(url: str) -> str | None:
+    """Extract a human-readable recipe title from a URL slug."""
+    slug = url.rstrip("/").rsplit("/", maxsplit=1)[-1]
+    slug = slug.split("?")[0]
+    slug = _NYT_SLUG_ID_PREFIX.sub("", slug)
+    if not slug or slug.startswith("http"):
+        return None
+    return slug.replace("-", " ").replace("_", " ").strip()
+
+
+def _normalize_recipe_title(title: str) -> str:
+    normalized = _TITLE_NORMALIZE.sub(" ", title.lower())
+    return " ".join(normalized.split())
+
+
+def detect_name_link_mismatch(recipe: Recipe) -> NameLinkMismatch | None:
+    """Return a mismatch when Notion Name and Link slug title disagree."""
+    if not recipe.link or not recipe.name:
+        return None
+
+    link_title = recipe_title_from_url(recipe.link)
+    if not link_title:
+        return None
+
+    name_norm = _normalize_recipe_title(recipe.name)
+    link_norm = _normalize_recipe_title(link_title)
+    if name_norm == link_norm:
+        return None
+
+    ratio = difflib.SequenceMatcher(None, name_norm, link_norm).ratio()
+    if ratio >= _NAME_LINK_MATCH_THRESHOLD:
+        return None
+
+    return NameLinkMismatch(
+        recipe_name=recipe.name,
+        link=recipe.link,
+        link_title=link_title.title(),
+    )
+
+
+def format_name_link_mismatch_warning(mismatch: NameLinkMismatch) -> str:
+    return (
+        f"Name/link mismatch for '{mismatch.recipe_name}': "
+        f"Link points to '{mismatch.link_title}' ({mismatch.link}). "
+        "Ingredients may be stale — verify Notion Name, Link, and Ingredients match."
+    )
+
+
+def format_item_provenance(item_provenance: dict[str, list[str]]) -> str:
+    """Format grocery-item → recipe mapping for display."""
+    if not item_provenance:
+        return ""
+
+    lines = ["Item sources"]
+    for item in sort_grocery_items(list(item_provenance)):
+        recipes = item_provenance[item]
+        lines.append(f"- {item}: {', '.join(recipes)}")
+    return "\n".join(lines)
 
 
 def run_grocery_list(
@@ -81,12 +161,19 @@ def run_grocery_list(
     # collected maps normalized_name_lower → (display_name, [amounts])
     collected: dict[str, tuple[str, list[str | None]]] = {}
     excluded_pantry: list[str] = []
+    provenance: dict[str, set[str]] = {}
+    name_link_mismatches: list[NameLinkMismatch] = []
 
     for name in names:
         recipe = recipes_by_name.get(name.lower())
         if recipe is None:
             print(f"Warning: recipe not found in Notion: {name}", file=sys.stderr)
             continue
+
+        mismatch = detect_name_link_mismatch(recipe)
+        if mismatch:
+            name_link_mismatches.append(mismatch)
+            print(format_name_link_mismatch_warning(mismatch), file=sys.stderr)
 
         ingredient_lines = _get_ingredient_lines(recipe)
         if not ingredient_lines:
@@ -104,6 +191,8 @@ def run_grocery_list(
                 exclude_pantry=exclude_pantry,
                 collected=collected,
                 excluded_pantry=excluded_pantry,
+                recipe_name=recipe.name,
+                provenance=provenance,
             )
 
     seen: set[str] = set(collected.keys())
@@ -111,10 +200,18 @@ def run_grocery_list(
         format_grocery_item(display_name, aggregate_amounts(amounts, name=display_name))
         for display_name, amounts in collected.values()
     ]
+    item_provenance = _build_item_provenance(collected, provenance)
 
     excluded_sorted = sorted(excluded_pantry, key=str.lower)
 
     if not quiet:
+        if name_link_mismatches:
+            print()
+            print("Name/link mismatches (verify Notion data)")
+            print("-" * 40)
+            for mismatch in name_link_mismatches:
+                print(f"  {format_name_link_mismatch_warning(mismatch)}")
+
         _print_excluded_summary(excluded_sorted)
         readded = _prompt_readd_excluded(excluded_sorted)
         if readded:
@@ -139,6 +236,9 @@ def run_grocery_list(
         _print_grocery_list(grocery_items, heading="Grocery list")
         grocery_items = _prompt_accept_or_edit(grocery_items)
         _print_grocery_list(grocery_items, heading="Final grocery list")
+        if item_provenance:
+            print()
+            print(format_item_provenance(item_provenance))
     else:
         recurring = _resolve_recurring_weekly_items(
             recurring_weekly_items=recurring_weekly_items,
@@ -165,12 +265,15 @@ def build_grocery_list(
     recurring_weekly_items: list[str] | None = None,
     include_recurring_weekly_items: bool = False,
     exclude_pantry: bool = True,
-) -> tuple[list[str], list[str], None, list[str]]:
+) -> tuple[list[str], list[str], None, list[str], dict[str, list[str]], list[NameLinkMismatch]]:
     """Build grocery list items, excluded pantry items, and skipped recipe names (for UI use).
 
     Reads ingredients exclusively from Notion — never scrapes. Recipes whose
     Notion Ingredients field is empty are collected in the returned
     ``missing_ingredients`` list so callers can surface a backfill hint.
+
+    Also returns ``item_provenance`` (grocery item → source recipe names) and
+    ``name_link_mismatches`` when Notion Name and Link disagree.
     """
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
     pantry = load_pantry(pantry_path)
@@ -179,11 +282,17 @@ def build_grocery_list(
     collected: dict[str, tuple[str, list[str | None]]] = {}
     excluded_pantry: list[str] = []
     missing_ingredients: list[str] = []
+    provenance: dict[str, set[str]] = {}
+    name_link_mismatches: list[NameLinkMismatch] = []
 
     for name in recipe_names:
         recipe = recipes_by_name.get(name.lower())
         if recipe is None:
             continue
+
+        mismatch = detect_name_link_mismatch(recipe)
+        if mismatch:
+            name_link_mismatches.append(mismatch)
 
         ingredient_lines = _get_ingredient_lines(recipe)
         if not ingredient_lines:
@@ -197,6 +306,8 @@ def build_grocery_list(
                 exclude_pantry=exclude_pantry,
                 collected=collected,
                 excluded_pantry=excluded_pantry,
+                recipe_name=recipe.name,
+                provenance=provenance,
             )
 
     seen: set[str] = set(collected.keys())
@@ -204,6 +315,7 @@ def build_grocery_list(
         format_grocery_item(display_name, aggregate_amounts(amounts, name=display_name))
         for display_name, amounts in collected.values()
     ]
+    item_provenance = _build_item_provenance(collected, provenance)
 
     for staple in staples or []:
         _append_unique_items(grocery_items, seen, [staple])
@@ -221,7 +333,14 @@ def build_grocery_list(
 
     grocery_items = sort_grocery_items(grocery_items)
     excluded_pantry.sort(key=str.lower)
-    return grocery_items, excluded_pantry, None, missing_ingredients
+    return (
+        grocery_items,
+        excluded_pantry,
+        None,
+        missing_ingredients,
+        item_provenance,
+        name_link_mismatches,
+    )
 
 
 def format_sync_message(summary: SyncSummary) -> str:
@@ -302,6 +421,8 @@ def merge_grocery_items(
 def format_meals_and_grocery_list(
     meals: list[tuple[str, str | None]],
     grocery_items: list[str],
+    *,
+    item_provenance: dict[str, list[str]] | None = None,
 ) -> str:
     """Format meals and grocery items as a single copy/pasteable block."""
     lines = ["Meals"]
@@ -319,6 +440,10 @@ def format_meals_and_grocery_list(
         lines.append("")
         lines.append(aisle_label(aisle))
         lines.extend(f"- {item}" for item in aisle_items)
+
+    if item_provenance:
+        lines.append("")
+        lines.append(format_item_provenance(item_provenance))
 
     return "\n".join(lines)
 
@@ -373,6 +498,8 @@ def _collect_ingredient_line(
     exclude_pantry: bool,
     collected: dict[str, tuple[str, list[str | None]]],
     excluded_pantry: list[str],
+    recipe_name: str | None = None,
+    provenance: dict[str, set[str]] | None = None,
 ) -> None:
     """Parse *line*, deduplicate by normalised name, and accumulate amounts.
 
@@ -395,6 +522,23 @@ def _collect_ingredient_line(
             collected[key][1].append(amount)
         else:
             collected[key] = (normalized, [amount])
+        if recipe_name and provenance is not None:
+            provenance.setdefault(key, set()).add(recipe_name)
+
+
+def _build_item_provenance(
+    collected: dict[str, tuple[str, list[str | None]]],
+    provenance: dict[str, set[str]],
+) -> dict[str, list[str]]:
+    """Map formatted grocery items to the recipe names they came from."""
+    item_provenance: dict[str, list[str]] = {}
+    for key, (display_name, amounts) in collected.items():
+        recipes = provenance.get(key)
+        if not recipes:
+            continue
+        item = format_grocery_item(display_name, aggregate_amounts(amounts, name=display_name))
+        item_provenance[item] = sorted(recipes)
+    return item_provenance
 
 
 def _split_ingredient_text(text: str) -> list[str]:

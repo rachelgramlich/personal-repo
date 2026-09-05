@@ -15,12 +15,16 @@ from src.grocery_wizard.shopping.grocery_list import (
     _print_excluded_summary,
     _recipes_needing_backfill,
     build_grocery_list,
+    detect_name_link_mismatch,
     format_grocery_item,
+    format_item_provenance,
     format_meals_and_grocery_list,
+    format_name_link_mismatch_warning,
     match_excluded_items,
     merge_grocery_items,
     normalize_grocery_list_item,
     parse_readd_excluded,
+    recipe_title_from_url,
     run_grocery_list,
 )
 
@@ -90,7 +94,7 @@ def test_build_grocery_list_excludes_pantry_by_default(pantry_file: Path) -> Non
         )
     ]
 
-    items, excluded, _sync, _missing = build_grocery_list(
+    items, excluded, _sync, _missing, _, _ = build_grocery_list(
         db,
         recipe_names=["Test Recipe"],
         pantry_path=pantry_file,
@@ -113,7 +117,7 @@ def test_build_grocery_list_include_pantry(pantry_file: Path) -> None:
         )
     ]
 
-    items, excluded, _sync, _missing = build_grocery_list(
+    items, excluded, _sync, _missing, _, _ = build_grocery_list(
         db,
         recipe_names=["Test Recipe"],
         pantry_path=pantry_file,
@@ -141,7 +145,7 @@ def test_build_grocery_list_splits_compound_ingredients(tmp_path: Path) -> None:
         )
     ]
 
-    items, excluded, _sync, _missing = build_grocery_list(
+    items, excluded, _sync, _missing, _, _ = build_grocery_list(
         db,
         recipe_names=["Chana Masala"],
         pantry_path=pantry_path,
@@ -175,7 +179,7 @@ def test_build_grocery_list_splits_cauliflower_and_rice(
         _recipe("Stir Fry", "cauliflower\nrice"),
     ]
 
-    items, excluded, _sync, _missing = build_grocery_list(
+    items, excluded, _sync, _missing, _, _ = build_grocery_list(
         db,
         recipe_names=["Stir Fry"],
         pantry_path=pantry_path,
@@ -197,7 +201,7 @@ def test_build_grocery_list_keeps_cauliflower_rice_without_conjunction(tmp_path:
         _recipe("Stir Fry", "cauliflower rice"),
     ]
 
-    items, excluded, _sync, _missing = build_grocery_list(
+    items, excluded, _sync, _missing, _, _ = build_grocery_list(
         db,
         recipe_names=["Stir Fry"],
         pantry_path=pantry_path,
@@ -217,7 +221,7 @@ def test_build_grocery_list_white_beans_not_split(tmp_path: Path) -> None:
         _recipe("Soup", "2 cans white beans"),
     ]
 
-    items, _excluded, _sync, _missing = build_grocery_list(
+    items, _excluded, _sync, _missing, _, _ = build_grocery_list(
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
@@ -464,7 +468,7 @@ def test_build_grocery_list_never_scrapes_with_empty_ingredients(tmp_path: Path)
 
     # Patch at the scraper module to catch any accidental scraping from any code path
     with patch("src.grocery_wizard.recipes.scraper.scrape_recipe") as mock_scrape:
-        _items, _excluded, _sync_summary, missing = build_grocery_list(
+        _items, _excluded, _sync_summary, missing, _, _ = build_grocery_list(
             db,
             recipe_names=["No Ingredients"],
             pantry_path=pantry_path,
@@ -486,7 +490,7 @@ def test_build_grocery_list_returns_missing_ingredients_for_empty_recipes(tmp_pa
     db = MagicMock()
     db.query_recipes.return_value = [populated, empty]
 
-    items, _excluded, _sync_summary, missing = build_grocery_list(
+    items, _excluded, _sync_summary, missing, _, _ = build_grocery_list(
         db,
         recipe_names=["Populated", "Empty"],
         pantry_path=pantry_path,
@@ -554,7 +558,7 @@ def test_build_grocery_list_splits_title_bleed(tmp_path: Path) -> None:
         _recipe("Chimichurri Chicken", "chimichurri zucchini orzo"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _, _, _, _ = build_grocery_list(
         db,
         recipe_names=["Chimichurri Chicken"],
         pantry_path=pantry_path,
@@ -583,7 +587,7 @@ def test_build_grocery_list_splits_merged_chermoula_lines(tmp_path: Path) -> Non
         ),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _, _, _, _ = build_grocery_list(
         db,
         recipe_names=["One-Pot Chermoula Shrimp and Orzo"],
         pantry_path=pantry_path,
@@ -610,7 +614,7 @@ def test_build_grocery_list_aggregates_fractional_limes(tmp_path: Path) -> None:
         _recipe("Recipe B", "1/2 lime"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _, _, _, _ = build_grocery_list(
         db,
         recipe_names=["Recipe A", "Recipe B"],
         pantry_path=pantry_path,
@@ -631,7 +635,7 @@ def test_build_grocery_list_shows_amounts(tmp_path: Path) -> None:
         _recipe("Soup", "1 lb chicken breast\n2 cans white beans"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _, _, _, _ = build_grocery_list(
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
@@ -653,7 +657,7 @@ def test_build_grocery_list_aggregates_amounts_across_recipes(tmp_path: Path) ->
         _recipe("Recipe B", "1 can white beans"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _, _, _, _ = build_grocery_list(
         db,
         recipe_names=["Recipe A", "Recipe B"],
         pantry_path=pantry_path,
@@ -674,7 +678,7 @@ def test_build_grocery_list_no_amount_fallback(tmp_path: Path) -> None:
         _recipe("Salad", "chicken breast"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _, _, _, _ = build_grocery_list(
         db,
         recipe_names=["Salad"],
         pantry_path=pantry_path,
@@ -693,7 +697,7 @@ def test_build_grocery_list_includes_recurring_weekly_items(tmp_path: Path) -> N
         _recipe("Soup", "1 lb chicken breast"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _, _, _, _ = build_grocery_list(
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
@@ -715,7 +719,7 @@ def test_build_grocery_list_skips_duplicate_recurring_weekly_items(tmp_path: Pat
         _recipe("Soup", "2 cups milk"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _, _, _, _ = build_grocery_list(
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
@@ -735,7 +739,7 @@ def test_build_grocery_list_skips_duplicate_recurring_banana_plural(tmp_path: Pa
         _recipe("Smoothie", "2 bananas"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _, _, _, _ = build_grocery_list(
         db,
         recipe_names=["Smoothie"],
         pantry_path=pantry_path,
@@ -771,7 +775,7 @@ def test_build_grocery_list_consolidates_lemon_variants(tmp_path: Path) -> None:
         )
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _, _, _, _ = build_grocery_list(
         db,
         recipe_names=["Lemon Dish"],
         pantry_path=pantry_path,
@@ -831,7 +835,7 @@ def test_build_grocery_list_dedups_checklist_recurring_items(tmp_path: Path) -> 
         _recipe("Smoothie", "2 bananas"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _, _, _, _ = build_grocery_list(
         db,
         recipe_names=["Smoothie"],
         pantry_path=pantry_path,
@@ -859,3 +863,182 @@ def test_merge_grocery_items_then_append_skips_readded_duplicates() -> None:
 
     assert grocery_items.count("garlic") == 1
     assert "onions" in grocery_items
+
+
+def test_recipe_title_from_url_strips_nyt_id_prefix() -> None:
+    url = "https://cooking.nytimes.com/recipes/1026918-crispy-potato-quesadillas"
+    assert recipe_title_from_url(url) == "crispy potato quesadillas"
+
+
+def test_detect_name_link_mismatch_flags_tacos_vs_quesadillas() -> None:
+    recipe = Recipe(
+        page_id="p1",
+        name="Crispy Potato Tacos",
+        link="https://cooking.nytimes.com/recipes/1026918-crispy-potato-quesadillas",
+        ingredients="peas\nsemi-soft cheese",
+        properties={},
+    )
+
+    mismatch = detect_name_link_mismatch(recipe)
+
+    assert mismatch is not None
+    assert mismatch.recipe_name == "Crispy Potato Tacos"
+    assert mismatch.link_title == "Crispy Potato Quesadillas"
+    assert "1026918" in mismatch.link
+
+
+def test_detect_name_link_mismatch_allows_matching_name_and_link() -> None:
+    recipe = Recipe(
+        page_id="p1",
+        name="Crispy Potato Tacos",
+        link="https://cooking.nytimes.com/recipes/1024397-crispy-potato-tacos",
+        ingredients="potatoes\ncheddar",
+        properties={},
+    )
+
+    assert detect_name_link_mismatch(recipe) is None
+
+
+def test_build_grocery_list_tracks_item_provenance(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        Recipe(
+            page_id="p1",
+            name="Soup",
+            link="https://example.com/soup",
+            ingredients="1 lb chicken breast\n2 cans white beans",
+            properties={},
+        ),
+        Recipe(
+            page_id="p2",
+            name="Salad",
+            link="https://example.com/salad",
+            ingredients="lettuce\n1 lb chicken breast",
+            properties={},
+        ),
+    ]
+
+    items, _, _, _, provenance, mismatches = build_grocery_list(
+        db,
+        recipe_names=["Soup", "Salad"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert any("chicken breast" in item for item in items)
+    chicken_key = next(item for item in provenance if "chicken breast" in item)
+    assert provenance[chicken_key] == ["Salad", "Soup"]
+    assert provenance["2 cans white beans"] == ["Soup"]
+    assert provenance["lettuce"] == ["Salad"]
+    assert mismatches == []
+
+
+def test_build_grocery_list_reports_name_link_mismatch(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        Recipe(
+            page_id="p1",
+            name="Crispy Potato Tacos",
+            link="https://cooking.nytimes.com/recipes/1026918-crispy-potato-quesadillas",
+            ingredients="peas\nsemi-soft cheese",
+            properties={},
+        ),
+    ]
+
+    _items, _, _, _, _, mismatches = build_grocery_list(
+        db,
+        recipe_names=["Crispy Potato Tacos"],
+        pantry_path=pantry_path,
+    )
+
+    assert len(mismatches) == 1
+    assert mismatches[0].recipe_name == "Crispy Potato Tacos"
+    assert mismatches[0].link_title == "Crispy Potato Quesadillas"
+
+
+def test_format_name_link_mismatch_warning() -> None:
+    from src.grocery_wizard.shopping.grocery_list import NameLinkMismatch
+
+    warning = format_name_link_mismatch_warning(
+        NameLinkMismatch(
+            recipe_name="Crispy Potato Tacos",
+            link="https://cooking.nytimes.com/recipes/1026918-crispy-potato-quesadillas",
+            link_title="Crispy Potato Quesadillas",
+        )
+    )
+
+    assert "Crispy Potato Tacos" in warning
+    assert "Crispy Potato Quesadillas" in warning
+    assert "stale" in warning.lower()
+
+
+def test_format_item_provenance_lists_source_recipes() -> None:
+    text = format_item_provenance(
+        {
+            "peas": ["Crispy Potato Quesadillas"],
+            "1 lb chicken breast": ["Salad", "Soup"],
+        }
+    )
+
+    assert "Item sources" in text
+    assert "peas: Crispy Potato Quesadillas" in text
+    assert "1 lb chicken breast: Salad, Soup" in text
+
+
+def test_format_meals_and_grocery_list_includes_provenance() -> None:
+    meals = [("Soup", "https://example.com/soup")]
+    grocery_items = ["peas"]
+    provenance = {"peas": ["Crispy Potato Quesadillas"]}
+
+    text = format_meals_and_grocery_list(meals, grocery_items, item_provenance=provenance)
+
+    assert "Item sources" in text
+    assert "peas: Crispy Potato Quesadillas" in text
+
+
+def test_run_grocery_list_warns_about_name_link_mismatch(
+    pantry_file: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        Recipe(
+            page_id="p1",
+            name="Crispy Potato Tacos",
+            link="https://cooking.nytimes.com/recipes/1026918-crispy-potato-quesadillas",
+            ingredients="peas",
+            properties={},
+        ),
+    ]
+    week_plan = pantry_file.parent / "week_plan.json"
+    week_plan.write_text('{"recipes": ["Crispy Potato Tacos"]}', encoding="utf-8")
+
+    with (
+        patch("src.grocery_wizard.shopping.grocery_list.input", side_effect=EOFError),
+        patch(
+            "src.grocery_wizard.shopping.grocery_list.prompt_recurring_weekly_items",
+            return_value=[],
+        ),
+        patch("src.grocery_wizard.shopping.grocery_list._prompt_staples", return_value=[]),
+        patch(
+            "src.grocery_wizard.shopping.grocery_list._prompt_accept_or_edit",
+            side_effect=lambda items: items,
+        ),
+    ):
+        code = run_grocery_list(
+            db,
+            quiet=True,
+            week_plan_path=week_plan,
+            pantry_path=pantry_file,
+        )
+
+    assert code == 0
+    err = capsys.readouterr().err
+    assert "Name/link mismatch" in err
+    assert "Crispy Potato Quesadillas" in err
