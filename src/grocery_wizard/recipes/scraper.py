@@ -504,33 +504,32 @@ def _extract_heading_ingredients(soup: BeautifulSoup) -> list[str]:
 
 
 def _ingredients_from_heading_section(heading: Tag) -> list[str]:
+    all_ingredients: list[str] = []
     for sibling in heading.find_next_siblings():
         if _is_section_heading(sibling):
             break
-        ingredients = _extract_ingredients_from_container(sibling)
-        if ingredients:
-            return ingredients
+        all_ingredients.extend(_extract_ingredients_from_container(sibling))
+    if all_ingredients:
+        return all_ingredients
 
     parent = heading.parent
     if isinstance(parent, Tag):
         for child in parent.find_all(["fieldset", "ul", "ol", "div"], recursive=False):
             if child is heading or _is_section_heading(child):
                 continue
-            ingredients = _extract_ingredients_from_container(child)
-            if ingredients:
-                return ingredients
+            all_ingredients.extend(_extract_ingredients_from_container(child))
+        if all_ingredients:
+            return all_ingredients
 
     next_element = heading.find_next(["fieldset", "ul", "ol", "div"])
     while isinstance(next_element, Tag):
         if _is_section_heading(next_element) and next_element is not heading:
             break
         if not _is_instruction_container(next_element):
-            ingredients = _extract_ingredients_from_container(next_element)
-            if ingredients:
-                return ingredients
+            all_ingredients.extend(_extract_ingredients_from_container(next_element))
         next_element = next_element.find_next(["fieldset", "ul", "ol", "div"])
 
-    return []
+    return all_ingredients
 
 
 def _extract_ingredients_from_container(container: Tag) -> list[str]:
