@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import re
 
-# Strips an optional leading bullet (-, *, •), optional whitespace, then an
-# optional Markdown/Notion checklist marker ([ ], [x], [X]) with trailing space.
-_BULLET_RE = re.compile(r"^[-*•]?\s*(?:\[[ xX]\]\s*)?")
+_NUMBERED_CHECKLIST_RE = re.compile(r"^\d+\.\s*(?:\[\s*[xX]?\s*\]\s*)?")
+_BULLET_CHECKLIST_RE = re.compile(r"^[-–—−•*]\s*(?:\[\s*[xX]?\s*\]\s*)?")  # noqa: RUF001
+_BARE_CHECKLIST_RE = re.compile(r"^\[\s*[xX]?\s*\]\s*")
 
 
 def strip_line_item(line: str) -> str:
@@ -24,9 +24,20 @@ def strip_line_item(line: str) -> str:
         strip_line_item("- [x] Milk")     # -> "Milk"
         strip_line_item("[ ] Eggs")       # -> "Eggs"
         strip_line_item("- Bread")        # -> "Bread"
+        strip_line_item("1. [ ] Apples") # -> "Apples"
         strip_line_item("Sugar")          # -> "Sugar"
     """
-    return _BULLET_RE.sub("", line.strip()).strip()
+    stripped = line.strip()
+    if not stripped:
+        return ""
+    stripped = _NUMBERED_CHECKLIST_RE.sub("", stripped)
+    stripped = _BULLET_CHECKLIST_RE.sub("", stripped)
+    stripped = _BARE_CHECKLIST_RE.sub("", stripped)
+    return stripped.strip()
+
+
+# Backward-compatible alias used by aisle classification and grocery normalization.
+strip_checklist_prefix = strip_line_item
 
 
 def parse_line_items(text: str) -> list[str]:
