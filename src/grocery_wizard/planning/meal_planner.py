@@ -8,6 +8,7 @@ __all__ = [
     "build_ingredient_index",
     "filter_recipes",
     "load_recent_plan_names",
+    "replace_meals_in_plan",
     "run_meal_planner",
     "save_week_plan",
     "suggest_meals",
