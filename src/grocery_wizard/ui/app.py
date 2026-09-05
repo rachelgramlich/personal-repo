@@ -42,12 +42,12 @@ from src.grocery_wizard.shopping.grocery_list import (
     format_meals_and_grocery_list,
     merge_grocery_items,
 )
-from src.grocery_wizard.shopping.store_aisles import sort_grocery_items
 from src.grocery_wizard.shopping.line_items import parse_line_items
 from src.grocery_wizard.shopping.recurring_weekly_items import (
     load_recurring_weekly_items,
     write_recurring_weekly_items,
 )
+from src.grocery_wizard.shopping.store_aisles import sort_grocery_items
 
 
 def _meal_entries_with_links(
