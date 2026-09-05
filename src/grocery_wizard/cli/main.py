@@ -229,8 +229,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     validate_pipeline_parser.add_argument(
         "--output",
-        default="tests/fixtures/pipeline_validation_report.txt",
-        help="Where to write the report (default: tests/fixtures/pipeline_validation_report.txt)",
+        default=".local/pipeline_validation_report.txt",
+        help="Where to write the report (default: .local/pipeline_validation_report.txt)",
     )
     validate_pipeline_parser.add_argument(
         "--suggest-meals",
