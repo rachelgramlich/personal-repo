@@ -783,10 +783,30 @@ def render_create_weekly_plan() -> None:
 
     current_plan = _current_plan_names()
     if current_plan:
-        for index, name in enumerate(current_plan, start=1):
-            st.write(f"{index}. {name}")
 
-        if st.button("Re-generate everything", key="regenerate_plan"):
+        def _apply_plan_swap(names_to_replace: list[str]) -> None:
+            rejected = set(st.session_state.get("plan_rejected_names", []))
+            new_plan, rejected = replace_meals_in_plan(
+                current_plan,
+                names_to_replace,
+                all_recipes=all_recipes,
+                pool=suggestion_pool,
+                rejected_names=rejected,
+            )
+            st.session_state.plan_meals_text = "\n".join(new_plan)
+            st.session_state.plan_rejected_names = sorted(rejected)
+            _clear_grocery_result()
+            st.rerun()
+
+        for index, name in enumerate(current_plan, start=1):
+            meal_col, swap_col = st.columns([8, 1])
+            with meal_col:
+                st.write(f"{index}. {name}")
+            with swap_col:
+                if st.button("↺", key=f"swap_meal_{index}", help="Swap this meal"):
+                    _apply_plan_swap([name])
+
+        if st.button("↺ Re-generate everything", key="regenerate_plan"):
             rejected = set(st.session_state.get("plan_rejected_names", []))
             plan = suggest_meals(
                 all_recipes,
@@ -801,28 +821,9 @@ def render_create_weekly_plan() -> None:
             _clear_grocery_result()
             st.rerun()
 
-        with st.expander("Swap or edit meals", expanded=False):
-            swap_out = st.multiselect(
-                "Meals to replace",
-                options=current_plan,
-                key="plan_meals_to_swap",
-            )
-            if st.button("Swap selected", disabled=not swap_out, key="swap_meals"):
-                rejected = set(st.session_state.get("plan_rejected_names", []))
-                new_plan, rejected = replace_meals_in_plan(
-                    current_plan,
-                    swap_out,
-                    all_recipes=all_recipes,
-                    pool=suggestion_pool,
-                    rejected_names=rejected,
-                )
-                st.session_state.plan_meals_text = "\n".join(new_plan)
-                st.session_state.plan_rejected_names = sorted(rejected)
-                _clear_grocery_result()
-                st.rerun()
-
+        with st.expander("Edit manually", expanded=False):
             st.text_area(
-                "Edit manually — one recipe per line",
+                "One recipe per line",
                 height=160,
                 key="plan_meals_text",
             )
