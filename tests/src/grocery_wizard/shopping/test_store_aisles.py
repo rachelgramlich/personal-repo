@@ -32,13 +32,21 @@ def test_parse_store_aisles_file_reads_sections_and_keywords(tmp_path: Path) -> 
 
 def test_load_store_aisles_uses_committed_config() -> None:
     config = load_store_aisles()
+    assert config.aisle_order[0] == "flowers"
+    assert config.aisle_order.index("flowers") < config.aisle_order.index("fruit")
     assert config.aisle_order.index("fruit") < config.aisle_order.index("vegetables")
     assert config.aisle_order.index("dairy/eggs") < config.aisle_order.index("meat/fish")
     assert config.aisle_order.index("meat/fish") < config.aisle_order.index("bakery")
+    assert config.aisle_order.index("bakery") < config.aisle_order.index("home goods")
+    assert config.aisle_order.index("home goods") < config.aisle_order.index("dry goods")
+    assert config.aisle_labels["flowers"] == "Flowers"
+    assert config.aisle_labels["home goods"] == "Home goods"
     assert config.aisle_labels["fruit"] == "Fruit"
     assert config.aisle_labels["meat/fish"] == "Meat & fish"
     assert "banana" in config.aisle_keywords["fruit"]
     assert "onion" in config.aisle_keywords["vegetables"]
+    assert "apple cider" in config.aisle_keywords["canned drinks"]
+    assert "peanut butter" in config.aisle_keywords["dry goods"]
 
 
 def test_load_store_aisles_warns_when_file_missing(
@@ -189,4 +197,29 @@ def test_strip_checklist_prefix(raw: str, expected: str) -> None:
     ],
 )
 def test_classify_aisle_strips_checklist_prefix(item: str, expected_aisle: str) -> None:
+    assert classify_aisle(item) == expected_aisle
+
+
+@pytest.mark.parametrize(
+    ("item", "expected_aisle"),
+    [
+        ("Apple cider", "canned drinks"),
+        ("Canned peaches", "dry goods"),
+        ("Raspberry jam", "dry goods"),
+        ("Apricot jam", "dry goods"),
+        ("Canned corn", "dry goods"),
+        ("Peanut butter", "dry goods"),
+        ("1 lime, juiced", "fruit"),
+        ("1 pound potatoes, unpeeled but scrubbed clean", "vegetables"),
+        ("Applesauce", "dry goods"),
+        ("Cold foam", "dairy/eggs"),
+        ("Flowers", "flowers"),
+        ("- [ ] Flowers", "flowers"),
+        ("Hand soap", "home goods"),
+        ("Lox pastrami kind", "meat/fish"),
+        ("Mexican crema", "dairy/eggs"),
+        ("Pesto", "refrigerated"),
+    ],
+)
+def test_classify_aisle_misclassifications(item: str, expected_aisle: str) -> None:
     assert classify_aisle(item) == expected_aisle
