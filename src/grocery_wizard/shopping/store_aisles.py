@@ -22,6 +22,19 @@ from src.grocery_wizard.shopping.line_items import strip_checklist_prefix
 
 _SECTION_HEADER_RE = re.compile(r"^#\s*---\s*(?P<id>.+?)(?::\s*(?P<label>.+?))?\s*---\s*$")
 
+# Trailing prep phrases (after a comma) stripped before keyword matching so
+# ``lime, juiced`` and ``potatoes, unpeeled but scrubbed clean`` classify correctly.
+_PREP_SUFFIX_RE = re.compile(
+    r",\s*(?:"
+    r"juiced|zested|"
+    r"unpeeled(?:\s+but\s+[^,]+)?|"
+    r"beaten|chopped|diced|minced|sliced|grated|shredded|crushed|peeled|seeded|cored|"
+    r"trimmed|halved|quartered|julienned|cubed|mashed|softened|melted|thawed|rinsed|drained|"
+    r"smashed(?:\s+and\s+peeled)?|peeled\s+and\s+grated|minced\s+or\s+grated"
+    r")(?:\s+.*)?$",
+    re.IGNORECASE,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class StoreAisleConfig:
@@ -106,10 +119,23 @@ def ingredient_name(item: str) -> str:
     return name or cleaned.strip()
 
 
+def _strip_prep_suffix(name: str) -> str:
+    """Remove trailing prep phrases so aisle keywords match the base ingredient."""
+    text = name
+    changed = True
+    while changed:
+        changed = False
+        updated = _PREP_SUFFIX_RE.sub("", text).strip(" ,")
+        if updated != text:
+            text = updated
+            changed = True
+    return text
+
+
 def classify_aisle(item: str, *, config: StoreAisleConfig | None = None) -> str:
     """Classify a grocery list item into a store aisle."""
     cfg = config or load_store_aisles()
-    name = ingredient_name(item).lower()
+    name = _strip_prep_suffix(ingredient_name(item)).lower()
     if not name:
         return "other"
 
