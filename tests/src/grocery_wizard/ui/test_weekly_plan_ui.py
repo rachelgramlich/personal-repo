@@ -58,3 +58,16 @@ def test_weekly_plan_build_shows_per_meal_swap_and_edit_manually() -> None:
 
     swap_selected = [b for b in at.button if b.label == "Swap selected"]
     assert not swap_selected
+
+
+def test_grocery_list_extra_items_before_create_button() -> None:
+    """Issue #33: Extra items must render above Create grocery list (outside collapsed expander)."""
+    source = APP_PATH.read_text(encoding="utf-8")
+    section = source.split("### 2. Grocery list", 1)[1].split("def _render_grocery_result", 1)[0]
+
+    extra_idx = section.index('key="grocery_pre_extra_items"')
+    create_idx = section.index('if st.button("Create grocery list"')
+    assert extra_idx < create_idx
+
+    assert '\n    extra_items_text = st.text_area(\n        "Extra items (one per line)"' in section
+    assert '\n        extra_items_text = st.text_area(' not in section
