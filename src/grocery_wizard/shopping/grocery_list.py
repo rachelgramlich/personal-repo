@@ -171,7 +171,7 @@ def build_grocery_list(
     recurring_weekly_items: list[str] | None = None,
     include_recurring_weekly_items: bool = False,
     exclude_pantry: bool = True,
-) -> tuple[list[str], list[str], None, list[str]]:
+) -> tuple[list[str], list[str], list[str]]:
     """Build grocery list items, excluded pantry items, and skipped recipe names (for UI use).
 
     Reads ingredients exclusively from Notion — never scrapes. Recipes whose
@@ -230,7 +230,7 @@ def build_grocery_list(
 
     grocery_items = sort_grocery_items(grocery_items)
     excluded_pantry.sort(key=str.lower)
-    return grocery_items, excluded_pantry, None, missing_ingredients
+    return grocery_items, excluded_pantry, missing_ingredients
 
 
 def format_sync_message(summary: SyncSummary) -> str:
@@ -436,31 +436,6 @@ def _recipes_needing_backfill(
         if recipe and recipe_needs_empty_sync(recipe):
             needs.append(recipe)
     return needs
-
-
-def _should_prompt_backfill(
-    names: list[str],
-    recipes_by_name: dict[str, Recipe],
-) -> bool:
-    return bool(_recipes_needing_backfill(names, recipes_by_name))
-
-
-def _prompt_backfill(
-    names: list[str],
-    recipes_by_name: dict[str, Recipe],
-) -> bool:
-    needs = _recipes_needing_backfill(names, recipes_by_name)
-    if not needs:
-        return False
-
-    missing = ", ".join(recipe.name for recipe in needs)
-    print(f"Some recipes are missing ingredients: {missing}")
-    try:
-        raw = input("Backfill from links now? [Y/n]: ")
-    except EOFError:
-        return False
-
-    return not raw.strip() or raw.strip().lower().startswith("y")
 
 
 def _print_excluded_summary(excluded: list[str]) -> None:

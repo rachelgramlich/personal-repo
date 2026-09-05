@@ -642,7 +642,7 @@ def _run_grocery_list_generation(
         )
 
     with st.spinner("Building grocery list..."):
-        items, excluded, _sync_summary, missing_ingredients = build_grocery_list(
+        items, excluded, missing_ingredients = build_grocery_list(
             db,
             recipe_names=selected,
             exclude_pantry=exclude_pantry,

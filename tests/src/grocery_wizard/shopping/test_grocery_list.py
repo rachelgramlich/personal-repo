@@ -78,7 +78,7 @@ def test_build_grocery_list_excludes_pantry_by_default(pantry_file: Path) -> Non
         )
     ]
 
-    items, excluded, _sync, _missing = build_grocery_list(
+    items, excluded, _missing = build_grocery_list(
         db,
         recipe_names=["Test Recipe"],
         pantry_path=pantry_file,
@@ -101,7 +101,7 @@ def test_build_grocery_list_include_pantry(pantry_file: Path) -> None:
         )
     ]
 
-    items, excluded, _sync, _missing = build_grocery_list(
+    items, excluded, _missing = build_grocery_list(
         db,
         recipe_names=["Test Recipe"],
         pantry_path=pantry_file,
@@ -129,7 +129,7 @@ def test_build_grocery_list_splits_compound_ingredients(tmp_path: Path) -> None:
         )
     ]
 
-    items, excluded, _sync, _missing = build_grocery_list(
+    items, excluded, _missing = build_grocery_list(
         db,
         recipe_names=["Chana Masala"],
         pantry_path=pantry_path,
@@ -163,7 +163,7 @@ def test_build_grocery_list_splits_cauliflower_and_rice(
         _recipe("Stir Fry", "cauliflower\nrice"),
     ]
 
-    items, excluded, _sync, _missing = build_grocery_list(
+    items, excluded, _missing = build_grocery_list(
         db,
         recipe_names=["Stir Fry"],
         pantry_path=pantry_path,
@@ -185,7 +185,7 @@ def test_build_grocery_list_keeps_cauliflower_rice_without_conjunction(tmp_path:
         _recipe("Stir Fry", "cauliflower rice"),
     ]
 
-    items, excluded, _sync, _missing = build_grocery_list(
+    items, excluded, _missing = build_grocery_list(
         db,
         recipe_names=["Stir Fry"],
         pantry_path=pantry_path,
@@ -205,7 +205,7 @@ def test_build_grocery_list_white_beans_not_split(tmp_path: Path) -> None:
         _recipe("Soup", "2 cans white beans"),
     ]
 
-    items, _excluded, _sync, _missing = build_grocery_list(
+    items, _excluded, _missing = build_grocery_list(
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
@@ -452,7 +452,7 @@ def test_build_grocery_list_never_scrapes_with_empty_ingredients(tmp_path: Path)
 
     # Patch at the scraper module to catch any accidental scraping from any code path
     with patch("src.grocery_wizard.recipes.scraper.scrape_recipe") as mock_scrape:
-        _items, _excluded, _sync_summary, missing = build_grocery_list(
+        _items, _excluded, missing = build_grocery_list(
             db,
             recipe_names=["No Ingredients"],
             pantry_path=pantry_path,
@@ -474,7 +474,7 @@ def test_build_grocery_list_returns_missing_ingredients_for_empty_recipes(tmp_pa
     db = MagicMock()
     db.query_recipes.return_value = [populated, empty]
 
-    items, _excluded, _sync_summary, missing = build_grocery_list(
+    items, _excluded, missing = build_grocery_list(
         db,
         recipe_names=["Populated", "Empty"],
         pantry_path=pantry_path,
@@ -482,6 +482,44 @@ def test_build_grocery_list_returns_missing_ingredients_for_empty_recipes(tmp_pa
 
     assert any("flour" in item or "eggs" in item for item in items), "populated recipe items should appear"
     assert missing == ["Empty"]
+
+
+def test_run_grocery_list_never_scrapes_without_backfill(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """run_grocery_list must not scrape when backfill_missing is False (default)."""
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    empty = _recipe("No Ingredients", "")
+    empty.ingredients = None
+
+    db = MagicMock()
+    db.query_recipes.return_value = [empty]
+
+    week_plan = pantry_path.parent / "week_plan.json"
+    week_plan.write_text('{"recipes": ["No Ingredients"]}', encoding="utf-8")
+
+    with (
+        patch("src.grocery_wizard.recipes.scraper.scrape_recipe") as mock_scrape,
+        patch(
+            "src.grocery_wizard.shopping.grocery_list.prompt_recurring_weekly_items",
+            return_value=[],
+        ),
+    ):
+        code = run_grocery_list(
+            db,
+            quiet=True,
+            week_plan_path=week_plan,
+            pantry_path=pantry_path,
+        )
+        mock_scrape.assert_not_called()
+
+    assert code == 0
+    err = capsys.readouterr().err
+    assert "No Ingredients" in err
+    assert "no ingredients in Notion" in err
 
 
 def test_run_grocery_list_backfill_missing_only_syncs_empty_recipes(tmp_path: Path) -> None:
@@ -542,7 +580,7 @@ def test_build_grocery_list_splits_title_bleed(tmp_path: Path) -> None:
         _recipe("Chimichurri Chicken", "chimichurri zucchini orzo"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _ = build_grocery_list(
         db,
         recipe_names=["Chimichurri Chicken"],
         pantry_path=pantry_path,
@@ -571,7 +609,7 @@ def test_build_grocery_list_splits_merged_chermoula_lines(tmp_path: Path) -> Non
         ),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _ = build_grocery_list(
         db,
         recipe_names=["One-Pot Chermoula Shrimp and Orzo"],
         pantry_path=pantry_path,
@@ -598,7 +636,7 @@ def test_build_grocery_list_aggregates_fractional_limes(tmp_path: Path) -> None:
         _recipe("Recipe B", "1/2 lime"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _ = build_grocery_list(
         db,
         recipe_names=["Recipe A", "Recipe B"],
         pantry_path=pantry_path,
@@ -619,7 +657,7 @@ def test_build_grocery_list_shows_amounts(tmp_path: Path) -> None:
         _recipe("Soup", "1 lb chicken breast\n2 cans white beans"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _ = build_grocery_list(
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
@@ -641,7 +679,7 @@ def test_build_grocery_list_aggregates_amounts_across_recipes(tmp_path: Path) ->
         _recipe("Recipe B", "1 can white beans"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _ = build_grocery_list(
         db,
         recipe_names=["Recipe A", "Recipe B"],
         pantry_path=pantry_path,
@@ -662,7 +700,7 @@ def test_build_grocery_list_no_amount_fallback(tmp_path: Path) -> None:
         _recipe("Salad", "chicken breast"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _ = build_grocery_list(
         db,
         recipe_names=["Salad"],
         pantry_path=pantry_path,
@@ -681,7 +719,7 @@ def test_build_grocery_list_includes_recurring_weekly_items(tmp_path: Path) -> N
         _recipe("Soup", "1 lb chicken breast"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _ = build_grocery_list(
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
@@ -703,7 +741,7 @@ def test_build_grocery_list_skips_duplicate_recurring_weekly_items(tmp_path: Pat
         _recipe("Soup", "2 cups milk"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _ = build_grocery_list(
         db,
         recipe_names=["Soup"],
         pantry_path=pantry_path,
@@ -723,7 +761,7 @@ def test_build_grocery_list_skips_duplicate_recurring_banana_plural(tmp_path: Pa
         _recipe("Smoothie", "2 bananas"),
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _ = build_grocery_list(
         db,
         recipe_names=["Smoothie"],
         pantry_path=pantry_path,
@@ -759,7 +797,7 @@ def test_build_grocery_list_consolidates_lemon_variants(tmp_path: Path) -> None:
         )
     ]
 
-    items, _, _, _ = build_grocery_list(
+    items, _, _ = build_grocery_list(
         db,
         recipe_names=["Lemon Dish"],
         pantry_path=pantry_path,

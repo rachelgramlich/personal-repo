@@ -138,7 +138,7 @@ def run_pipeline_validation(
                 continue
             _analyze_recipe_ingredients(recipe, run)
 
-        grocery_items, _, _, _ = build_grocery_list(
+        grocery_items, _, _ = build_grocery_list(
             db,
             recipe_names=plan_names,
             include_recurring_weekly_items=False,
