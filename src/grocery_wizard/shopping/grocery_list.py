@@ -33,7 +33,6 @@ from src.grocery_wizard.ingredients.sync import (
     run_sync_recipes,
 )
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
-from src.grocery_wizard.recipes.scraper import scrape_recipe
 from src.grocery_wizard.shopping.pantry import is_pantry_item, load_pantry
 from src.grocery_wizard.shopping.recurring_weekly_items import prompt_recurring_weekly_items
 from src.grocery_wizard.shopping.store_aisles import (
@@ -70,9 +69,9 @@ def run_grocery_list(
         return 1
 
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
-    if backfill_missing or _should_prompt_backfill(names, recipes_by_name):
+    if backfill_missing:
         needs_backfill = _recipes_needing_backfill(names, recipes_by_name)
-        if backfill_missing or _prompt_backfill(names, recipes_by_name):
+        if needs_backfill:
             summary = run_sync_recipes(db, needs_backfill)
             print(format_sync_message(summary))
             recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
@@ -91,7 +90,11 @@ def run_grocery_list(
 
         ingredient_lines = _get_ingredient_lines(recipe)
         if not ingredient_lines:
-            print(f"Warning: no ingredients for '{recipe.name}'", file=sys.stderr)
+            print(
+                f"Warning: skipping '{recipe.name}' — no ingredients in Notion. "
+                "Run `dev backfill-ingredients` to populate from the link.",
+                file=sys.stderr,
+            )
             continue
 
         for line in ingredient_lines:
@@ -155,7 +158,6 @@ def build_grocery_list(
     db: NotionRecipesDB,
     *,
     recipe_names: list[str],
-    backfill_missing: bool = False,
     staples: list[str] | None = None,
     week_plan_path: Path = WEEK_PLAN_PATH,
     pantry_path: Path | None = None,
@@ -163,20 +165,20 @@ def build_grocery_list(
     recurring_weekly_items: list[str] | None = None,
     include_recurring_weekly_items: bool = False,
     exclude_pantry: bool = True,
-) -> tuple[list[str], list[str], SyncSummary | None]:
-    """Build grocery list items, excluded pantry items, and optional sync summary (for UI use)."""
+) -> tuple[list[str], list[str], None, list[str]]:
+    """Build grocery list items, excluded pantry items, and skipped recipe names (for UI use).
+
+    Reads ingredients exclusively from Notion — never scrapes. Recipes whose
+    Notion Ingredients field is empty are collected in the returned
+    ``missing_ingredients`` list so callers can surface a backfill hint.
+    """
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
-    sync_summary: SyncSummary | None = None
-    if backfill_missing:
-        needs_backfill = _recipes_needing_backfill(recipe_names, recipes_by_name)
-        if needs_backfill:
-            sync_summary = run_sync_recipes(db, needs_backfill)
-            recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
     pantry = load_pantry(pantry_path)
 
     # collected maps normalized_name_lower → (display_name, [amounts])
     collected: dict[str, tuple[str, list[str | None]]] = {}
     excluded_pantry: list[str] = []
+    missing_ingredients: list[str] = []
 
     for name in recipe_names:
         recipe = recipes_by_name.get(name.lower())
@@ -184,6 +186,10 @@ def build_grocery_list(
             continue
 
         ingredient_lines = _get_ingredient_lines(recipe)
+        if not ingredient_lines:
+            missing_ingredients.append(recipe.name)
+            continue
+
         for line in ingredient_lines:
             _collect_ingredient_line(
                 line,
@@ -215,7 +221,7 @@ def build_grocery_list(
 
     grocery_items = sort_grocery_items(grocery_items)
     excluded_pantry.sort(key=str.lower)
-    return grocery_items, excluded_pantry, sync_summary
+    return grocery_items, excluded_pantry, None, missing_ingredients
 
 
 def format_sync_message(summary: SyncSummary) -> str:
@@ -247,22 +253,6 @@ def _load_week_plan_names(path: Path) -> list[str]:
 def _get_ingredient_lines(recipe: Recipe) -> list[str]:
     if recipe.ingredients and recipe.ingredients.strip():
         return parse_ingredients_text(recipe.ingredients)[0]
-
-    if recipe.link:
-        print(
-            f"Warning: Ingredients empty for '{recipe.name}' — "
-            "scraping Link as fallback. Run `dev backfill-ingredients` to cache ingredients.",
-            file=sys.stderr,
-        )
-        try:
-            scraped = scrape_recipe(recipe.link)
-        except Exception as exc:
-            print(
-                f"Warning: failed to scrape '{recipe.name}' ({recipe.link}): {exc}",
-                file=sys.stderr,
-            )
-        else:
-            return scraped.ingredients
     return []
 
 
