@@ -3,6 +3,10 @@
 # Section headers: # --- aisle_id: Display label ---
 # Comment-only lines and blank lines are ignored.
 
+# --- flowers: Flowers ---
+flowers
+bouquet
+
 # --- fruit: Fruit ---
 berry
 berries
@@ -66,6 +70,7 @@ broccoli
 cauliflower
 mushroom
 potato
+potatoes
 jalapeño
 jalapeno
 serrano
@@ -89,6 +94,8 @@ salad greens
 greens
 
 # --- refrigerated: Refrigerated (cheese/tofu) ---
+basil pesto
+pesto
 goat cheese
 cream cheese
 parmesan
@@ -110,6 +117,7 @@ sauerkraut
 chimichurri
 
 # --- canned drinks: Canned drinks ---
+apple cider
 sparkling water
 ginger ale
 club soda
@@ -120,6 +128,8 @@ soda
 cola
 
 # --- dairy/eggs: Dairy & eggs ---
+mexican crema
+cold foam
 sour cream
 heavy cream
 whipping cream
@@ -127,6 +137,7 @@ half and half
 greek yogurt
 cottage cheese
 cream cheese
+crema
 milk
 yogurt
 egg
@@ -134,6 +145,7 @@ eggs
 butter
 
 # --- meat/fish: Meat & fish ---
+smoked salmon
 sweet italian sausage
 italian sausage
 sausage links
@@ -152,6 +164,8 @@ pork shoulder
 bacon
 ham
 prosciutto
+pastrami
+lox
 salmon
 tuna
 cod
@@ -188,7 +202,22 @@ bun
 roll
 croissant
 
+# --- home goods: Home goods ---
+hand soap
+dish soap
+paper towels
+toilet paper
+soap
+sponge
+
 # --- dry goods: Dry goods / cans / cereal / rice ---
+canned peaches
+canned corn
+raspberry jam
+strawberry jam
+blueberry jam
+peanut butter
+applesauce
 avocado oil
 olive oil
 vegetable oil
@@ -245,6 +274,7 @@ broth
 stock
 beans
 seaweed
+jam
 canned
 
 # --- baking: Baking ---
