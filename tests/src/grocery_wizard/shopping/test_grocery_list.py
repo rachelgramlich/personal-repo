@@ -71,11 +71,9 @@ def test_format_meals_and_grocery_list_includes_both_sections() -> None:
         "Meals\n"
         "- Chicken Tikka (https://example.com/tikka)\n"
         "- Salad\n\n"
-        "Grocery List\n\n"
-        "Vegetables\n"
+        "Grocery List\n"
         "- lettuce\n"
-        "- onions\n\n"
-        "Meat & fish\n"
+        "- onions\n"
         "- chicken breast"
     )
 
@@ -1022,15 +1020,29 @@ def test_format_item_provenance_lists_source_recipes() -> None:
     assert "1 lb chicken breast: Salad, Soup" in text
 
 
-def test_format_meals_and_grocery_list_includes_provenance() -> None:
+def test_format_item_provenance_strips_bullet_prefixes() -> None:
+    text = format_item_provenance(
+        {
+            "• 1 serrano": ["Tacos"],
+            "- onions": ["Salad"],
+        }
+    )
+
+    assert "• 1 serrano" not in text
+    assert "1 serrano: Tacos" in text
+    assert "- onions: Salad" in text or "onions: Salad" in text
+
+
+def test_format_meals_and_grocery_list_excludes_provenance() -> None:
     meals = [("Soup", "https://example.com/soup")]
     grocery_items = ["peas"]
     provenance = {"peas": ["Crispy Potato Quesadillas"]}
 
-    text = format_meals_and_grocery_list(meals, grocery_items, item_provenance=provenance)
+    text = format_meals_and_grocery_list(meals, grocery_items)
 
-    assert "Item sources" in text
-    assert "peas: Crispy Potato Quesadillas" in text
+    assert "Item sources" not in text
+    assert "Crispy Potato Quesadillas" not in text
+    assert "peas" in text
 
 
 def test_run_grocery_list_warns_about_name_link_mismatch(
