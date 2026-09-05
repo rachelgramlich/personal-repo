@@ -47,6 +47,7 @@ from src.grocery_wizard.shopping.recurring_weekly_items import (
     load_recurring_weekly_items,
     write_recurring_weekly_items,
 )
+from src.grocery_wizard.shopping.store_aisles import sort_grocery_items
 
 
 def _meal_entries_with_links(
@@ -682,12 +683,14 @@ def _run_grocery_list_generation(
         )
 
     with st.spinner("Building grocery list..."):
-        items, excluded, _sync_summary, missing_ingredients = build_grocery_list(
+        items, excluded, _sync_summary, missing_ingredients, item_provenance, mismatches = (
+            build_grocery_list(
             db,
             recipe_names=selected,
             exclude_pantry=exclude_pantry,
             recurring_weekly_items=recurring_weekly_items,
             include_recurring_weekly_items=True,
+        )
         )
 
     if not items and not excluded and not _parse_line_items(extra_items_text):
@@ -705,6 +708,8 @@ def _run_grocery_list_generation(
         "items": items,
         "excluded": excluded,
         "missing_ingredients": missing_ingredients,
+        "item_provenance": item_provenance,
+        "name_link_mismatches": mismatches,
         "readd": [],
         "additional_text": extra_items_text,
         "source_recipes": tuple(selected),
@@ -877,7 +882,17 @@ def _render_grocery_result() -> None:
     items: list[str] = result["items"]
     excluded: list[str] = result["excluded"]
     missing_ingredients: list[str] = result.get("missing_ingredients", [])
+    name_link_mismatches = result.get("name_link_mismatches", [])
+    item_provenance: dict[str, list[str]] = result.get("item_provenance", {})
     meal_names = list(result.get("week_plan") or result.get("source_recipes") or [])
+
+    if name_link_mismatches:
+        for mismatch in name_link_mismatches:
+            st.warning(
+                f"Name/link mismatch for **{mismatch.recipe_name}**: "
+                f"Link points to **{mismatch.link_title}**. "
+                "Ingredients may be stale — verify Notion Name, Link, and Ingredients match."
+            )
 
     if missing_ingredients:
         st.warning(
@@ -885,6 +900,12 @@ def _render_grocery_result() -> None:
             f"{', '.join(missing_ingredients)}. "
             "Run `dev backfill-ingredients` to populate them from their links."
         )
+
+    if item_provenance:
+        with st.expander("Item sources (which recipe each item came from)"):
+            for item in sort_grocery_items(list(item_provenance)):
+                recipes = item_provenance[item]
+                st.markdown(f"- **{item}**: {', '.join(recipes)}")
 
     readd: list[str] = []
     additional_text = result.get("additional_text", "")
@@ -914,7 +935,11 @@ def _render_grocery_result() -> None:
     if final_items or meal_names:
         db = get_db()
         meals = _meal_entries_with_links(db, meal_names)
-        list_text = format_meals_and_grocery_list(meals, final_items)
+        list_text = format_meals_and_grocery_list(
+            meals,
+            final_items,
+            item_provenance=item_provenance or None,
+        )
         col_copy, col_download = st.columns(2)
         with col_copy:
             _render_copy_button(list_text, label="Copy plan", key="grocery_copy")
