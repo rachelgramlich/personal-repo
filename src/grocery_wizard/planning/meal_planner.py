@@ -6,6 +6,7 @@ __all__ = [
     "FilterValue",
     "MealPlanFilters",
     "filter_recipes",
+    "load_recent_plan_names",
     "run_meal_planner",
     "save_week_plan",
     "suggest_meals",
@@ -132,7 +133,9 @@ def _shares_tag(recipe_a: Recipe, recipe_b: Recipe, column: str) -> bool:
     return bool(tags_a & tags_b)
 
 
-TOP_K_DIVERSE = 3
+TOP_K_DIVERSE_MIN = 8
+TOP_K_DIVERSE_MAX = 15
+RECENT_PLAN_PENALTY = 4
 
 CHOICE_PROMPT = "\n[a]ccept  [r]eject  [p]ick from list: "
 
@@ -147,6 +150,25 @@ def _diversity_score(recipe: Recipe, selected: list[Recipe]) -> tuple[int, int, 
     category_new = len(_recipe_tags(recipe, "Dinner Category") - used["Dinner Category"])
     cuisine_new = len(_recipe_tags(recipe, "Cuisine") - used["Cuisine"])
     return (protein_new, category_new, cuisine_new)
+
+
+def _diversity_total(recipe: Recipe, selected: list[Recipe]) -> int:
+    return sum(_diversity_score(recipe, selected))
+
+
+def _effective_top_k(candidate_count: int) -> int:
+    """Scale top-k with pool size so randomness isn't confined to the same few recipes."""
+    if candidate_count <= 1:
+        return candidate_count
+    scaled = max(TOP_K_DIVERSE_MIN, candidate_count // 2)
+    return min(scaled, TOP_K_DIVERSE_MAX, candidate_count)
+
+
+def _pick_weight(recipe: Recipe, selected: list[Recipe], recent_names: set[str]) -> float:
+    score = float(_diversity_total(recipe, selected))
+    if recipe.name in recent_names:
+        score = max(0.0, score - RECENT_PLAN_PENALTY)
+    return max(1.0, score + 1.0)
 
 
 def eligible_suggestion_pool(
@@ -166,9 +188,10 @@ def pick_diverse_recipe(
     candidates: list[Recipe],
     selected: list[Recipe],
     *,
-    top_k: int = TOP_K_DIVERSE,
+    top_k: int | None = None,
+    recent_names: set[str] | None = None,
 ) -> Recipe:
-    """Pick a recipe favoring variety, sampling randomly among the top diverse options."""
+    """Pick a recipe favoring variety, weighted-random among top diverse options."""
     if not candidates:
         raise ValueError("candidates must not be empty")
     if len(candidates) == 1:
@@ -181,23 +204,34 @@ def pick_diverse_recipe(
         if without_repeat:
             pool = without_repeat
 
+    recent = recent_names or set()
     scored = sorted(
-        ((recipe, _diversity_score(recipe, selected)) for recipe in pool),
+        ((recipe, _diversity_total(recipe, selected)) for recipe in pool),
         key=lambda item: item[1],
         reverse=True,
     )
-    top = scored[: min(top_k, len(scored))]
-    return random.choice([recipe for recipe, _ in top])
+    k = top_k if top_k is not None else _effective_top_k(len(scored))
+    top = scored[: min(k, len(scored))]
+    recipes, weights = zip(
+        *((recipe, _pick_weight(recipe, selected, recent)) for recipe, _ in top),
+        strict=True,
+    )
+    return random.choices(list(recipes), weights=list(weights), k=1)[0]
 
 
-def select_diverse_meals(pool: list[Recipe], count: int) -> list[Recipe]:
+def select_diverse_meals(
+    pool: list[Recipe],
+    count: int,
+    *,
+    recent_names: set[str] | None = None,
+) -> list[Recipe]:
     """Select up to count recipes with diversified protein, category, and cuisine."""
     remaining = list(pool)
     selected: list[Recipe] = []
     for _ in range(count):
         if not remaining:
             break
-        pick = pick_diverse_recipe(remaining, selected)
+        pick = pick_diverse_recipe(remaining, selected, recent_names=recent_names)
         selected.append(pick)
         remaining = [recipe for recipe in remaining if recipe.page_id != pick.page_id]
     return selected
@@ -245,6 +279,20 @@ def _resolve_locked_by_names(
     return locked
 
 
+def load_recent_plan_names(path: Path = WEEK_PLAN_PATH) -> set[str]:
+    """Recipe names from the saved week plan (last week's picks)."""
+    if not path.exists():
+        return set()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    recipes = payload.get("recipes")
+    if not isinstance(recipes, list):
+        return set()
+    return {name.strip() for name in recipes if isinstance(name, str) and name.strip()}
+
+
 def suggest_meals(
     all_recipes: list[Recipe],
     *,
@@ -252,6 +300,8 @@ def suggest_meals(
     locked_names: list[str] | None = None,
     filters: MealPlanFilters | None = None,
     schema_columns: dict[str, ColumnInfo],
+    rejected_names: set[str] | None = None,
+    recent_names: set[str] | None = None,
 ) -> list[str]:
     """Suggest a meal plan: locked recipes first, then diverse auto-filled slots."""
     active_filters = filters if filters is not None else default_filters(schema_columns)
@@ -259,12 +309,20 @@ def suggest_meals(
 
     full_pool = filter_recipes(all_recipes, active_filters, schema_columns)
     locked_ids = {recipe.page_id for recipe in locked_recipes}
-    pool = [recipe for recipe in full_pool if recipe.page_id not in locked_ids]
+    locked_name_set = {recipe.name for recipe in locked_recipes}
+    session_rejected = set(rejected_names or ())
+    pool = eligible_suggestion_pool(
+        [recipe for recipe in full_pool if recipe.page_id not in locked_ids],
+        locked_name_set,
+        session_rejected,
+    )
+
+    recent = recent_names if recent_names is not None else load_recent_plan_names()
 
     remaining_slots = meals - len(locked_recipes)
     suggested: list[str] = []
     if remaining_slots > 0 and pool:
-        picked = select_diverse_meals(pool, remaining_slots)
+        picked = select_diverse_meals(pool, remaining_slots, recent_names=recent)
         suggested = [recipe.name for recipe in picked]
 
     return [recipe.name for recipe in locked_recipes] + suggested
@@ -277,6 +335,7 @@ def replace_meals_in_plan(
     all_recipes: list[Recipe],
     pool: list[Recipe],
     rejected_names: set[str] | None = None,
+    recent_names: set[str] | None = None,
 ) -> tuple[list[str], set[str]]:
     """Swap named meals for diverse alternatives, tracking rejected names for the session."""
     if not names_to_replace:
@@ -286,6 +345,7 @@ def replace_meals_in_plan(
     updated = list(plan_names)
     session_rejected = set(rejected_names or ())
     replace_set = set(names_to_replace)
+    recent = recent_names if recent_names is not None else load_recent_plan_names()
 
     for index, name in enumerate(updated):
         if name not in replace_set:
@@ -306,7 +366,7 @@ def replace_meals_in_plan(
         if not candidates:
             continue
 
-        replacement = pick_diverse_recipe(candidates, plan_recipes)
+        replacement = pick_diverse_recipe(candidates, plan_recipes, recent_names=recent)
         updated[index] = replacement.name
 
     return updated, session_rejected

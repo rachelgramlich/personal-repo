@@ -9,11 +9,14 @@ from src.grocery_wizard.integrations.notion import ColumnInfo, DatabaseSchema, R
 from src.grocery_wizard.planning.meal_planner import (
     MealPlanFilters,
     _build_plan_interactive,
+    _effective_top_k,
+    _pick_weight,
     _review_plan_interactive,
     default_filters,
     eligible_suggestion_pool,
     filter_recipes,
     fuzzy_match_recipes,
+    load_recent_plan_names,
     parse_meal_requests,
     pick_diverse_recipe,
     recipe_matches_column_filter,
@@ -244,7 +247,7 @@ def test_suggest_meals_locked_first_then_diverse(monkeypatch) -> None:
     ]
     monkeypatch.setattr(
         "src.grocery_wizard.planning.meal_planner.select_diverse_meals",
-        lambda pool, count: pool[:count],
+        lambda pool, count, **kwargs: pool[:count],
     )
     plan = suggest_meals(
         dinner_recipes,
@@ -266,6 +269,59 @@ def test_suggest_meals_uses_default_filters() -> None:
     assert plan == ["Chicken Curry"]
 
 
+def test_suggest_meals_excludes_rejected_names() -> None:
+    dinner_recipes = [
+        _recipe(
+            "Chicken Curry",
+            page_id="id-1",
+            properties={"Meal": "Dinner", "Dinner: Weeknight Friendly": True},
+        ),
+        _recipe(
+            "Fish Pasta",
+            page_id="id-2",
+            properties={"Meal": "Dinner", "Dinner: Weeknight Friendly": True},
+        ),
+        _recipe(
+            "Bean Bowl",
+            page_id="id-3",
+            properties={"Meal": "Dinner", "Dinner: Weeknight Friendly": True},
+        ),
+    ]
+    plan = suggest_meals(
+        dinner_recipes,
+        meals=2,
+        schema_columns=SCHEMA_COLUMNS,
+        filters=MealPlanFilters(values={"Meal": "Dinner"}),
+        rejected_names={"Chicken Curry", "Fish Pasta"},
+        recent_names=set(),
+    )
+    assert plan == ["Bean Bowl"]
+
+
+def test_load_recent_plan_names_reads_saved_plan(tmp_path: Path) -> None:
+    path = tmp_path / "week_plan.json"
+    save_week_plan(["Pasta", "Curry"], path)
+    assert load_recent_plan_names(path) == {"Pasta", "Curry"}
+
+
+def test_load_recent_plan_names_missing_file_returns_empty(tmp_path: Path) -> None:
+    assert load_recent_plan_names(tmp_path / "missing.json") == set()
+
+
+def test_effective_top_k_scales_with_pool_size() -> None:
+    assert _effective_top_k(1) == 1
+    assert _effective_top_k(3) == 3
+    assert _effective_top_k(10) == 8
+    assert _effective_top_k(40) == 15
+
+
+def test_pick_weight_penalizes_recent_recipes() -> None:
+    recent = {"Chicken Curry"}
+    chicken = DIVERSITY_RECIPES[0]
+    fish = DIVERSITY_RECIPES[1]
+    assert _pick_weight(chicken, [], recent) < _pick_weight(fish, [], recent)
+
+
 def test_replace_meals_in_plan_swaps_selected_slots(monkeypatch) -> None:
     pool = [
         _recipe("Chicken Curry", page_id="id-1"),
@@ -275,7 +331,7 @@ def test_replace_meals_in_plan_swaps_selected_slots(monkeypatch) -> None:
     ]
     monkeypatch.setattr(
         "src.grocery_wizard.planning.meal_planner.pick_diverse_recipe",
-        lambda candidates, selected: candidates[0],
+        lambda candidates, selected, **kwargs: candidates[0],
     )
 
     updated, rejected = replace_meals_in_plan(
