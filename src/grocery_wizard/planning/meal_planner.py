@@ -5,6 +5,7 @@ from __future__ import annotations
 __all__ = [
     "FilterValue",
     "MealPlanFilters",
+    "build_ingredient_index",
     "filter_recipes",
     "load_recent_plan_names",
     "run_meal_planner",
@@ -22,6 +23,8 @@ from pathlib import Path
 from typing import Any
 
 from src.grocery_wizard.config import WEEK_PLAN_PATH
+from src.grocery_wizard.ingredients.normalize import ingredient_name
+from src.grocery_wizard.ingredients.sync import parse_ingredients_text
 from src.grocery_wizard.integrations.notion import (
     ColumnInfo,
     DatabaseSchema,
@@ -44,24 +47,61 @@ class MealPlanFilters:
     """Per-column filter values. Omitted columns are not filtered."""
 
     values: dict[str, FilterValue] = field(default_factory=dict)
+    ingredient_names: list[str] = field(default_factory=list)
+    ingredient_mode: str = "include"  # "include" or "exclude"
+
+
+def _recipe_normalized_ingredient_set(recipe: Recipe) -> set[str]:
+    """Return the set of normalized ingredient names for a recipe."""
+    raw = recipe.ingredients or ""
+    if not raw.strip():
+        return set()
+    lines, _ = parse_ingredients_text(raw)
+    result: set[str] = set()
+    for line in lines:
+        name = ingredient_name(line)
+        if name:
+            result.add(name)
+    return result
+
+
+def build_ingredient_index(recipes: list[Recipe]) -> dict[str, set[str]]:
+    """Return a mapping of recipe page_id → normalized ingredient name set."""
+    return {recipe.page_id: _recipe_normalized_ingredient_set(recipe) for recipe in recipes}
 
 
 def filter_recipes(
     recipes: list[Recipe],
     filters: MealPlanFilters,
     schema_columns: dict[str, ColumnInfo],
+    *,
+    ingredient_index: dict[str, set[str]] | None = None,
 ) -> list[Recipe]:
     """Return recipes matching all active filters."""
-    if not filters.values:
+    has_column_filters = bool(filters.values)
+    has_ingredient_filter = bool(filters.ingredient_names)
+
+    if not has_column_filters and not has_ingredient_filter:
         return list(recipes)
 
-    return [recipe for recipe in recipes if recipe_matches_filters(recipe, filters, schema_columns)]
+    return [
+        recipe
+        for recipe in recipes
+        if recipe_matches_filters(
+            recipe,
+            filters,
+            schema_columns,
+            ingredient_index=ingredient_index,
+        )
+    ]
 
 
 def recipe_matches_filters(
     recipe: Recipe,
     filters: MealPlanFilters,
     schema_columns: dict[str, ColumnInfo],
+    *,
+    ingredient_index: dict[str, set[str]] | None = None,
 ) -> bool:
     for column_name, filter_value in filters.values.items():
         column = schema_columns.get(column_name)
@@ -73,6 +113,20 @@ def recipe_matches_filters(
             column.type,
         ):
             return False
+
+    if filters.ingredient_names:
+        selected = set(filters.ingredient_names)
+        if ingredient_index is not None:
+            recipe_ingredients = ingredient_index.get(recipe.page_id, set())
+        else:
+            recipe_ingredients = _recipe_normalized_ingredient_set(recipe)
+        if filters.ingredient_mode == "include":
+            if not recipe_ingredients & selected:
+                return False
+        else:
+            if recipe_ingredients & selected:
+                return False
+
     return True
 
 
@@ -302,12 +356,13 @@ def suggest_meals(
     schema_columns: dict[str, ColumnInfo],
     rejected_names: set[str] | None = None,
     recent_names: set[str] | None = None,
+    ingredient_index: dict[str, set[str]] | None = None,
 ) -> list[str]:
     """Suggest a meal plan: locked recipes first, then diverse auto-filled slots."""
     active_filters = filters if filters is not None else default_filters(schema_columns)
     locked_recipes = _resolve_locked_by_names(locked_names or [], all_recipes)[:meals]
 
-    full_pool = filter_recipes(all_recipes, active_filters, schema_columns)
+    full_pool = filter_recipes(all_recipes, active_filters, schema_columns, ingredient_index=ingredient_index)
     locked_ids = {recipe.page_id for recipe in locked_recipes}
     locked_name_set = {recipe.name for recipe in locked_recipes}
     session_rejected = set(rejected_names or ())

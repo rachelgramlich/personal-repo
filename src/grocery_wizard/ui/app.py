@@ -26,6 +26,7 @@ from src.grocery_wizard.integrations.notion import (
 )
 from src.grocery_wizard.planning.meal_planner import (
     MealPlanFilters,
+    build_ingredient_index,
     default_filters,
     filter_recipes,
     replace_meals_in_plan,
@@ -114,11 +115,22 @@ def _compute_grocery_drafts(
     return draft_items, final_items
 
 
+def _recipes_ingredient_cache_key(recipes: list) -> tuple[tuple[str, str], ...]:
+    """Fingerprint recipe ingredient text so caches invalidate when content changes."""
+    return tuple((recipe.page_id, recipe.ingredients or "") for recipe in recipes)
+
+
+def _ingredient_options_from_index(ingredient_index: dict[str, set[str]]) -> list[str]:
+    """Return sorted unique normalized ingredient names from a precomputed index."""
+    return sorted({name for names in ingredient_index.values() for name in names})
+
+
 def _render_meal_plan_filters(
     filter_columns: list[ColumnInfo],
     defaults: MealPlanFilters,
     *,
     key_prefix: str,
+    ingredient_index: dict[str, set[str]] | None = None,
 ) -> MealPlanFilters:
     values: dict[str, Any] = {}
     for column in filter_columns:
@@ -154,7 +166,42 @@ def _render_meal_plan_filters(
                 values[column.name] = checked
             elif checked:
                 values[column.name] = True
-    return MealPlanFilters(values=values)
+
+    ingredient_names: list[str] = []
+    ingredient_mode = "include"
+
+    if ingredient_index is not None:
+        ingredient_options = _ingredient_options_from_index(ingredient_index)
+
+        st.markdown("**Ingredients**")
+        if ingredient_options:
+            st.caption(f"{len(ingredient_options)} ingredients from your recipes")
+        ingredient_names = st.multiselect(
+            "Pick one or more ingredients",
+            ingredient_options,
+            default=[],
+            key=f"{key_prefix}_ingredient_names",
+            label_visibility="collapsed",
+        )
+        if ingredient_names:
+            ingredient_mode = st.radio(
+                "Filter mode",
+                options=["include", "exclude"],
+                format_func=lambda m: (
+                    "Include recipes with any selected ingredient"
+                    if m == "include"
+                    else "Exclude recipes with any selected ingredient"
+                ),
+                index=0,
+                key=f"{key_prefix}_ingredient_mode",
+                label_visibility="collapsed",
+            )
+
+    return MealPlanFilters(
+        values=values,
+        ingredient_names=list(ingredient_names),
+        ingredient_mode=ingredient_mode,
+    )
 
 
 @st.cache_resource
@@ -693,6 +740,14 @@ def render_create_weekly_plan() -> None:
 
     filter_defaults = default_filters(schema.all_columns)
     filter_columns = [*schema.filter_columns, *schema.checkbox_columns]
+
+    # Cache ingredient index per loaded recipe set to avoid re-parsing on every widget interaction.
+    recipes_cache_key = _recipes_ingredient_cache_key(all_recipes)
+    if st.session_state.get("_ingredient_index_key") != recipes_cache_key:
+        st.session_state["_ingredient_index_key"] = recipes_cache_key
+        st.session_state["_ingredient_index"] = build_ingredient_index(all_recipes)
+    ingredient_index: dict[str, set[str]] = st.session_state["_ingredient_index"]
+
     locked: list[str] = []
     with st.expander("More options", expanded=False):
         locked = st.multiselect(
@@ -705,9 +760,12 @@ def render_create_weekly_plan() -> None:
             filter_columns,
             filter_defaults,
             key_prefix="plan_filter",
+            ingredient_index=ingredient_index,
         )
 
-    suggestion_pool = filter_recipes(all_recipes, filters, schema.all_columns)
+    suggestion_pool = filter_recipes(
+        all_recipes, filters, schema.all_columns, ingredient_index=ingredient_index
+    )
 
     if st.button("Build my plan", type="primary", key="build_plan"):
         plan = suggest_meals(
@@ -716,6 +774,7 @@ def render_create_weekly_plan() -> None:
             locked_names=locked,
             filters=filters,
             schema_columns=schema.all_columns,
+            ingredient_index=ingredient_index,
         )
         st.session_state.plan_meals_text = "\n".join(plan)
         st.session_state.plan_rejected_names = []
@@ -736,6 +795,7 @@ def render_create_weekly_plan() -> None:
                 filters=filters,
                 schema_columns=schema.all_columns,
                 rejected_names=rejected,
+                ingredient_index=ingredient_index,
             )
             st.session_state.plan_meals_text = "\n".join(plan)
             _clear_grocery_result()

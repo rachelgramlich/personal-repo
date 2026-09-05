@@ -11,7 +11,9 @@ from src.grocery_wizard.planning.meal_planner import (
     _build_plan_interactive,
     _effective_top_k,
     _pick_weight,
+    _recipe_normalized_ingredient_set,
     _review_plan_interactive,
+    build_ingredient_index,
     default_filters,
     eligible_suggestion_pool,
     filter_recipes,
@@ -33,12 +35,13 @@ def _recipe(
     *,
     page_id: str | None = None,
     properties: dict | None = None,
+    ingredients: str | None = None,
 ) -> Recipe:
     return Recipe(
         page_id=page_id or f"id-{name}",
         name=name,
         link=None,
-        ingredients=None,
+        ingredients=ingredients,
         properties=properties or {},
     )
 
@@ -547,6 +550,153 @@ def _dinner_recipes(recipes: list[Recipe]) -> list[Recipe]:
         )
         for recipe in recipes
     ]
+
+
+# ---------------------------------------------------------------------------
+# Ingredient filter tests
+# ---------------------------------------------------------------------------
+
+_CHICKEN_RECIPE = _recipe(
+    "Chicken Curry",
+    page_id="id-cc",
+    ingredients="1 lb chicken breast\n2 cups rice\n1 can coconut milk",
+    properties={"Meal": "Dinner", "Dinner: Weeknight Friendly": True},
+)
+_FISH_RECIPE = _recipe(
+    "Fish Tacos",
+    page_id="id-ft",
+    ingredients="2 fish fillets\n1 lime\n1/2 cup salsa",
+    properties={"Meal": "Dinner", "Dinner: Weeknight Friendly": False},
+)
+_TOFU_RECIPE = _recipe(
+    "Tofu Stir Fry",
+    page_id="id-tf",
+    ingredients="14 oz tofu\n2 tbsp soy sauce\n1 cup broccoli",
+    properties={"Meal": "Dinner", "Dinner: Weeknight Friendly": True},
+)
+_EMPTY_RECIPE = _recipe(
+    "Mystery Meal",
+    page_id="id-mm",
+    ingredients=None,
+    properties={"Meal": "Dinner", "Dinner: Weeknight Friendly": True},
+)
+
+_INGREDIENT_RECIPES = [_CHICKEN_RECIPE, _FISH_RECIPE, _TOFU_RECIPE, _EMPTY_RECIPE]
+
+
+def test_recipe_normalized_ingredient_set_parses_lines() -> None:
+    result = _recipe_normalized_ingredient_set(_CHICKEN_RECIPE)
+    assert "chicken breast" in result or any("chicken" in name for name in result)
+
+
+def test_recipe_normalized_ingredient_set_empty_ingredients() -> None:
+    result = _recipe_normalized_ingredient_set(_EMPTY_RECIPE)
+    assert result == set()
+
+
+def test_build_ingredient_index_keys_by_page_id() -> None:
+    index = build_ingredient_index(_INGREDIENT_RECIPES)
+    assert set(index.keys()) == {"id-cc", "id-ft", "id-tf", "id-mm"}
+    assert index["id-mm"] == set()
+
+
+def test_ingredient_filter_include_mode_matches_intersection() -> None:
+    index = build_ingredient_index(_INGREDIENT_RECIPES)
+    chicken_ingredients = index["id-cc"]
+    assert chicken_ingredients, "Chicken recipe should have parsed ingredients"
+    # Pick a known ingredient name from the chicken recipe
+    sample_ingredient = next(iter(chicken_ingredients))
+
+    filters = MealPlanFilters(
+        values={},
+        ingredient_names=[sample_ingredient],
+        ingredient_mode="include",
+    )
+    result = filter_recipes(_INGREDIENT_RECIPES, filters, SCHEMA_COLUMNS, ingredient_index=index)
+    result_names = {r.name for r in result}
+    assert "Chicken Curry" in result_names
+    # Mystery Meal has no ingredients → excluded in include mode
+    assert "Mystery Meal" not in result_names
+
+
+def test_ingredient_filter_include_mode_excludes_non_matching() -> None:
+    index = build_ingredient_index(_INGREDIENT_RECIPES)
+    filters = MealPlanFilters(
+        values={},
+        ingredient_names=["tofu"],
+        ingredient_mode="include",
+    )
+    result = filter_recipes(_INGREDIENT_RECIPES, filters, SCHEMA_COLUMNS, ingredient_index=index)
+    result_names = {r.name for r in result}
+    assert "Tofu Stir Fry" in result_names
+    assert "Chicken Curry" not in result_names
+    assert "Fish Tacos" not in result_names
+    assert "Mystery Meal" not in result_names
+
+
+def test_ingredient_filter_exclude_mode_removes_matching() -> None:
+    index = build_ingredient_index(_INGREDIENT_RECIPES)
+    filters = MealPlanFilters(
+        values={},
+        ingredient_names=["tofu"],
+        ingredient_mode="exclude",
+    )
+    result = filter_recipes(_INGREDIENT_RECIPES, filters, SCHEMA_COLUMNS, ingredient_index=index)
+    result_names = {r.name for r in result}
+    assert "Tofu Stir Fry" not in result_names
+    assert "Chicken Curry" in result_names
+    assert "Fish Tacos" in result_names
+    # Mystery Meal has empty ingredients → no intersection → not excluded
+    assert "Mystery Meal" in result_names
+
+
+def test_ingredient_filter_empty_selection_returns_all() -> None:
+    index = build_ingredient_index(_INGREDIENT_RECIPES)
+    filters = MealPlanFilters(values={}, ingredient_names=[], ingredient_mode="include")
+    result = filter_recipes(_INGREDIENT_RECIPES, filters, SCHEMA_COLUMNS, ingredient_index=index)
+    assert len(result) == len(_INGREDIENT_RECIPES)
+
+
+def test_ingredient_filter_stacks_with_column_filters() -> None:
+    """Ingredient filter AND column filter must both be satisfied."""
+    index = build_ingredient_index(_INGREDIENT_RECIPES)
+    filters = MealPlanFilters(
+        values={"Dinner: Weeknight Friendly": True},
+        ingredient_names=["tofu"],
+        ingredient_mode="include",
+    )
+    result = filter_recipes(_INGREDIENT_RECIPES, filters, SCHEMA_COLUMNS, ingredient_index=index)
+    result_names = {r.name for r in result}
+    # Tofu Stir Fry is weeknight-friendly and has tofu
+    assert "Tofu Stir Fry" in result_names
+    # Fish Tacos has no tofu
+    assert "Fish Tacos" not in result_names
+
+
+def test_ingredient_filter_include_excludes_empty_ingredient_recipes() -> None:
+    """Recipes with missing/empty ingredients are excluded when include filter is active."""
+    index = build_ingredient_index(_INGREDIENT_RECIPES)
+    filters = MealPlanFilters(
+        values={},
+        ingredient_names=["rice"],
+        ingredient_mode="include",
+    )
+    result = filter_recipes(_INGREDIENT_RECIPES, filters, SCHEMA_COLUMNS, ingredient_index=index)
+    result_names = {r.name for r in result}
+    assert "Mystery Meal" not in result_names
+
+
+def test_ingredient_filter_without_precomputed_index() -> None:
+    """filter_recipes falls back to on-the-fly parsing when no index is provided."""
+    filters = MealPlanFilters(
+        values={},
+        ingredient_names=["tofu"],
+        ingredient_mode="include",
+    )
+    result = filter_recipes(_INGREDIENT_RECIPES, filters, SCHEMA_COLUMNS)
+    result_names = {r.name for r in result}
+    assert "Tofu Stir Fry" in result_names
+    assert "Chicken Curry" not in result_names
 
 
 def test_run_meal_planner_with_requested_meals(tmp_path, monkeypatch) -> None:
