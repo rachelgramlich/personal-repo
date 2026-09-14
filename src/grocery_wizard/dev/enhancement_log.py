@@ -7,8 +7,10 @@ __all__ = [
     "ENHANCEMENT_LOG_PATH",
     "add_enhancement",
     "close_enhancement",
+    "format_worker_spawn_message",
     "get_enhancement",
     "list_enhancements",
+    "list_worker_spawns",
 ]
 
 import json
@@ -142,6 +144,38 @@ def title_to_branch_slug(title: str, *, max_len: int = 40) -> str:
     if len(slug) > max_len:
         slug = slug[:max_len].rstrip("-")
     return slug
+
+
+def format_worker_spawn_message(entry: dict) -> str:
+    """First user message to start a dedicated agent run for one backlog item."""
+    eid = entry.get("id", "")
+    title = entry.get("title", "").strip()
+    if title:
+        return f"/work-on-enhancement {eid} — {title}"
+    return f"/work-on-enhancement {eid}"
+
+
+def list_worker_spawns(
+    *,
+    path: Path | None = None,
+) -> list[dict]:
+    """One spawn spec per open enhancement (newest-first, same order as list_enhancements)."""
+    log_path = ENHANCEMENT_LOG_PATH if path is None else path
+    specs: list[dict] = []
+    for entry in list_enhancements(path=log_path):
+        title = entry.get("title", "")
+        slug = title_to_branch_slug(title)
+        specs.append(
+            {
+                "id": entry.get("id"),
+                "title": title,
+                "area": entry.get("area", "other"),
+                "branch": f"cursor/{slug}-21af",
+                "agent_message": format_worker_spawn_message(entry),
+                "prompt": format_agent_prompt(entry),
+            }
+        )
+    return specs
 
 
 def format_agent_prompt(entry: dict) -> str:
