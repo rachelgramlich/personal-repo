@@ -257,6 +257,7 @@ def create_issue(
 
 
 def close_issue(raw_id: str, *, pr_url: str | None = None) -> bool:
+    """Close a backlog issue via ``gh`` (``dev close-enhancement``; JSONL import when done)."""
     entry = get_issue(raw_id)
     if entry is None:
         return False
@@ -277,3 +278,10 @@ def close_issue(raw_id: str, *, pr_url: str | None = None) -> bool:
         _run_gh(["issue", "comment", str(number), "--body", f"Shipped in {pr}"])
     _run_gh(["issue", "close", str(number)])
     return True
+
+
+def comment_on_pr(pr_url: str, body: str) -> None:
+    text = body.strip()
+    if not text:
+        raise ValueError("comment body must be non-empty")
+    _run_gh(["pr", "comment", pr_url.strip(), "--body", text])

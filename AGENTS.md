@@ -9,7 +9,13 @@
   - Use the GitHub issue number (`96` / `#96`).
 - **Add an item:** `uv run python -m src.grocery_wizard dev add-enhancement --title "…"` (requires `gh`).
 
-When shipping an enhancement, the agent must set the PR title via `dev enhancement-pr-title <issue-number>` and run `dev complete-enhancement <issue-number>` to close the issue and link the PR. Do not ask the user to close issues by hand.
+When shipping an enhancement, the agent must:
+
+1. Set the PR title via `dev enhancement-pr-title <issue-number>`.
+2. Fill the PR template **Manual verification** section and include `Closes #<issue-number>` in the PR body (GitHub closes the issue when the PR merges).
+3. Ask the user to run manual verification (echo the PR section); when they confirm, run `dev record-manual-verification <issue-number>`.
+
+Do not close backlog issues with `gh issue close` or ask the user to close issues by hand — merge the PR with `Closes #N`.
 
 Legacy JSONL (if any) can be imported once: `dev migrate-enhancements-to-github`.
 

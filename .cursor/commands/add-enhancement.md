@@ -27,7 +27,7 @@ Prefer **`/add-enhancement`** in Cursor over typing `dev add-enhancement` in a t
 The user may put details **after** the command name (title, description, area). Use that text; if the title is missing, ask once for a short title, then proceed.
 
 1. **Title** (required): short one-liner (CLI adds `[Grocery Wizard]` if missing).
-2. **Description** (optional): longer context, acceptance hints, links.
+2. **Description** (optional): longer context, acceptance hints, expected behavior / manual test steps (same fields as the GitHub **Grocery Wizard enhancement** issue template).
 3. **Area** (optional, default `other`): one of `ui`, `parser`, `shopping`, `recipes`, `cli`, `other`.
 
 4. Create the issue **non-interactively** (this is the only command you run):

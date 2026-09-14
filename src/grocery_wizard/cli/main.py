@@ -326,22 +326,27 @@ def main(argv: list[str] | None = None) -> int:
 
     close_enh_parser = dev_subparsers.add_parser(
         "close-enhancement",
-        help="Mark an enhancement as done (no PR link; prefer complete-enhancement)",
+        help="Manually close a backlog issue (escape hatch; prefer Closes #N on PR merge)",
     )
     close_enh_parser.add_argument("id", help="GitHub issue number (e.g. 96)")
     close_enh_parser.set_defaults(func=cmd_dev_close_enhancement)
 
-    complete_enh_parser = dev_subparsers.add_parser(
-        "complete-enhancement",
-        help="Mark an enhancement done and link the GitHub PR",
+    manual_ver_parser = dev_subparsers.add_parser(
+        "record-manual-verification",
+        help="Post manual UAT sign-off comment on the PR (after user confirms)",
     )
-    complete_enh_parser.add_argument("id", help="GitHub issue number (e.g. 96)")
-    complete_enh_parser.add_argument(
+    manual_ver_parser.add_argument("id", help="GitHub issue number (e.g. 96)")
+    manual_ver_parser.add_argument(
         "--pr-url",
         default="",
         help="PR URL (default: current branch via gh pr view)",
     )
-    complete_enh_parser.set_defaults(func=cmd_dev_complete_enhancement)
+    manual_ver_parser.add_argument(
+        "--note",
+        default="",
+        help="Optional extra detail for the PR comment",
+    )
+    manual_ver_parser.set_defaults(func=cmd_dev_record_manual_verification)
 
     pr_title_parser = dev_subparsers.add_parser(
         "enhancement-pr-title",
@@ -1123,7 +1128,10 @@ def cmd_dev_close_enhancement(args: argparse.Namespace) -> int:
     if not found:
         print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
         return 1
-    print(f"Marked {args.id} as done (no PR linked). Prefer: dev complete-enhancement {args.id}")
+    print(
+        f"Closed enhancement #{args.id} on GitHub. "
+        "Normal ship path: merge a PR whose body includes `Closes #N`."
+    )
     return 0
 
 
@@ -1156,8 +1164,8 @@ def cmd_dev_enhancement_pr_title(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_dev_complete_enhancement(args: argparse.Namespace) -> int:
-    from src.grocery_wizard.dev.enhancement_log import complete_enhancement, get_enhancement
+def cmd_dev_record_manual_verification(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.dev.enhancement_log import get_enhancement, record_manual_verification
 
     entry = get_enhancement(args.id)
     if entry is None:
@@ -1174,10 +1182,12 @@ def cmd_dev_complete_enhancement(args: argparse.Namespace) -> int:
         )
         return 1
 
-    if not complete_enhancement(args.id, pr_url=pr_url):
-        print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
-        return 1
-    print(f"Marked {args.id} as done. PR: {pr_url}")
+    record_manual_verification(
+        pr_url=pr_url,
+        issue_number=str(args.id).removeprefix("#"),
+        note=(args.note or "").strip(),
+    )
+    print(f"Posted manual verification sign-off on PR: {pr_url}")
     return 0
 
 

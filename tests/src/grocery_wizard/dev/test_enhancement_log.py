@@ -2,7 +2,7 @@ from pathlib import Path
 
 from src.grocery_wizard.dev.enhancement_log import (
     add_enhancement,
-    complete_enhancement,
+    format_agent_prompt,
     format_pr_title,
     get_enhancement,
 )
@@ -36,12 +36,17 @@ def test_format_pr_title_uses_issue_number() -> None:
     assert format_pr_title(entry) == "#96: Notion-backed pantry"
 
 
-def test_complete_enhancement_stores_pr_url(tmp_path: Path) -> None:
-    path = tmp_path / "enhancements.jsonl"
-    eid = add_enhancement("Done item", path=path)
-    assert complete_enhancement(eid, pr_url="https://github.com/o/r/pull/1", path=path)
-    entry = get_enhancement(eid, path=path)
-    assert entry is not None
-    assert entry["status"] == "done"
-    assert entry["pr_url"] == "https://github.com/o/r/pull/1"
-    assert entry.get("completed_at")
+def test_format_agent_prompt_includes_uat_and_merge_close() -> None:
+    prompt = format_agent_prompt(
+        {
+            "id": "42",
+            "issue_number": 42,
+            "title": "Test feature",
+            "area": "ui",
+            "description": "Do the thing",
+        }
+    )
+    assert "Manual verification" in prompt
+    assert "Closes #42" in prompt
+    assert "record-manual-verification 42" in prompt
+    assert "complete-enhancement" not in prompt

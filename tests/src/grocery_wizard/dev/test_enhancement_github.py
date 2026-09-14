@@ -1,3 +1,5 @@
+import pytest
+
 from src.grocery_wizard.dev.enhancement_github import (
     format_backlog_title,
     format_issue_body,

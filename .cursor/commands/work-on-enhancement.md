@@ -1,10 +1,11 @@
 # Work on enhancement
 
-Pick up one backlog item and implement it end-to-end. **You** handle issue closure and PR linking — the user should not close issues or edit backlog metadata by hand.
+Pick up one backlog item and implement it end-to-end. **You** handle the PR and UAT handoff — GitHub closes linked issues on merge; the user should not edit backlog metadata by hand.
 
 ## Context
 
 - Backlog: GitHub Issues with **Grocery Wizard** in the title.
+- New issues can use the **Grocery Wizard enhancement** template (expected behavior / manual test hints).
 - **`dev suggest-fixes`** + `ingredient_edits.jsonl` = data-driven parser fix hints from UI edits.
 - **Enhancements** = intentional backlog; primary UX is this command (not ad-hoc CLI).
 
@@ -32,7 +33,7 @@ uv run python -m src.grocery_wizard dev work-on-enhancement <issue-number>
 - Keep scope aligned with the enhancement description; match existing project style.
 - If you change Python: `uv run ruff check` on touched paths; run relevant tests when they exist.
 
-### 4. Ship (PR title + issue link)
+### 4. Ship (PR title, template, merge-time close)
 
 PR **title** must use the standard format (issue number first):
 
@@ -44,25 +45,20 @@ PR_TITLE="$(uv run python -m src.grocery_wizard dev enhancement-pr-title <issue-
 - Push the branch.
 - Create or update the GitHub PR:
   - **Title:** exactly `$PR_TITLE` (e.g. `#96: Notion-backed pantry, recurring items, and weekly meal plans`).
-  - **Body:** short summary, test plan, and `Closes #<issue-number>` when the work finishes the backlog item.
+  - **Body:** use the repo PR template (`.github/pull_request_template.md`). Fill **Manual verification** (surface, where, steps, expected behavior, regression). Include `Closes #<issue-number>` — the issue closes when the PR **merges**, not when the PR is opened.
 - If the PR already exists but the title is wrong, update it to `$PR_TITLE`.
 
-### 5. Complete the backlog entry (required)
+### 5. Manual verification handoff
 
-After the PR exists for this branch, close the GitHub issue and record the PR link:
+- Tell the user **concisely** to run the **Manual verification** section from the PR description (echo the steps — do not make them hunt in the diff).
+- Wait for them to confirm manual passed in chat (or report failures and fix).
 
-```bash
-uv run python -m src.grocery_wizard dev complete-enhancement <ID>
-```
-
-This reads the PR URL from `gh pr view` on the current branch. If that fails, pass `--pr-url <url>` explicitly.
-
-Confirm with:
+When the user confirms manual verification passed, post sign-off on the PR:
 
 ```bash
-uv run python -m src.grocery_wizard dev list-enhancements --all
+uv run python -m src.grocery_wizard dev record-manual-verification <issue-number>
 ```
 
-The issue should show `[done]` with the PR URL.
+(Optional `--note "…"` for extra context; `--pr-url` if not on the PR branch.)
 
-Summarize what you changed and give the user the PR link. Do not ask them to close the issue manually.
+Summarize what you changed and give the user the PR link. Do not ask them to close the issue manually — merge with `Closes #N` handles that.
