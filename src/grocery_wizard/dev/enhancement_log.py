@@ -13,6 +13,7 @@ __all__ = [
     "list_worker_spawns",
     "migrate_jsonl_to_github",
     "record_manual_verification",
+    "report_bug",
 ]
 
 import json
@@ -111,10 +112,13 @@ def add_enhancement(
     description: str = "",
     area: str = "other",
     *,
+    expected_behavior: str = "",
     path: Path | None = None,
 ) -> str:
     """Create a backlog item; returns GitHub issue number as string (file tests: ``enh_NNN``)."""
-    return create_enhancement(title, description, area, path=path)["id"]
+    return create_enhancement(
+        title, description, area, expected_behavior=expected_behavior, path=path
+    )["id"]
 
 
 def create_enhancement(
@@ -122,18 +126,45 @@ def create_enhancement(
     description: str = "",
     area: str = "other",
     *,
+    expected_behavior: str = "",
     path: Path | None = None,
 ) -> dict:
     """Create a backlog item; returns entry metadata (includes ``issue_url`` on GitHub)."""
     if path is not None:
-        new_id = _add_enhancement_file(title, description, area, path)
+        combined = description
+        if expected_behavior.strip():
+            combined = (
+                f"{description.rstrip()}\n\n**Expected behavior & manual test hints:**\n"
+                f"{expected_behavior.strip()}"
+            ).strip()
+        new_id = _add_enhancement_file(title, combined, area, path)
         entry = get_enhancement(new_id, path=path)
         return entry or {"id": new_id, "title": title, "area": area}
-    entry = gh.create_issue(title, description, area)
+    entry = gh.create_issue(title, description, area, expected_behavior=expected_behavior)
     if not entry.get("issue_number"):
         raise RuntimeError("GitHub issue created but issue number missing.")
     entry["id"] = str(entry["issue_number"])
     return entry
+
+
+def report_bug(
+    title: str,
+    *,
+    description: str,
+    repro: str,
+    actual: str,
+    expected: str,
+    context: str = "",
+) -> dict:
+    """File a bug report issue (``bug_report.yml`` template; not the enhancement backlog)."""
+    return gh.create_bug_issue(
+        title,
+        description=description,
+        repro=repro,
+        actual=actual,
+        expected=expected,
+        context=context,
+    )
 
 
 def list_enhancements(

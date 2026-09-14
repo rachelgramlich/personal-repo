@@ -1,46 +1,60 @@
-# Add enhancement (GitHub issue)
+# Add GitHub issue (backlog or bug)
 
-**Scope: backlog capture only.** Create one GitHub issue with **Grocery Wizard** in the title and stop. Implementation is **`/work-on-enhancement <issue-number>`**, not this command.
+**Scope: issue capture only.** Create one GitHub issue and stop. Backlog features are implemented later with **`/work-on-enhancement <issue-number>`**; bugs are fixed in a normal fix PR (not the enhancement backlog).
 
 ## Do not explore or implement
 
 In this turn you must **not**:
 
 - Search, grep, or read the codebase (no `src/`, `tests/`, configs, or other repo files).
-- Run `dev work-on-enhancement`, `dev show-enhancement`, `dev list-enhancements`, or any command except `dev add-enhancement`.
+- Run `dev work-on-enhancement`, `dev show-enhancement`, `dev list-enhancements`, or any command except the issue CLI below.
 - Create branches, commits, pull requests, or todos for implementation work.
 - Start coding, planning implementation, or summarizing how the feature would be built.
 
-The only required action is the **`dev add-enhancement`** CLI below (plus at most one clarifying question if the title is missing). Requires **`gh`** authenticated for this repo.
+Requires **`gh`** authenticated for this repo.
 
-## How this relates to other dev logs
+## Pick the template
 
-| Workflow | Storage | How you pick it up |
-|----------|---------|-------------------|
-| Ingredient parser fixes | `.local/grocery_wizard/ingredient_edits.jsonl` (UI edits) | `uv run python -m src.grocery_wizard dev suggest-fixes` aggregates patterns for parser work |
-| **Enhancement backlog** | GitHub Issues (`Grocery Wizard` in title) | `/list-enhancements` then `/work-on-enhancement <issue-number>` |
+| User intent | GitHub template | CLI |
+|-------------|-----------------|-----|
+| **New feature / improvement** (backlog) | **Grocery Wizard enhancement** | `dev add-enhancement` |
+| **Something broken** (defect) | **Bug report** | `dev report-bug` |
 
-Prefer **`/add-enhancement`** in Cursor over typing `dev add-enhancement` in a terminal; the CLI remains for scripts and non-Cursor environments.
+When unsure, ask once: “Is this a backlog feature or a bug?”
 
-## Your task
+### Enhancement backlog
 
-The user may put details **after** the command name (title, description, area). Use that text; if the title is missing, ask once for a short title, then proceed.
-
-1. **Title** (required): short one-liner (CLI adds `[Grocery Wizard]` if missing).
-2. **Description** (optional): longer context, acceptance hints, expected behavior / manual test steps (same fields as the GitHub **Grocery Wizard enhancement** issue template).
-3. **Area** (optional, default `other`): one of `ui`, `parser`, `shopping`, `recipes`, `cli`, `other`.
-
-4. Create the issue **non-interactively** (this is the only command you run):
+- Title gets **`[Grocery Wizard]`** if missing.
+- **Expected behavior & manual test hints** are required (same as the GitHub form).
 
 ```bash
 uv run python -m src.grocery_wizard dev add-enhancement \
   --title "<title>" \
-  --description "<description>" \
-  --area <area>
+  --description "<what should change and why>" \
+  --expected-behavior "<surface, steps, expected results>" \
+  --area <ui|parser|shopping|recipes|cli|other>
 ```
 
-(Omit `--description` or `--area` when empty / `other`.)
+(Omit `--area` when `other`.)
 
-5. Reply briefly: confirm the GitHub issue number, the issue URL, and that they can implement later with `/work-on-enhancement <issue-number>`.
+### Bug report
 
-Do **not** implement the enhancement in this turn unless the user explicitly asks you to switch to implementation after the issue exists.
+- Uses the **Bug report** template (`bug` label). Not listed by `dev list-enhancements`.
+
+```bash
+uv run python -m src.grocery_wizard dev report-bug \
+  --title "<title>" \
+  --description "<summary>" \
+  --repro "<numbered steps>" \
+  --actual "<what happened>" \
+  --expected "<what should happen>" \
+  --context "<optional logs/screenshots>"
+```
+
+(Omit `--context` when empty.)
+
+## Reply
+
+Confirm the GitHub issue number and URL. For backlog items, note they can implement later with `/work-on-enhancement <issue-number>`.
+
+Do **not** implement in this turn unless the user explicitly asks after the issue exists.
