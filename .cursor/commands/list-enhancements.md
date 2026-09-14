@@ -4,7 +4,7 @@ Show open items from the GitHub enhancement backlog.
 
 ## Context
 
-- Backlog: GitHub Issues with label **`grocery-wizard-enhancement`** (plus `gw-area-*` labels).
+- Backlog: GitHub Issues with label **`grocery-wizard`** (optional `gw-area-*` labels). Legacy imports may still carry **`grocery-wizard-enhancement`**.
 - Ingredient edit logs (`.local/grocery_wizard/ingredient_edits.jsonl`) feed **`dev suggest-fixes`** for automatic parser suggestions; enhancements are **manual feature/fix ideas** you implement when you have time via **`/work-on-enhancement`**.
 
 ## Your task

@@ -1,6 +1,6 @@
 # Add enhancement (GitHub issue)
 
-**Scope: backlog capture only.** Create one GitHub issue labeled `grocery-wizard-enhancement` and stop. Implementation is **`/work-on-enhancement <id>`**, not this command.
+**Scope: backlog capture only.** Create one GitHub issue labeled `grocery-wizard` (the CLI applies area labels `gw-area-*`). Implementation is **`/work-on-enhancement <id>`**, not this command.
 
 ## Do not explore or implement
 
@@ -18,7 +18,7 @@ The only required action is the **`dev add-enhancement`** CLI below (plus at mos
 | Workflow | Storage | How you pick it up |
 |----------|---------|-------------------|
 | Ingredient parser fixes | `.local/grocery_wizard/ingredient_edits.jsonl` (UI edits) | `uv run python -m src.grocery_wizard dev suggest-fixes` aggregates patterns for parser work |
-| **Enhancement backlog** | GitHub Issues (`grocery-wizard-enhancement` label) | `/list-enhancements` then `/work-on-enhancement <id>` (or `dev work-on-enhancement <id>`) |
+| **Enhancement backlog** | GitHub Issues (label `grocery-wizard`; legacy imports may use `grocery-wizard-enhancement`) | `/list-enhancements` then `/work-on-enhancement <id>` (or `dev work-on-enhancement <id>`) |
 
 Prefer **`/add-enhancement`** in Cursor over typing `dev add-enhancement` in a terminal; the CLI remains for scripts and non-Cursor environments.
 

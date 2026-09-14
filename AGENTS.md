@@ -2,6 +2,8 @@
 
 ## Enhancement backlog
 
+Backlog items are **GitHub Issues**, not a committed JSONL file (`enhancements.jsonl` was removed in [#88](https://github.com/rachelgramlich/personal-repo/pull/88)).
+
 - **Storage:** GitHub Issues with label `grocery-wizard` (optional area labels `gw-area-*`). Legacy imports may still carry `grocery-wizard-enhancement`.
 - **List open items:** `uv run python -m src.grocery_wizard dev list-enhancements`
 - **Implement one item:** `uv run python -m src.grocery_wizard dev work-on-enhancement <ID>`

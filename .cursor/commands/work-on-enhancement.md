@@ -4,7 +4,7 @@ Pick up one backlog item and implement it end-to-end. **You** handle issue closu
 
 ## Context
 
-- Backlog: GitHub Issues labeled **`grocery-wizard-enhancement`**.
+- Backlog: GitHub Issues labeled **`grocery-wizard`** (legacy **`grocery-wizard-enhancement`** still listed by the CLI).
 - **`dev suggest-fixes`** + `ingredient_edits.jsonl` = data-driven parser fix hints from UI edits.
 - **Enhancements** = intentional backlog; primary UX is this command (not ad-hoc CLI).
 
