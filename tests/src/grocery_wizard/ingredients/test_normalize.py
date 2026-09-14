@@ -140,6 +140,18 @@ def test_expand_ingredient_line_does_not_split_color_variants() -> None:
     assert expand_ingredient_line("red and green bell peppers") == ["red and green bell peppers"]
 
 
+def test_expand_ingredient_line_does_not_split_qty_color_and_yellow_peppers() -> None:
+    assert expand_ingredient_line("2 red and yellow bell peppers") == [
+        "2 red and yellow bell peppers"
+    ]
+
+
+def test_parse_amount_red_or_yellow_onions() -> None:
+    name, amount = parse_amount("2 medium red or yellow onions")
+    assert name == "red or yellow onions"
+    assert amount == "2"
+
+
 def test_expand_ingredient_line_does_not_split_white_beans() -> None:
     assert expand_ingredient_line("2 cans white beans") == ["2 cans white beans"]
     assert expand_ingredient_line("–2 cans white beans") == ["-2 cans white beans"]  # noqa: RUF001
@@ -542,6 +554,29 @@ def test_notion_fixture_normalize(notion_case: dict) -> None:
         assert result == ""
     else:
         assert result == expected
+
+
+# ---------------------------------------------------------------------------
+# Issue #79: "2 red" bogus grocery lines
+# ---------------------------------------------------------------------------
+
+
+def test_red_or_yellow_onions_not_parsed_as_bare_red() -> None:
+    line = "2 medium red or yellow onions"
+    assert expand_ingredient_line(line) == [line]
+    assert normalize_ingredient(line) == "red or yellow onions"
+    name, amount = parse_amount(line)
+    assert name == "red or yellow onions"
+    assert amount == "2"
+
+
+def test_red_and_yellow_bell_peppers_not_split_to_two_red() -> None:
+    line = "2 red and yellow bell peppers"
+    assert expand_ingredient_line(line) == [line]
+    assert normalize_ingredient(line) == "red and yellow bell peppers"
+    name, amount = parse_amount(line)
+    assert name == "red and yellow bell peppers"
+    assert amount == "2"
 
 
 # ---------------------------------------------------------------------------
