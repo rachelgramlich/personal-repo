@@ -4,10 +4,12 @@ from __future__ import annotations
 
 __all__ = [
     "PantrySection",
+    "append_pantry_item",
     "format_pantry_display",
     "is_pantry_item",
     "load_pantry",
     "parse_pantry_file",
+    "remove_pantry_item_by_name",
     "run_pantry_interactive",
     "write_pantry_file",
 ]
@@ -140,6 +142,59 @@ def write_pantry_file(path: Path, lines: list[str]) -> None:
     if text and not text.endswith("\n"):
         text += "\n"
     path.write_text(text, encoding="utf-8")
+
+
+def append_pantry_item(name: str, path: Path | None = None) -> bool:
+    """Append an item to the pantry file (last section). Returns False if invalid or duplicate."""
+    pantry_path = path or PANTRY_PATH
+    cleaned = name.strip()
+    if not cleaned or cleaned.startswith("#"):
+        return False
+
+    lines, sections = parse_pantry_file(pantry_path)
+    flat = _flatten_items(sections)
+    if any(_matches_pantry_search(cleaned, item) for _idx, item in flat):
+        return False
+
+    target = sections[-1] if sections else PantrySection(header="# --- Uncategorized ---")
+    if not sections:
+        sections.append(target)
+        lines.append(target.header or "# --- Uncategorized ---")
+
+    insert_at = len(lines)
+    if target.items:
+        insert_at = target.items[-1][0] + 1
+    elif target.header is not None:
+        try:
+            insert_at = lines.index(target.header) + 1
+        except ValueError:
+            insert_at = len(lines)
+
+    lines.insert(insert_at, cleaned)
+    write_pantry_file(pantry_path, lines)
+    return True
+
+
+def remove_pantry_item_by_name(search: str, path: Path | None = None) -> bool:
+    """Remove the first pantry item matching *search*. Returns False if no match."""
+    pantry_path = path or PANTRY_PATH
+    lines, sections = parse_pantry_file(pantry_path)
+    flat = _flatten_items(sections)
+    if not flat:
+        return False
+
+    line_index: int | None = None
+    for idx, item in flat:
+        if _matches_pantry_search(search, item):
+            line_index = idx
+            break
+
+    if line_index is None:
+        return False
+
+    lines.pop(line_index)
+    write_pantry_file(pantry_path, lines)
+    return True
 
 
 def format_pantry_display(sections: list[PantrySection]) -> str:
