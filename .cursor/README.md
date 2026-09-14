@@ -41,3 +41,15 @@ export GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_…
 ```
 
 See also: [Cursor MCP docs](https://cursor.com/docs/mcp.md), [GitHub MCP install for Cursor](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-cursor.md).
+
+## Custom slash commands (enhancement backlog)
+
+Project commands live in `.cursor/commands/` (plain Markdown; filename = `/command-name` in Agent chat):
+
+| Command | Purpose |
+|---------|---------|
+| `/add-enhancement` | Append a feature idea to `.local/grocery_wizard/enhancements.jsonl` |
+| `/list-enhancements` | Show open backlog items |
+| `/work-on-enhancement` | Implement one item (optional ID after the command) |
+
+These wrap `uv run python -m src.grocery_wizard dev …` and are the preferred UX over running CLI subcommands manually. Ingredient edit logs still use `dev suggest-fixes` for parser-oriented suggestions.
