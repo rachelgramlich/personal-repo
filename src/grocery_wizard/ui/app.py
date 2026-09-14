@@ -120,17 +120,29 @@ def _compute_grocery_drafts(
     return draft_items, final_items
 
 
-def _persist_recurring_if_edited(
-    recurring_text: str,
-    default_recurring: list[str],
-    *,
-    path: Path = RECURRING_WEEKLY_ITEMS_PATH,
-) -> None:
-    """Save recurring weekly items only when the dedicated field was edited."""
-    parsed_recurring = _parse_line_items(recurring_text)
-    parsed_default = _parse_line_items("\n".join(default_recurring))
-    if parsed_recurring != parsed_default:
-        write_recurring_weekly_items(path, parsed_recurring)
+def _save_recurring_template(text: str, *, path: Path = RECURRING_WEEKLY_ITEMS_PATH) -> None:
+    """Persist the recurring weekly template (flow B — intentional default edits)."""
+    write_recurring_weekly_items(path, _parse_line_items(text))
+
+
+def _render_recurring_template_editor() -> None:
+    """Dedicated entry point to view/edit the saved recurring template."""
+    with st.expander("Recurring template (future weeks)", expanded=False):
+        st.caption(
+            "This is the default recurring list for every new week. Saving here does not "
+            "affect the per-week list above unless you start a new run."
+        )
+        template = load_recurring_weekly_items()
+        edited = st.text_area(
+            "Default recurring items (one per line)",
+            value="\n".join(template),
+            height=120,
+            key="recurring_template_editor",
+        )
+        if st.button("Save recurring template", type="primary", key="save_recurring_template"):
+            _save_recurring_template(edited)
+            st.success("Saved recurring template for future weeks.")
+            st.rerun()
 
 
 def _recipes_ingredient_cache_key(recipes: list) -> tuple[tuple[str, str], ...]:
@@ -861,7 +873,6 @@ def _render_per_recipe_review(db: NotionRecipesDB, selected: list[str]) -> None:
                 edit_count += log_ingredient_edits(name, original_text, edited_text)
 
             recurring_weekly_items = _parse_line_items(opts["recurring_text"])
-            _persist_recurring_if_edited(opts["recurring_text"], opts["default_recurring"])
 
             with st.spinner("Building grocery list..."):
                 items, excluded, _sync_summary, missing_ingredients, item_provenance, mismatches = (
@@ -1052,6 +1063,7 @@ def render_create_weekly_plan() -> None:
     with st.expander("Grocery list options", expanded=False):
         exclude_pantry = st.checkbox("Exclude pantry items", value=True)
         _render_pantry_and_weekly_item_manager(template_recurring)
+        _render_recurring_template_editor()
         recurring_text = st.text_area(
             "Recurring items for this week (one per line)",
             value="\n".join(default_recurring),
