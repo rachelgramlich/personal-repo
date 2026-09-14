@@ -274,6 +274,16 @@ def test_split_recipe_title_bleed() -> None:
         "zucchini",
         "orzo",
     ]
+    assert split_recipe_title_bleed(
+        "chimichurri zucchini orzo lemon red pepper red onions"
+    ) == [
+        "chimichurri",
+        "zucchini",
+        "orzo",
+        "lemon",
+        "red pepper",
+        "red onions",
+    ]
     assert split_recipe_title_bleed("gnocchi sauce veggie for gnocchi") == [
         "gnocchi",
         "veggie for gnocchi",
