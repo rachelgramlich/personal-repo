@@ -4,26 +4,26 @@ Pick up one backlog item and implement it end-to-end. **You** handle issue closu
 
 ## Context
 
-- Backlog: GitHub Issues labeled **`grocery-wizard-enhancement`**.
+- Backlog: GitHub Issues with **Grocery Wizard** in the title.
 - **`dev suggest-fixes`** + `ingredient_edits.jsonl` = data-driven parser fix hints from UI edits.
 - **Enhancements** = intentional backlog; primary UX is this command (not ad-hoc CLI).
 
 ## Your task
 
-### 1. Resolve enhancement ID
+### 1. Resolve issue number
 
-- If the user typed an ID after the command (e.g. `/work-on-enhancement enh_002` or `/work-on-enhancement 84`), use it.
-- Otherwise run `uv run python -m src.grocery_wizard dev list-enhancements`, show open items, and ask which ID or issue # to use. Stop until they pick one.
+- If the user typed a number after the command (e.g. `/work-on-enhancement 96`), use it.
+- Otherwise run `uv run python -m src.grocery_wizard dev list-enhancements`, show open items, and ask which issue # to use. Stop until they pick one.
 
 ### 2. Load full instructions
 
 Run and **follow** the printed prompt (includes title, description, area, files, branch, ship steps):
 
 ```bash
-uv run python -m src.grocery_wizard dev work-on-enhancement <ID>
+uv run python -m src.grocery_wizard dev work-on-enhancement <issue-number>
 ```
 
-(`dev show-enhancement <ID>` is equivalent; do **not** pass `--close`.)
+(`dev show-enhancement <issue-number>` is equivalent; do **not** pass `--close`.)
 
 ### 3. Implement
 
@@ -34,16 +34,16 @@ uv run python -m src.grocery_wizard dev work-on-enhancement <ID>
 
 ### 4. Ship (PR title + issue link)
 
-PR **title** must use the standard format (enhancement ID first):
+PR **title** must use the standard format (issue number first):
 
 ```bash
-PR_TITLE="$(uv run python -m src.grocery_wizard dev enhancement-pr-title <ID>)"
+PR_TITLE="$(uv run python -m src.grocery_wizard dev enhancement-pr-title <issue-number>)"
 ```
 
-- Commit with a clear message referencing `<ID>`.
+- Commit with a clear message referencing `#<issue-number>`.
 - Push the branch.
 - Create or update the GitHub PR:
-  - **Title:** exactly `$PR_TITLE` (e.g. `enh_002: Per-week recurring overrides + UI to edit default recurring list`).
+  - **Title:** exactly `$PR_TITLE` (e.g. `#96: Notion-backed pantry, recurring items, and weekly meal plans`).
   - **Body:** short summary, test plan, and `Closes #<issue-number>` when the work finishes the backlog item.
 - If the PR already exists but the title is wrong, update it to `$PR_TITLE`.
 

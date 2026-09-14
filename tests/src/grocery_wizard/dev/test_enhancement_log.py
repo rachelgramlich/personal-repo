@@ -27,6 +27,15 @@ def test_format_pr_title_truncates_long_title(tmp_path: Path) -> None:
     assert title.startswith(f"{eid}: ")
 
 
+def test_format_pr_title_uses_issue_number() -> None:
+    entry = {
+        "id": "96",
+        "issue_number": 96,
+        "title": "Notion-backed pantry",
+    }
+    assert format_pr_title(entry) == "#96: Notion-backed pantry"
+
+
 def test_complete_enhancement_stores_pr_url(tmp_path: Path) -> None:
     path = tmp_path / "enhancements.jsonl"
     eid = add_enhancement("Done item", path=path)
