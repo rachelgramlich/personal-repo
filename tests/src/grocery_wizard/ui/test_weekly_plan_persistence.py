@@ -10,17 +10,25 @@ APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui"
 def test_weekly_plan_entry_modes_in_app() -> None:
     source = APP_PATH.read_text(encoding="utf-8")
     assert "_render_weekly_plan_entry" in source
-    assert 'weekly_plan_mode' in source
+    assert "weekly_plan_mode" in source
     assert "append_saved_plan" in source
-    assert "_persist_weekly_plan_if_needed" in source
+    assert "_render_save_plan_controls" in source
+    assert "_commit_weekly_plan_to_repo" in source
     assert "Dev mode (nothing saved)" in source
 
 
-def test_create_grocery_uses_conditional_persist_not_always_save_week_plan() -> None:
+def test_create_grocery_does_not_auto_save_plan() -> None:
     source = APP_PATH.read_text(encoding="utf-8")
     section = source.split('if st.button("Create grocery list"', 1)[1].split("_start_recipe_review", 1)[0]
-    assert "_persist_weekly_plan_if_needed" in section
-    assert "save_week_plan(current_plan" not in section
+    assert "append_saved_plan" not in section
+    assert "save_week_plan" not in section
+    assert "_commit_weekly_plan_to_repo" not in section
+
+
+def test_explicit_save_plan_button_after_meals() -> None:
+    source = APP_PATH.read_text(encoding="utf-8")
+    assert 'key="save_weekly_plan"' in source
+    assert "_render_save_plan_controls(_current_plan_names())" in source
 
 
 def test_weekly_plan_entry_app_test_smoke() -> None:

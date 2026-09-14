@@ -35,6 +35,7 @@ from src.grocery_wizard.planning.meal_planner import (
     suggest_meals,
 )
 from src.grocery_wizard.planning.saved_weekly_plans import (
+    SavedWeeklyPlan,
     append_saved_plan,
     list_saved_plans,
     load_plan_recipes,
@@ -688,6 +689,8 @@ def _reset_weekly_plan_workflow(*, clear_mode: bool = False) -> None:
         "plan_rejected_names",
         "plan_locked_recipes",
         "weekly_plan_loaded_slug",
+        "weekly_plan_last_saved_slug",
+        "weekly_plan_saved_fingerprint",
     ):
         st.session_state.pop(key, None)
     if clear_mode:
@@ -700,16 +703,42 @@ def _weekly_plan_mode() -> str | None:
     return mode if mode in _WEEKLY_PLAN_MODES else None
 
 
-def _persist_weekly_plan_if_needed(recipe_names: list[str]) -> None:
-    """Save meal selections to repo CSV and local week plan unless in dev/saved-only mode."""
+def _weekly_plan_fingerprint(recipe_names: list[str]) -> tuple[str, ...]:
+    return tuple(recipe_names)
+
+
+def _invalidate_weekly_plan_save_state() -> None:
+    st.session_state.pop("weekly_plan_last_saved_slug", None)
+    st.session_state.pop("weekly_plan_saved_fingerprint", None)
+
+
+def _commit_weekly_plan_to_repo(recipe_names: list[str]) -> SavedWeeklyPlan:
+    """Append plan to repo CSV and refresh local week_plan.json for diversity hints."""
+    plan = append_saved_plan(recipe_names)
+    save_week_plan(recipe_names, WEEK_PLAN_PATH)
+    st.session_state.weekly_plan_last_saved_slug = plan.slug
+    st.session_state.weekly_plan_saved_fingerprint = _weekly_plan_fingerprint(recipe_names)
+    return plan
+
+
+def _render_save_plan_controls(recipe_names: list[str]) -> None:
+    """Explicit save after meal generation (not used in dev mode)."""
     mode = _weekly_plan_mode()
-    if mode == "new":
-        append_saved_plan(recipe_names)
-        save_week_plan(recipe_names, WEEK_PLAN_PATH)
-    elif mode in ("dev", "saved"):
+    if mode == "dev" or not recipe_names:
         return
-    else:
-        save_week_plan(recipe_names, WEEK_PLAN_PATH)
+
+    fingerprint = _weekly_plan_fingerprint(recipe_names)
+    last_fingerprint = st.session_state.get("weekly_plan_saved_fingerprint")
+    last_slug = st.session_state.get("weekly_plan_last_saved_slug")
+
+    if last_fingerprint == fingerprint and last_slug:
+        st.success(f"Plan saved as **{last_slug}**")
+        return
+
+    label = "Save plan to repo" if mode == "new" else "Save as new plan version"
+    if st.button(label, type="secondary", key="save_weekly_plan"):
+        _commit_weekly_plan_to_repo(recipe_names)
+        st.rerun()
 
 
 def _render_weekly_plan_entry() -> bool:
@@ -734,7 +763,7 @@ def _render_weekly_plan_entry() -> bool:
         "Weekly plan session",
         options=_WEEKLY_PLAN_MODES,
         format_func=lambda value: {
-            "new": "Start a new list (saved to the repo when you create your grocery list)",
+            "new": "Start a new list (use Save plan to commit meals to the repo)",
             "saved": "Start from a saved list (recipes only — grocery list is not saved)",
             "dev": "Dev mode (nothing saved)",
         }[value],
@@ -966,6 +995,7 @@ def render_create_weekly_plan() -> None:
         )
         st.session_state.plan_meals_text = "\n".join(plan)
         st.session_state.plan_rejected_names = []
+        _invalidate_weekly_plan_save_state()
         _clear_grocery_result()
         st.rerun()
 
@@ -983,6 +1013,7 @@ def render_create_weekly_plan() -> None:
             )
             st.session_state.plan_meals_text = "\n".join(new_plan)
             st.session_state.plan_rejected_names = sorted(rejected)
+            _invalidate_weekly_plan_save_state()
             _clear_grocery_result()
             st.rerun()
 
@@ -1006,6 +1037,7 @@ def render_create_weekly_plan() -> None:
                 ingredient_index=ingredient_index,
             )
             st.session_state.plan_meals_text = "\n".join(plan)
+            _invalidate_weekly_plan_save_state()
             _clear_grocery_result()
             st.rerun()
 
@@ -1015,6 +1047,8 @@ def render_create_weekly_plan() -> None:
                 height=160,
                 key="plan_meals_text",
             )
+
+        _render_save_plan_controls(_current_plan_names())
 
     st.divider()
     st.markdown("### 2. Grocery list")
@@ -1052,7 +1086,6 @@ def render_create_weekly_plan() -> None:
     )
 
     if st.button("Create grocery list", type="primary", key="create_grocery"):
-        _persist_weekly_plan_if_needed(current_plan)
         _clear_grocery_result()
         _start_recipe_review(
             db,
