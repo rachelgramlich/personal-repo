@@ -287,6 +287,10 @@ def build_grocery_list(
 
     When ``ingredient_overrides`` is provided it maps recipe name (lowercase) to
     edited ingredient text that supersedes whatever is stored in Notion.
+
+    ``recurring_weekly_items`` is a per-run override list (flow A). It does not
+    read or write the on-disk recurring template; callers pass the merged list
+    for this session only.
     """
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
     pantry = load_pantry(pantry_path)
