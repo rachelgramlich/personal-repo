@@ -11,8 +11,7 @@ pycache/
 
 # IDE
 .vscode/
-.cursor/mcp.json
-.cursor/settings.json
+.cursor/
 
 # uv
 .uv/
