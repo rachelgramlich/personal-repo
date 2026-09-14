@@ -1,4 +1,4 @@
-"""Tests for committed weekly plan CSV persistence."""
+"""Tests for weekly plan persistence (CSV test backend)."""
 
 from __future__ import annotations
 
@@ -42,7 +42,6 @@ def test_ensure_saved_plan_uses_week_start_in_csv(tmp_path: Path) -> None:
     assert created is True
     assert plan.week_start == date(2026, 9, 13)
     assert plan.name == "2026-09-13_plan_v1"
-    assert plan.slug == "2026-09-13_plan_v1"
     assert plan.recipes == ("Pasta", "Curry")
 
 
@@ -61,14 +60,16 @@ def test_ensure_saved_plan_dedupes_same_week_and_recipes(tmp_path: Path) -> None
 
     assert created_first is True
     assert created_second is False
-    assert first.slug == second.slug
+    assert first.name == second.name
     assert len(list_saved_plans(path=path)) == 1
 
 
 def test_different_recipes_same_week_get_next_version(tmp_path: Path) -> None:
     path = tmp_path / "saved_weekly_plans.csv"
     ensure_saved_weekly_plan(["A"], reference_date=date(2026, 9, 14), path=path)
-    second, created = ensure_saved_weekly_plan(["B", "C"], reference_date=date(2026, 9, 14), path=path)
+    second, created = ensure_saved_weekly_plan(
+        ["B", "C"], reference_date=date(2026, 9, 14), path=path
+    )
 
     assert created is True
     assert second.version == 2
@@ -88,5 +89,5 @@ def test_list_saved_plans_newest_first(tmp_path: Path) -> None:
     ensure_saved_weekly_plan(["Old"], reference_date=date(2026, 9, 1), path=path)
     ensure_saved_weekly_plan(["New"], reference_date=date(2026, 9, 14), path=path)
 
-    slugs = [plan.slug for plan in list_saved_plans(path=path)]
-    assert slugs == ["2026-09-13_plan_v1", "2026-08-30_plan_v1"]
+    names = [plan.name for plan in list_saved_plans(path=path)]
+    assert names == ["2026-09-13_plan_v1", "2026-08-30_plan_v1"]

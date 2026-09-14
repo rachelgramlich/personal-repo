@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from src.grocery_wizard.config import RECURRING_WEEKLY_ITEMS_PATH
 from src.grocery_wizard.shopping.line_items import parse_line_items, strip_line_item
 
 
@@ -35,10 +34,30 @@ def apply_recurring_session_overrides(
     return result
 
 
+def _load_recurring_from_file(items_path: Path) -> list[str]:
+    if not items_path.exists():
+        return []
+    return parse_line_items(items_path.read_text(encoding="utf-8"))
+
+
+def _write_recurring_to_file(items_path: Path, items: list[str]) -> None:
+    header = "# Recurring weekly items — added to every grocery list (one item per line).\n"
+    header += "# Lines starting with # are ignored.\n\n"
+    body = "\n".join(item.strip() for item in items if item.strip())
+    text = header + body
+    if text and not text.endswith("\n"):
+        text += "\n"
+    items_path.write_text(text, encoding="utf-8")
+
+
 def remove_recurring_weekly_item(search: str, path: Path | None = None) -> bool:
     """Remove the first recurring item whose name matches *search*."""
-    items_path = path or RECURRING_WEEKLY_ITEMS_PATH
-    items = load_recurring_weekly_items(items_path)
+    if path is None:
+        from src.grocery_wizard.integrations.notion_household import NotionRecurringDB
+
+        return NotionRecurringDB().remove_item(search)
+
+    items = load_recurring_weekly_items(path)
     if not items:
         return False
 
@@ -56,41 +75,44 @@ def remove_recurring_weekly_item(search: str, path: Path | None = None) -> bool:
     if not removed:
         return False
 
-    write_recurring_weekly_items(items_path, new_items)
+    write_recurring_weekly_items(path, new_items)
     return True
 
 
 def append_recurring_weekly_item(name: str, path: Path | None = None) -> bool:
     """Append an item to the recurring weekly template if not already present."""
-    items_path = path or RECURRING_WEEKLY_ITEMS_PATH
+    if path is None:
+        from src.grocery_wizard.integrations.notion_household import NotionRecurringDB
+
+        return NotionRecurringDB().append_item(name)
+
     cleaned = name.strip()
     if not cleaned:
         return False
-    items = load_recurring_weekly_items(items_path)
+    items = load_recurring_weekly_items(path)
     if any(existing.strip().lower() == cleaned.lower() for existing in items):
         return False
-    write_recurring_weekly_items(items_path, [*items, cleaned])
+    write_recurring_weekly_items(path, [*items, cleaned])
     return True
 
 
 def load_recurring_weekly_items(path: Path | None = None) -> list[str]:
-    """Load recurring weekly items from a text file (one item per line, order preserved)."""
-    items_path = path or RECURRING_WEEKLY_ITEMS_PATH
-    if not items_path.exists():
-        return []
+    """Load recurring weekly items (Notion by default; optional file path for tests)."""
+    if path is not None:
+        return _load_recurring_from_file(path)
+    from src.grocery_wizard.integrations.notion_household import NotionRecurringDB
 
-    return parse_line_items(items_path.read_text(encoding="utf-8"))
+    return NotionRecurringDB().load_items()
 
 
-def write_recurring_weekly_items(path: Path, items: list[str]) -> None:
-    """Write recurring weekly items back to disk, preserving a trailing newline."""
-    header = "# Recurring weekly items — added to every grocery list (one item per line).\n"
-    header += "# Lines starting with # are ignored.\n\n"
-    body = "\n".join(item.strip() for item in items if item.strip())
-    text = header + body
-    if text and not text.endswith("\n"):
-        text += "\n"
-    path.write_text(text, encoding="utf-8")
+def write_recurring_weekly_items(path: Path | None, items: list[str]) -> None:
+    """Persist recurring template to Notion or a file (explicit path for tests)."""
+    if path is None:
+        from src.grocery_wizard.integrations.notion_household import NotionRecurringDB
+
+        NotionRecurringDB().replace_all(items)
+        return
+    _write_recurring_to_file(path, items)
 
 
 def prompt_recurring_weekly_items(
@@ -100,8 +122,7 @@ def prompt_recurring_weekly_items(
     interactive: bool = True,
 ) -> list[str]:
     """Show recurring weekly items and let the user accept, edit, or skip for this week."""
-    items_path = path or RECURRING_WEEKLY_ITEMS_PATH
-    items = list(defaults if defaults is not None else load_recurring_weekly_items(items_path))
+    items = list(defaults if defaults is not None else load_recurring_weekly_items(path))
     if not interactive:
         return items
 
@@ -132,8 +153,9 @@ def prompt_recurring_weekly_items(
             except EOFError:
                 save = ""
             if save in ("y", "yes"):
-                write_recurring_weekly_items(items_path, items)
-                print(f"Saved {items_path}", file=sys.stderr)
+                write_recurring_weekly_items(path, items)
+                target = path if path is not None else "Notion"
+                print(f"Saved recurring defaults to {target}", file=sys.stderr)
             continue
 
         print("Press Enter to add, 'e' to edit, or 's' to skip.")

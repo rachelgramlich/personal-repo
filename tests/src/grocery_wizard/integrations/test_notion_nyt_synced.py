@@ -38,6 +38,9 @@ def test_nyt_synced_column_name_detects_checkbox() -> None:
     db._config = Config(
         notion_api_key="key",
         notion_recipe_database_id="db",
+        notion_pantry_database_id="pantry-db",
+        notion_recurring_weekly_database_id="recurring-db",
+        notion_weekly_meal_plans_database_id="plans-db",
     )
     db.schema = _schema_with_nyt_checkbox()
 
@@ -49,6 +52,9 @@ def test_nyt_synced_column_name_missing_returns_none() -> None:
     db._config = Config(
         notion_api_key="key",
         notion_recipe_database_id="db",
+        notion_pantry_database_id="pantry-db",
+        notion_recurring_weekly_database_id="recurring-db",
+        notion_weekly_meal_plans_database_id="plans-db",
     )
     db.schema = DatabaseSchema(
         name_column="Name",

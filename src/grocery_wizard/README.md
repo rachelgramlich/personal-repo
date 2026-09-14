@@ -55,7 +55,7 @@ Uses your saved week plan. No flags needed — it walks you through:
 uv run python -m src.grocery_wizard.cli edit-pantry
 ```
 
-Edit `src/grocery_wizard/config/pantry.txt` — items here won't show up on your shopping list.
+`edit-pantry` updates your **Notion pantry** database — items there won't show up on your shopping list.
 
 ### I want to sync my NYT Cooking recipe box to Notion
 
@@ -161,8 +161,8 @@ Grocery Wizard is a package under `src/grocery_wizard/`. Folders group code by *
 |--------|-----------|----------------|
 | `cli/` | `main.py` | Command-line entry (`add-recipe`, `plan-recipes`, `create-grocery-list`, `edit-pantry`, `dev …`) |
 | `ui/` | `app.py` | Streamlit app (partial — Plan Meals tab is still a stub) |
-| `config/` | `__init__.py`, `pantry.txt` | Env settings, paths, committed pantry staples |
-| `integrations/` | `notion.py`, `nyt_cooking.py` | Notion API client; NYT Cooking auth and sync |
+| `config/` | `__init__.py`, `store_aisles.txt` | Env settings and committed store walk order |
+| `integrations/` | `notion.py`, `notion_household.py`, `nyt_cooking.py` | Notion API; pantry/recurring/plans DBs; NYT sync |
 | `recipes/` | `scraper.py`, `classify.py`, `add_recipe.py` | Scrape URLs, classify metadata, save new recipes |
 | `ingredients/` | `normalize.py`, `sync.py` | Parse/normalize ingredient lines; sync to Notion |
 | `planning/` | `meal_planner.py` | Interactive weeknight dinner planner |
@@ -179,7 +179,7 @@ Same subfolders as source — e.g. `recipes/test_scraper.py` tests `recipes/scra
 | Path | Purpose |
 |------|---------|
 | `.local/grocery_wizard/week_plan.json` | This week's planned recipe names |
-| `.env` | `NOTION_API_KEY`, `NOTION_RECIPE_DATABASE_ID`, NYT credentials (see `.env.example`) |
+| `.env` | Notion API key and database IDs, NYT credentials (see `.env.example`) |
 
 ### Entry points
 
@@ -214,11 +214,13 @@ Normalization and pantry exclusion happen at grocery-list time only — not when
 
 1. Create a [Notion integration](https://www.notion.so/my-integrations) and copy the API key.
 2. Share your **Recipes** database with the integration (⋯ → Connections).
-3. Copy `.env.example` to `.env` and fill in:
+3. Create Notion databases for pantry staples, recurring weekly items, and saved weekly meal plans (see `config/README.md`). Connect the same integration to each.
+4. Copy `.env.example` to `.env` and fill in:
    - `NOTION_API_KEY` — integration secret
-   - `NOTION_RECIPE_DATABASE_ID` — your Recipes database ID
-4. From repo root: `just setup`
-5. Verify: `uv run python -m src.grocery_wizard.cli dev show-schema`
+   - `NOTION_RECIPE_DATABASE_ID` — Recipes database ID
+   - `NOTION_PANTRY_DATABASE_ID`, `NOTION_RECURRING_WEEKLY_DATABASE_ID`, `NOTION_WEEKLY_MEAL_PLANS_DATABASE_ID`
+5. From repo root: `just setup`
+6. Verify: `uv run python -m src.grocery_wizard.cli dev show-schema`
 
 ## Meal planning
 
@@ -239,30 +241,29 @@ Committed config lives in the package; per-week data stays local:
 
 | Path | Committed? | Purpose |
 |------|------------|---------|
-| `src/grocery_wizard/config/pantry.txt` | yes | Pantry staples excluded from grocery lists |
-| `src/grocery_wizard/config/recurring_weekly_items.txt` | yes | Items added to every grocery list |
 | `src/grocery_wizard/config/store_aisles.txt` | yes | Store walk order, aisle labels, and ingredient keywords |
-| `src/grocery_wizard/config/__init__.py` | yes | Env vars, Notion IDs, file paths |
-| `.local/grocery_wizard/week_plan.json` | no | This week's planned recipes |
+| `src/grocery_wizard/config/__init__.py` | yes | Env vars and Notion database IDs |
+| Notion pantry / recurring / weekly-plans DBs | — | Pantry staples, recurring items, saved meal plans |
+| `.local/grocery_wizard/week_plan.json` | no | This week's planned recipes (session cache) |
 
 ## Pantry staples
 
-`edit-pantry` edits `src/grocery_wizard/config/pantry.txt`, grouped by section headers. Interactive options:
+`edit-pantry` edits your Notion pantry database, grouped by section headers. Interactive options:
 
 - **a** — add an item (pick a section or create one)
 - **r** — remove by number or name
-- **e** — open `src/grocery_wizard/config/pantry.txt` in `$EDITOR`
+- **e** — open a temp file in `$EDITOR`, then sync back to Notion on quit
 - **q** — save and quit
 
 Matching uses phrase boundaries: `kosher salt` matches pantry item `salt`, but `beef` does not match `beef stock`.
 
 ## Recurring weekly items
 
-`config/recurring_weekly_items.txt` lists items added every week (berries, bananas, milk, etc.). During `create-grocery-list`, you can accept, edit, or skip them for the current week — and optionally save edits back to the config file for future weeks.
+The **Notion recurring weekly items** database lists defaults added every week (berries, milk, etc.). During `create-grocery-list`, you can accept, edit, or skip them for the current week — and optionally save edits back to Notion for future weeks.
 
 ## Grocery list aisle order
 
-`create-grocery-list` sorts items by store walk order and prints aisle section headers. Edit `src/grocery_wizard/config/store_aisles.txt` to change walk order, labels, or keywords — same section-header style as `pantry.txt`:
+`create-grocery-list` sorts items by store walk order and prints aisle section headers. Edit `src/grocery_wizard/config/store_aisles.txt` to change walk order, labels, or keywords:
 
 ```text
 # --- fruit: Fruit ---

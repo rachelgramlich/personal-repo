@@ -350,7 +350,13 @@ def test_run_grocery_list_quiet_skips_excluded_display(
     week_plan = pantry_file.parent / "week_plan.json"
     week_plan.write_text('{"recipes": ["Test Recipe"]}', encoding="utf-8")
 
-    with patch("src.grocery_wizard.shopping.grocery_list._prompt_staples", return_value=[]):
+    with (
+        patch("src.grocery_wizard.shopping.grocery_list._prompt_staples", return_value=[]),
+        patch(
+            "src.grocery_wizard.shopping.grocery_list.prompt_recurring_weekly_items",
+            return_value=[],
+        ),
+    ):
         code = run_grocery_list(
             db,
             quiet=True,
@@ -495,7 +501,9 @@ def test_build_grocery_list_returns_missing_ingredients_for_empty_recipes(tmp_pa
         pantry_path=pantry_path,
     )
 
-    assert any("flour" in item or "eggs" in item for item in items), "populated recipe items should appear"
+    assert any("flour" in item or "eggs" in item for item in items), (
+        "populated recipe items should appear"
+    )
     assert missing == ["Empty"]
 
 
@@ -523,7 +531,9 @@ def test_build_grocery_list_uses_ingredient_overrides_instead_of_notion(tmp_path
     assert any("Stew" in recipes for recipes in provenance.values())
 
 
-def test_build_grocery_list_override_can_supply_ingredients_when_notion_empty(tmp_path: Path) -> None:
+def test_build_grocery_list_override_can_supply_ingredients_when_notion_empty(
+    tmp_path: Path,
+) -> None:
     pantry_path = tmp_path / "pantry.txt"
     pantry_path.write_text("salt\n", encoding="utf-8")
 
@@ -640,9 +650,7 @@ def test_build_grocery_list_splits_grilled_veggies_over_orzo_bleed(tmp_path: Pat
     assert any("zucchini" in item for item in lowered)
     assert any("orzo" in item for item in lowered)
     assert any("red pepper" in item for item in lowered)
-    assert not any(
-        "chimichurri zucchini orzo lemon" in item for item in lowered
-    )
+    assert not any("chimichurri zucchini orzo lemon" in item for item in lowered)
 
 
 def test_build_grocery_list_splits_merged_chermoula_lines(tmp_path: Path) -> None:
