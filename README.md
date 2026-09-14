@@ -32,6 +32,12 @@ See [src/grocery_wizard/README.md](src/grocery_wizard/README.md#feature-enhancem
 
 ## Cursor (optional)
 
-The `.cursor/` folder is **local only** (gitignored). This repo does not ship slash-command templates; if you want Agent chat shortcuts, create your own markdown files under `.cursor/commands/` on your machine.
+The `.cursor/` folder is **local only** (gitignored). One-time install of enhancement backlog slash commands (`/add-enhancement`, `/list-enhancements`, `/work-on-enhancement`):
+
+```shell
+uv run python -m src.grocery_wizard dev install-cursor-commands
+```
+
+The CLI (`uv run python -m src.grocery_wizard dev …`) works without Cursor.
 
 # Execution

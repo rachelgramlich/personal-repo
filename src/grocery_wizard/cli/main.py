@@ -124,8 +124,9 @@ Enhancement backlog (gitignored .local/grocery_wizard/enhancements.jsonl):
   list-enhancements [--all] [--json]
   show-enhancement <id> [--close]
   close-enhancement <id>
+  install-cursor-commands
 
-Optional: Cursor slash commands in gitignored .cursor/commands/ — create locally; not shipped here.
+Writes /add-enhancement, /list-enhancements, /work-on-enhancement into gitignored .cursor/commands/.
 """.strip(),
     )
     dev_subparsers = dev_parser.add_subparsers(dest="dev_command", required=True)
@@ -317,6 +318,12 @@ Optional: Cursor slash commands in gitignored .cursor/commands/ — create local
     )
     close_enh_parser.add_argument("id", help="Enhancement ID (e.g. enh_001)")
     close_enh_parser.set_defaults(func=cmd_dev_close_enhancement)
+
+    install_cursor_parser = dev_subparsers.add_parser(
+        "install-cursor-commands",
+        help="Write enhancement backlog slash commands to .cursor/commands/ (local only)",
+    )
+    install_cursor_parser.set_defaults(func=cmd_dev_install_cursor_commands)
 
     nyt_parser = subparsers.add_parser(
         "nyt",
@@ -1040,6 +1047,14 @@ def cmd_dev_close_enhancement(args: argparse.Namespace) -> int:
         print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
         return 1
     print(f"Marked {args.id} as done.")
+    return 0
+
+
+def cmd_dev_install_cursor_commands(_args: argparse.Namespace) -> int:
+    from src.grocery_wizard.dev.install_cursor_commands import install_cursor_commands
+
+    repo_root = install_cursor_commands()
+    print(f"Installed to {repo_root}/.cursor/commands/ — use /add-enhancement in Cursor Agent chat")
     return 0
 
 

@@ -136,6 +136,7 @@ Use when you edit Notion directly, need to refresh ingredient data, or debug sch
 | `dev list-enhancements` | List open backlog items (use `--all` for closed/done) |
 | `dev show-enhancement` | Print a ready-to-paste agent prompt for one item |
 | `dev close-enhancement` | Mark a backlog item as done |
+| `dev install-cursor-commands` | Write `/add-enhancement` etc. into `.cursor/commands/` (gitignored) |
 
 ### Feature enhancement backlog
 
@@ -156,7 +157,15 @@ uv run python -m src.grocery_wizard.cli dev show-enhancement enh_001
 uv run python -m src.grocery_wizard.cli dev close-enhancement enh_001
 ```
 
-`show-enhancement` prints branch naming and context for a Cloud Agent or local IDE session. Cursor slash commands (e.g. `/add-enhancement`) are **optional**: add your own command markdown under gitignored `.cursor/commands/` if you want them — this repo does not commit templates.
+`show-enhancement` prints branch naming and context for a Cloud Agent or local IDE session.
+
+**Cursor slash commands (optional):** from repo root, run once:
+
+```shell
+uv run python -m src.grocery_wizard dev install-cursor-commands
+```
+
+Commands live only under `.cursor/commands/` (not committed). In Agent chat use `/add-enhancement`, `/list-enhancements`, and `/work-on-enhancement`.
 
 ```shell
 # Recipes added in Notion with a link but no ingredients
