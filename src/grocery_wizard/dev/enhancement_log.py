@@ -113,7 +113,7 @@ def add_enhancement(
     *,
     path: Path | None = None,
 ) -> str:
-    """Create a backlog item; returns enhancement ID (e.g. enh_003)."""
+    """Create a backlog item; returns GitHub issue number as string (file tests: ``enh_NNN``)."""
     return create_enhancement(title, description, area, path=path)["id"]
 
 
@@ -129,10 +129,10 @@ def create_enhancement(
         new_id = _add_enhancement_file(title, description, area, path)
         entry = get_enhancement(new_id, path=path)
         return entry or {"id": new_id, "title": title, "area": area}
-    gh.ensure_labels()
     entry = gh.create_issue(title, description, area)
-    if not entry.get("id"):
-        raise RuntimeError("GitHub issue created but enhancement ID missing from body.")
+    if not entry.get("issue_number"):
+        raise RuntimeError("GitHub issue created but issue number missing.")
+    entry["id"] = str(entry["issue_number"])
     return entry
 
 
@@ -163,12 +163,17 @@ def close_enhancement(eid: str, *, path: Path | None = None) -> bool:
 
 
 def format_pr_title(entry: dict, *, max_len: int = 256) -> str:
-    eid = entry.get("id") or ""
-    if not eid:
-        num = entry.get("issue_number")
-        eid = f"#{num}" if num else "issue"
+    num = entry.get("issue_number")
+    eid = (entry.get("id") or "").strip()
+    if num is not None:
+        prefix = f"#{num}: "
+    elif eid.isdigit():
+        prefix = f"#{eid}: "
+    elif eid:
+        prefix = f"{eid}: "
+    else:
+        prefix = "issue: "
     title = (entry.get("title") or "").strip()
-    prefix = f"{eid}: "
     room = max_len - len(prefix)
     if room < 1:
         return prefix[:max_len]
@@ -210,12 +215,12 @@ def title_to_branch_slug(title: str, *, max_len: int = 40) -> str:
 
 
 def format_worker_spawn_message(entry: dict) -> str:
-    eid = entry.get("id") or str(entry.get("issue_number") or "")
+    ref = entry.get("issue_number") or entry.get("id") or ""
     title = entry.get("title", "").strip()
-    if title and eid:
-        return f"/work-on-enhancement {eid} — {title}"
-    if eid:
-        return f"/work-on-enhancement {eid}"
+    if title and ref:
+        return f"/work-on-enhancement {ref} — {title}"
+    if ref:
+        return f"/work-on-enhancement {ref}"
     return "/work-on-enhancement"
 
 
@@ -247,7 +252,8 @@ def format_agent_prompt(entry: dict) -> str:
         files_text = "  (no specific files mapped for this area)"
 
     title = entry.get("title", "")
-    eid = entry.get("id") or entry.get("issue_number") or ""
+    issue_num = entry.get("issue_number")
+    eid = str(issue_num) if issue_num is not None else (entry.get("id") or "")
     issue_ref = entry.get("issue_url") or ""
     slug = title_to_branch_slug(title)
     branch = f"cursor/{slug}-21af"
@@ -259,7 +265,7 @@ def format_agent_prompt(entry: dict) -> str:
     lines = [
         boilerplate,
         "",
-        f"**ID:** {eid}",
+        f"**Issue:** #{eid}" if eid.isdigit() else f"**ID:** {eid}",
         f"**Title:** {title}",
     ]
     if issue_ref:
@@ -305,39 +311,40 @@ def _jsonl_migration_paths() -> list[Path]:
 
 def migrate_jsonl_to_github(*, dry_run: bool = False) -> list[dict]:
     """Import legacy JSONL rows into GitHub Issues; returns created issue summaries."""
-    gh.ensure_labels()
     created: list[dict] = []
-    seen_ids: set[str] = set()
+    seen_titles: set[str] = set()
+    existing_titles = {
+        (e.get("title") or "").strip().lower()
+        for e in gh.list_issues(include_closed=True)
+    }
     for path in _jsonl_migration_paths():
         for row in _load_all_file(path):
-            eid = row.get("id") or ""
-            if not eid or eid in seen_ids:
+            title = (row.get("title") or row.get("id") or "").strip()
+            if not title or title.lower() in seen_titles:
                 continue
-            seen_ids.add(eid)
-            if gh.get_issue(eid) is not None:
+            if title.lower() in existing_titles:
                 continue
-            title = row.get("title") or eid
+            seen_titles.add(title.lower())
             description = row.get("description") or ""
             area = row.get("area") or "other"
             if area not in VALID_AREAS:
                 area = "other"
             if dry_run:
-                created.append({"id": eid, "title": title, "dry_run": True})
+                created.append({"title": title, "dry_run": True})
                 continue
             issue = gh.create_issue(
                 title,
                 description,
                 area,
-                enh_id=eid,
                 closed=row.get("status") == "done",
                 pr_url=row.get("pr_url") or "",
                 completed_at=row.get("completed_at") or "",
             )
             created.append(
                 {
-                    "id": eid,
                     "number": issue.get("issue_number"),
                     "url": issue.get("issue_url"),
+                    "title": title,
                 }
             )
     return created

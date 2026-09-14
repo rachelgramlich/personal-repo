@@ -305,7 +305,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     show_enh_parser.add_argument(
         "id",
-        help="Enhancement ID (enh_001) or GitHub issue number (#74 or 74)",
+        help="GitHub issue number (#74 or 74)",
     )
     show_enh_parser.add_argument(
         "--close",
@@ -320,7 +320,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     work_enh_parser.add_argument(
         "id",
-        help="Enhancement ID (enh_001) or GitHub issue number (#74 or 74)",
+        help="GitHub issue number (#74 or 74)",
     )
     work_enh_parser.set_defaults(func=cmd_dev_work_on_enhancement)
 
@@ -328,14 +328,14 @@ def main(argv: list[str] | None = None) -> int:
         "close-enhancement",
         help="Mark an enhancement as done (no PR link; prefer complete-enhancement)",
     )
-    close_enh_parser.add_argument("id", help="Enhancement ID (e.g. enh_001)")
+    close_enh_parser.add_argument("id", help="GitHub issue number (e.g. 96)")
     close_enh_parser.set_defaults(func=cmd_dev_close_enhancement)
 
     complete_enh_parser = dev_subparsers.add_parser(
         "complete-enhancement",
         help="Mark an enhancement done and link the GitHub PR",
     )
-    complete_enh_parser.add_argument("id", help="Enhancement ID (e.g. enh_001)")
+    complete_enh_parser.add_argument("id", help="GitHub issue number (e.g. 96)")
     complete_enh_parser.add_argument(
         "--pr-url",
         default="",
@@ -347,7 +347,7 @@ def main(argv: list[str] | None = None) -> int:
         "enhancement-pr-title",
         help="Print the standard PR title for an enhancement",
     )
-    pr_title_parser.add_argument("id", help="Enhancement ID (e.g. enh_001)")
+    pr_title_parser.add_argument("id", help="GitHub issue number (e.g. 96)")
     pr_title_parser.set_defaults(func=cmd_dev_enhancement_pr_title)
 
     spawn_workers_parser = dev_subparsers.add_parser(
@@ -1050,8 +1050,9 @@ def cmd_dev_add_enhancement(args: argparse.Namespace) -> int:
             return 1
 
     entry = create_enhancement(title, description, area)
-    eid = entry.get("id") or ""
-    print(f"Added enhancement {eid}: {title}")
+    num = entry.get("issue_number")
+    ref = f"#{num}" if num else entry.get("id") or "?"
+    print(f"Added enhancement {ref}: {title}")
     if entry.get("issue_url"):
         print(entry["issue_url"])
     return 0
@@ -1075,9 +1076,7 @@ def cmd_dev_list_enhancements(args: argparse.Namespace) -> int:
 
     for entry in entries:
         area = entry.get("area", "other")
-        eid = entry.get("id", "?")
-        num = entry.get("issue_number")
-        num_tag = f"#{num} " if num else ""
+        num = entry.get("issue_number") or entry.get("id", "?")
         title = entry.get("title", "")
         status = entry.get("status", "open")
         status_tag = f" [{status}]" if status != "open" else ""
@@ -1085,7 +1084,7 @@ def cmd_dev_list_enhancements(args: argparse.Namespace) -> int:
         pr_url = entry.get("pr_url", "")
         link = pr_url or issue_url
         link_tag = f" → {link}" if link else ""
-        print(f"{num_tag}{eid} [{area}] {title}{status_tag}{link_tag}")
+        print(f"#{num} [{area}] {title}{status_tag}{link_tag}")
     return 0
 
 

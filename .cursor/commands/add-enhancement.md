@@ -1,6 +1,6 @@
 # Add enhancement (GitHub issue)
 
-**Scope: backlog capture only.** Create one GitHub issue labeled `grocery-wizard-enhancement` and stop. Implementation is **`/work-on-enhancement <id>`**, not this command.
+**Scope: backlog capture only.** Create one GitHub issue with **Grocery Wizard** in the title and stop. Implementation is **`/work-on-enhancement <issue-number>`**, not this command.
 
 ## Do not explore or implement
 
@@ -18,7 +18,7 @@ The only required action is the **`dev add-enhancement`** CLI below (plus at mos
 | Workflow | Storage | How you pick it up |
 |----------|---------|-------------------|
 | Ingredient parser fixes | `.local/grocery_wizard/ingredient_edits.jsonl` (UI edits) | `uv run python -m src.grocery_wizard dev suggest-fixes` aggregates patterns for parser work |
-| **Enhancement backlog** | GitHub Issues (`grocery-wizard-enhancement` label) | `/list-enhancements` then `/work-on-enhancement <id>` (or `dev work-on-enhancement <id>`) |
+| **Enhancement backlog** | GitHub Issues (`Grocery Wizard` in title) | `/list-enhancements` then `/work-on-enhancement <issue-number>` |
 
 Prefer **`/add-enhancement`** in Cursor over typing `dev add-enhancement` in a terminal; the CLI remains for scripts and non-Cursor environments.
 
@@ -26,7 +26,7 @@ Prefer **`/add-enhancement`** in Cursor over typing `dev add-enhancement` in a t
 
 The user may put details **after** the command name (title, description, area). Use that text; if the title is missing, ask once for a short title, then proceed.
 
-1. **Title** (required): short one-liner.
+1. **Title** (required): short one-liner (CLI adds `[Grocery Wizard]` if missing).
 2. **Description** (optional): longer context, acceptance hints, links.
 3. **Area** (optional, default `other`): one of `ui`, `parser`, `shopping`, `recipes`, `cli`, `other`.
 
@@ -41,6 +41,6 @@ uv run python -m src.grocery_wizard dev add-enhancement \
 
 (Omit `--description` or `--area` when empty / `other`.)
 
-5. Reply briefly: confirm the printed enhancement ID (e.g. `enh_005`), the GitHub issue URL, and that they can implement later with `/work-on-enhancement enh_005` or `/work-on-enhancement <issue-number>`.
+5. Reply briefly: confirm the GitHub issue number, the issue URL, and that they can implement later with `/work-on-enhancement <issue-number>`.
 
 Do **not** implement the enhancement in this turn unless the user explicitly asks you to switch to implementation after the issue exists.

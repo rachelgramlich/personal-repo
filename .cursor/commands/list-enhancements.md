@@ -4,7 +4,7 @@ Show open items from the GitHub enhancement backlog.
 
 ## Context
 
-- Backlog: GitHub Issues with label **`grocery-wizard-enhancement`** (plus `gw-area-*` labels).
+- Backlog: GitHub Issues with **Grocery Wizard** in the title (listed via `gh search`).
 - Ingredient edit logs (`.local/grocery_wizard/ingredient_edits.jsonl`) feed **`dev suggest-fixes`** for automatic parser suggestions; enhancements are **manual feature/fix ideas** you implement when you have time via **`/work-on-enhancement`**.
 
 ## Your task
@@ -21,8 +21,8 @@ uv run python -m src.grocery_wizard dev list-enhancements
 uv run python -m src.grocery_wizard dev list-enhancements --all
 ```
 
-3. Present the CLI output clearly (issue #, ID, area, title, status, links).
+3. Present the CLI output clearly (issue #, area, title, status, links).
 
-4. If there are open items, note: **`/work-on-enhancement <id>`** (e.g. `/work-on-enhancement enh_005` or `/work-on-enhancement 84`) to implement one.
+4. If there are open items, note: **`/work-on-enhancement <issue-number>`** (e.g. `/work-on-enhancement 96`) to implement one.
 
-Do not implement anything unless the user chooses an ID and asks you to work on it in this chat.
+Do not implement anything unless the user chooses an issue number and asks you to work on it in this chat.
