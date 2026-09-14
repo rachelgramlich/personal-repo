@@ -116,7 +116,17 @@ def main(argv: list[str] | None = None) -> int:
 
     dev_parser = subparsers.add_parser(
         "dev",
-        help="Database maintenance and debugging commands",
+        help="Database maintenance, debugging, and local enhancement backlog",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Enhancement backlog (gitignored .local/grocery_wizard/enhancements.jsonl):
+  add-enhancement [--title T] [--description D] [--area ui|parser|shopping|recipes|cli|other]
+  list-enhancements [--all] [--json]
+  show-enhancement <id> [--close]
+  close-enhancement <id>
+
+Optional: Cursor slash commands in gitignored .cursor/commands/ — create locally; not shipped here.
+""".strip(),
     )
     dev_subparsers = dev_parser.add_subparsers(dest="dev_command", required=True)
 

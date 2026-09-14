@@ -132,6 +132,31 @@ Use when you edit Notion directly, need to refresh ingredient data, or debug sch
 | `dev refresh-all-ingredients` | Re-download ingredients for every recipe |
 | `dev audit-recipes` | Show which recipes need attention |
 | `dev show-schema` | Show how Notion columns are detected |
+| `dev add-enhancement` | Append a feature idea to the local enhancement backlog |
+| `dev list-enhancements` | List open backlog items (use `--all` for closed/done) |
+| `dev show-enhancement` | Print a ready-to-paste agent prompt for one item |
+| `dev close-enhancement` | Mark a backlog item as done |
+
+### Feature enhancement backlog
+
+Backlog file: `.local/grocery_wizard/enhancements.jsonl` (gitignored, created on first add).
+
+```shell
+# Interactive prompts for title, description, and area
+uv run python -m src.grocery_wizard.cli dev add-enhancement
+
+# Non-interactive
+uv run python -m src.grocery_wizard.cli dev add-enhancement \
+  --title "Sort grocery list by aisle" \
+  --description "Group printed list using store_aisles.txt" \
+  --area shopping
+
+uv run python -m src.grocery_wizard.cli dev list-enhancements
+uv run python -m src.grocery_wizard.cli dev show-enhancement enh_001
+uv run python -m src.grocery_wizard.cli dev close-enhancement enh_001
+```
+
+`show-enhancement` prints branch naming and context for a Cloud Agent or local IDE session. Cursor slash commands (e.g. `/add-enhancement`) are **optional**: add your own command markdown under gitignored `.cursor/commands/` if you want them — this repo does not commit templates.
 
 ```shell
 # Recipes added in Notion with a link but no ingredients
@@ -179,6 +204,7 @@ Same subfolders as source — e.g. `recipes/test_scraper.py` tests `recipes/scra
 | Path | Purpose |
 |------|---------|
 | `.local/grocery_wizard/week_plan.json` | This week's planned recipe names |
+| `.local/grocery_wizard/enhancements.jsonl` | Local feature/fix backlog (`dev add-enhancement`, etc.) |
 | `.env` | `NOTION_API_KEY`, `NOTION_DATABASE_ID`, NYT credentials (see `.env.example`) |
 
 ### Entry points
