@@ -18,3 +18,5 @@ Legacy JSONL (if any) can be imported once: `dev migrate-enhancements-to-github`
 Committed in **`.cursor/commands/`** (`/add-enhancement`, `/list-enhancements`, `/work-on-enhancement`). Cloud agents can read those files from the repo clone or use the CLI above.
 
 Ingredient UI edit logs remain local-only: `.local/grocery_wizard/ingredient_edits.jsonl` (for `dev suggest-fixes`).
+
+After `just setup`, Streamlit’s `developing-with-streamlit` agent skill is available under `.cursor/skills/` for UI work.
