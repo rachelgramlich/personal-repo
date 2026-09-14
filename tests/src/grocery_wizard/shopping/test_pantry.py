@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from src.grocery_wizard.config import PANTRY_PATH
 from src.grocery_wizard.shopping.pantry import (
     _matches_pantry_search,
     append_pantry_item,
@@ -26,13 +25,6 @@ def test_load_pantry_ignores_comments_and_headers(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert load_pantry(path) == {"salt", "pepper"}
-
-
-def test_default_pantry_path_is_committed_config() -> None:
-    assert PANTRY_PATH.name == "pantry.txt"
-    assert PANTRY_PATH.parent.name == "config"
-    assert PANTRY_PATH.exists()
-    assert "salt" in load_pantry()
 
 
 def test_parse_pantry_file_groups_by_section_headers(tmp_path: Path) -> None:

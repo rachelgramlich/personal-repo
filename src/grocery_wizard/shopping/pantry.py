@@ -22,12 +22,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from src.grocery_wizard.config import PANTRY_PATH
 
-
-def load_pantry(path: Path | None = None) -> set[str]:
-    """Load pantry items from a text file (one item per line)."""
-    pantry_path = path or PANTRY_PATH
+def _load_pantry_from_file(pantry_path: Path) -> set[str]:
     if not pantry_path.exists():
         return set()
 
@@ -37,6 +33,15 @@ def load_pantry(path: Path | None = None) -> set[str]:
         if line and not line.startswith("#"):
             items.add(line)
     return items
+
+
+def load_pantry(path: Path | None = None) -> set[str]:
+    """Load pantry item names (Notion by default; optional file path for tests)."""
+    if path is not None:
+        return _load_pantry_from_file(path)
+    from src.grocery_wizard.integrations.notion_household import NotionPantryDB
+
+    return NotionPantryDB().load_item_names()
 
 
 _FRESH_COLORED_PEPPER_RE = re.compile(
@@ -168,8 +173,13 @@ def write_pantry_file(path: Path, lines: list[str]) -> None:
 
 
 def append_pantry_item(name: str, path: Path | None = None) -> bool:
-    """Append an item to the pantry file (last section). Returns False if invalid or duplicate."""
-    pantry_path = path or PANTRY_PATH
+    """Append an item to the pantry (last section). Returns False if invalid or duplicate."""
+    if path is None:
+        from src.grocery_wizard.integrations.notion_household import NotionPantryDB
+
+        return NotionPantryDB().append_item(name)
+
+    pantry_path = path
     cleaned = name.strip()
     if not cleaned or cleaned.startswith("#"):
         return False
@@ -200,7 +210,12 @@ def append_pantry_item(name: str, path: Path | None = None) -> bool:
 
 def remove_pantry_item_by_name(search: str, path: Path | None = None) -> bool:
     """Remove the first pantry item matching *search*. Returns False if no match."""
-    pantry_path = path or PANTRY_PATH
+    if path is None:
+        from src.grocery_wizard.integrations.notion_household import NotionPantryDB
+
+        return NotionPantryDB().remove_item_by_name(search)
+
+    pantry_path = path
     lines, sections = parse_pantry_file(pantry_path)
     flat = _flatten_items(sections)
     if not flat:
@@ -379,8 +394,15 @@ def _open_in_editor(path: Path) -> None:
 
 def run_pantry_interactive(path: Path | None = None) -> int:
     """Show pantry grouped by section; add, remove, or edit in $EDITOR."""
-    pantry_path = path or PANTRY_PATH
-    lines, sections = parse_pantry_file(pantry_path)
+    use_notion = path is None
+    if use_notion:
+        from src.grocery_wizard.integrations.notion_household import NotionPantryDB
+
+        lines, sections = NotionPantryDB().load_as_pantry_lines()
+        pantry_path: Path | None = None
+    else:
+        pantry_path = path
+        lines, sections = parse_pantry_file(pantry_path)
 
     while True:
         print()
@@ -392,8 +414,14 @@ def run_pantry_interactive(path: Path | None = None) -> int:
         choice = input("> ").strip().lower()
 
         if choice in ("q", "quit"):
-            write_pantry_file(pantry_path, lines)
-            print(f"Saved {pantry_path}")
+            if use_notion:
+                from src.grocery_wizard.integrations.notion_household import NotionPantryDB
+
+                NotionPantryDB().sync_from_lines(lines)
+                print("Saved pantry to Notion")
+            else:
+                write_pantry_file(pantry_path, lines)
+                print(f"Saved {pantry_path}")
             return 0
         if choice in ("a", "add"):
             _add_item(lines, sections)
@@ -402,9 +430,24 @@ def run_pantry_interactive(path: Path | None = None) -> int:
             _remove_item(lines, sections)
             continue
         if choice in ("e", "edit", "editor"):
-            write_pantry_file(pantry_path, lines)
-            _open_in_editor(pantry_path)
-            lines, sections = parse_pantry_file(pantry_path)
+            if use_notion:
+                import tempfile
+
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    suffix=".txt",
+                    delete=False,
+                    encoding="utf-8",
+                ) as handle:
+                    write_pantry_file(Path(handle.name), lines)
+                    edit_path = Path(handle.name)
+                _open_in_editor(edit_path)
+                lines, sections = parse_pantry_file(edit_path)
+                edit_path.unlink(missing_ok=True)
+            else:
+                write_pantry_file(pantry_path, lines)
+                _open_in_editor(pantry_path)
+                lines, sections = parse_pantry_file(pantry_path)
             continue
 
         if not choice:

@@ -10,12 +10,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent
 _REPO_ROOT = _PACKAGE_DIR.parent.parent
 
-# Committed package configuration (pantry staples, etc.).
+# Committed package configuration (store aisles only).
 CONFIG_DIR = Path(__file__).resolve().parent
-PANTRY_PATH = CONFIG_DIR / "pantry.txt"
 STORE_AISLES_PATH = CONFIG_DIR / "store_aisles.txt"
-RECURRING_WEEKLY_ITEMS_PATH = CONFIG_DIR / "recurring_weekly_items.txt"
-SAVED_WEEKLY_PLANS_PATH = CONFIG_DIR / "saved_weekly_plans.csv"
 
 # Per-week local runtime data (gitignored via .local/).
 DATA_DIR = Path(".local/grocery_wizard")
@@ -41,16 +38,11 @@ class Config(BaseSettings):
     notion_recipe_database_id: str = Field(
         validation_alias=AliasChoices("NOTION_RECIPE_DATABASE_ID", "NOTION_DATABASE_ID"),
     )
-    notion_pantry_database_id: str | None = Field(
-        default=None,
-        validation_alias="NOTION_PANTRY_DATABASE_ID",
-    )
-    notion_recurring_weekly_database_id: str | None = Field(
-        default=None,
+    notion_pantry_database_id: str = Field(validation_alias="NOTION_PANTRY_DATABASE_ID")
+    notion_recurring_weekly_database_id: str = Field(
         validation_alias="NOTION_RECURRING_WEEKLY_DATABASE_ID",
     )
-    notion_weekly_meal_plans_database_id: str | None = Field(
-        default=None,
+    notion_weekly_meal_plans_database_id: str = Field(
         validation_alias="NOTION_WEEKLY_MEAL_PLANS_DATABASE_ID",
     )
     default_meals: int = Field(default=7, validation_alias="GROCERY_WIZARD_DEFAULT_MEALS")
@@ -105,6 +97,35 @@ class Config(BaseSettings):
             )
         return value
 
+    @field_validator("notion_pantry_database_id")
+    @classmethod
+    def _require_pantry_database_id(cls, value: str | None) -> str:
+        if not value:
+            raise ValueError(
+                "NOTION_PANTRY_DATABASE_ID is required (set in .env or Cloud Agent Secrets)"
+            )
+        return value
+
+    @field_validator("notion_recurring_weekly_database_id")
+    @classmethod
+    def _require_recurring_database_id(cls, value: str | None) -> str:
+        if not value:
+            raise ValueError(
+                "NOTION_RECURRING_WEEKLY_DATABASE_ID is required "
+                "(set in .env or Cloud Agent Secrets)"
+            )
+        return value
+
+    @field_validator("notion_weekly_meal_plans_database_id")
+    @classmethod
+    def _require_weekly_plans_database_id(cls, value: str | None) -> str:
+        if not value:
+            raise ValueError(
+                "NOTION_WEEKLY_MEAL_PLANS_DATABASE_ID is required "
+                "(set in .env or Cloud Agent Secrets)"
+            )
+        return value
+
 
 def load_config() -> Config:
     """Load configuration from environment variables and ``.env``."""
@@ -120,5 +141,19 @@ def load_config() -> Config:
             if "notion_recipe_database_id" in loc:
                 raise ValueError(
                     "NOTION_RECIPE_DATABASE_ID is required (set in .env or Cloud Agent Secrets)"
+                ) from exc
+            if "notion_pantry_database_id" in loc:
+                raise ValueError(
+                    "NOTION_PANTRY_DATABASE_ID is required (set in .env or Cloud Agent Secrets)"
+                ) from exc
+            if "notion_recurring_weekly_database_id" in loc:
+                raise ValueError(
+                    "NOTION_RECURRING_WEEKLY_DATABASE_ID is required "
+                    "(set in .env or Cloud Agent Secrets)"
+                ) from exc
+            if "notion_weekly_meal_plans_database_id" in loc:
+                raise ValueError(
+                    "NOTION_WEEKLY_MEAL_PLANS_DATABASE_ID is required "
+                    "(set in .env or Cloud Agent Secrets)"
                 ) from exc
         raise

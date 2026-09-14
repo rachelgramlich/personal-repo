@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 from src.grocery_wizard.shopping.recurring_weekly_items import (
     load_recurring_weekly_items,
@@ -25,5 +26,10 @@ def test_build_final_list_does_not_auto_persist_recurring_template() -> None:
 def test_save_recurring_template_writes_parsed_items(tmp_path: Path) -> None:
     path = tmp_path / "recurring_weekly_items.txt"
     write_recurring_weekly_items(path, ["berries", "milk"])
-    _save_recurring_template("berries\nmilk\nyogurt", path=path)
+    with patch(
+        "src.grocery_wizard.ui.app.write_recurring_weekly_items",
+        side_effect=lambda _path, items: write_recurring_weekly_items(path, items),
+    ) as mock_write:
+        _save_recurring_template("berries\nmilk\nyogurt")
+        mock_write.assert_called_once()
     assert load_recurring_weekly_items(path) == ["berries", "milk", "yogurt"]
