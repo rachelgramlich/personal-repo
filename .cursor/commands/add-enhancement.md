@@ -1,13 +1,13 @@
 # Add enhancement (local backlog)
 
-Capture a feature idea or improvement in `.local/grocery_wizard/enhancements.jsonl` for later implementation.
+Capture a feature idea or improvement in `src/grocery_wizard/dev/enhancements.jsonl` (committed) for later implementation.
 
 ## How this relates to other dev logs
 
 | Workflow | Storage | How you pick it up |
 |----------|---------|-------------------|
 | Ingredient parser fixes | `.local/grocery_wizard/ingredient_edits.jsonl` (UI edits) | `uv run python -m src.grocery_wizard dev suggest-fixes` aggregates patterns for parser work |
-| **Enhancement backlog** | `.local/grocery_wizard/enhancements.jsonl` | **Use Cursor:** `/list-enhancements` then `/work-on-enhancement <id>` |
+| **Enhancement backlog** | `src/grocery_wizard/dev/enhancements.jsonl` | `/list-enhancements` then `/work-on-enhancement <id>` (or `dev work-on-enhancement <id>`) |
 
 Prefer **`/add-enhancement`** in Cursor over typing `dev add-enhancement` in a terminal; the CLI remains for scripts and non-Cursor environments.
 

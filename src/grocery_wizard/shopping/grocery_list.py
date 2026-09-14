@@ -269,6 +269,7 @@ def build_grocery_list(
     staples: list[str] | None = None,
     week_plan_path: Path = WEEK_PLAN_PATH,
     pantry_path: Path | None = None,
+    pantry_extra: set[str] | None = None,
     recurring_weekly_items_path: Path | None = None,
     recurring_weekly_items: list[str] | None = None,
     include_recurring_weekly_items: bool = False,
@@ -286,9 +287,15 @@ def build_grocery_list(
 
     When ``ingredient_overrides`` is provided it maps recipe name (lowercase) to
     edited ingredient text that supersedes whatever is stored in Notion.
+
+    ``recurring_weekly_items`` is a per-run override list (flow A). It does not
+    read or write the on-disk recurring template; callers pass the merged list
+    for this session only.
     """
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
     pantry = load_pantry(pantry_path)
+    if pantry_extra:
+        pantry = pantry | {item.strip().lower() for item in pantry_extra if item.strip()}
 
     # collected maps normalized_name_lower → (display_name, [amounts])
     collected: dict[str, tuple[str, list[str | None]]] = {}

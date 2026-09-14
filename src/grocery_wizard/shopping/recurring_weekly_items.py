@@ -9,6 +9,70 @@ from src.grocery_wizard.config import RECURRING_WEEKLY_ITEMS_PATH
 from src.grocery_wizard.shopping.line_items import parse_line_items, strip_line_item
 
 
+def apply_recurring_session_overrides(
+    template: list[str],
+    *,
+    additions: list[str] | None = None,
+    removals: set[str] | None = None,
+) -> list[str]:
+    """Merge per-run recurring additions/removals without changing the saved template."""
+    removal_keys = {name.strip().lower() for name in (removals or set()) if name.strip()}
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in template:
+        key = item.strip().lower()
+        if not key or key in removal_keys or key in seen:
+            continue
+        seen.add(key)
+        result.append(item.strip())
+    for item in additions or []:
+        cleaned = item.strip()
+        key = cleaned.lower()
+        if not key or key in removal_keys or key in seen:
+            continue
+        seen.add(key)
+        result.append(cleaned)
+    return result
+
+
+def remove_recurring_weekly_item(search: str, path: Path | None = None) -> bool:
+    """Remove the first recurring item whose name matches *search*."""
+    items_path = path or RECURRING_WEEKLY_ITEMS_PATH
+    items = load_recurring_weekly_items(items_path)
+    if not items:
+        return False
+
+    lowered = search.strip().lower()
+    if not lowered:
+        return False
+
+    new_items: list[str] = []
+    removed = False
+    for item in items:
+        if not removed and item.strip().lower() == lowered:
+            removed = True
+            continue
+        new_items.append(item)
+    if not removed:
+        return False
+
+    write_recurring_weekly_items(items_path, new_items)
+    return True
+
+
+def append_recurring_weekly_item(name: str, path: Path | None = None) -> bool:
+    """Append an item to the recurring weekly template if not already present."""
+    items_path = path or RECURRING_WEEKLY_ITEMS_PATH
+    cleaned = name.strip()
+    if not cleaned:
+        return False
+    items = load_recurring_weekly_items(items_path)
+    if any(existing.strip().lower() == cleaned.lower() for existing in items):
+        return False
+    write_recurring_weekly_items(items_path, [*items, cleaned])
+    return True
+
+
 def load_recurring_weekly_items(path: Path | None = None) -> list[str]:
     """Load recurring weekly items from a text file (one item per line, order preserved)."""
     items_path = path or RECURRING_WEEKLY_ITEMS_PATH

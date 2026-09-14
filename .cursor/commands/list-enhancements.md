@@ -4,7 +4,7 @@ Show open items from the local enhancement backlog.
 
 ## Context
 
-- Backlog file: `.local/grocery_wizard/enhancements.jsonl` (gitignored; local only).
+- Backlog file: `src/grocery_wizard/dev/enhancements.jsonl` (committed to the repo).
 - Ingredient edit logs (`.local/grocery_wizard/ingredient_edits.jsonl`) feed **`dev suggest-fixes`** for automatic parser suggestions; enhancements are **manual feature/fix ideas** you implement when you have time via **`/work-on-enhancement`**.
 
 ## Your task

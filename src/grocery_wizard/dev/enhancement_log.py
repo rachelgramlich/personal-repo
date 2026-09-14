@@ -7,16 +7,22 @@ __all__ = [
     "ENHANCEMENT_LOG_PATH",
     "add_enhancement",
     "close_enhancement",
+    "complete_enhancement",
+    "format_pr_title",
+    "format_worker_spawn_message",
     "get_enhancement",
     "list_enhancements",
+    "list_worker_spawns",
 ]
 
 import json
 import re
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
-ENHANCEMENT_LOG_PATH = Path(".local/grocery_wizard/enhancements.jsonl")
+ENHANCEMENT_LOG_PATH = Path("src/grocery_wizard/dev/enhancements.jsonl")
+_LEGACY_ENHANCEMENT_LOG_PATH = Path(".local/grocery_wizard/enhancements.jsonl")
 
 AREA_FILES: dict[str, list[str]] = {
     "ui": ["src/grocery_wizard/ui/app.py"],
@@ -39,7 +45,21 @@ AREA_FILES: dict[str, list[str]] = {
 VALID_AREAS = list(AREA_FILES.keys())
 
 
+def _resolve_log_path(path: Path) -> Path:
+    """Use committed backlog; one-time copy from legacy ``.local/`` if needed."""
+    if path != ENHANCEMENT_LOG_PATH:
+        return path
+    if ENHANCEMENT_LOG_PATH.exists():
+        return ENHANCEMENT_LOG_PATH
+    legacy = _LEGACY_ENHANCEMENT_LOG_PATH
+    if legacy.exists() and legacy.stat().st_size > 0:
+        ENHANCEMENT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(legacy, ENHANCEMENT_LOG_PATH)
+    return ENHANCEMENT_LOG_PATH
+
+
 def _load_all(path: Path) -> list[dict]:
+    path = _resolve_log_path(path)
     if not path.exists() or path.stat().st_size == 0:
         return []
     entries = []
@@ -56,6 +76,7 @@ def _load_all(path: Path) -> list[dict]:
 
 
 def _save_all(entries: list[dict], path: Path) -> None:
+    path = _resolve_log_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         for entry in entries:
@@ -94,6 +115,7 @@ def add_enhancement(
         "area": area,
         "tags": [],
     }
+    path = _resolve_log_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
@@ -121,12 +143,38 @@ def get_enhancement(eid: str, *, path: Path = ENHANCEMENT_LOG_PATH) -> dict | No
 
 
 def close_enhancement(eid: str, *, path: Path = ENHANCEMENT_LOG_PATH) -> bool:
-    """Set status to 'done' for the given ID. Returns True if found and updated."""
+    """Set status to 'done' without a PR link. Prefer complete_enhancement when shipping."""
+    return complete_enhancement(eid, pr_url=None, path=path)
+
+
+def format_pr_title(entry: dict, *, max_len: int = 256) -> str:
+    """GitHub PR title: ``{enh_id}: {title}`` (truncated to GitHub's limit)."""
+    eid = entry.get("id") or "enh_???"
+    title = (entry.get("title") or "").strip()
+    prefix = f"{eid}: "
+    room = max_len - len(prefix)
+    if room < 1:
+        return prefix[:max_len]
+    if len(title) > room:
+        title = title[: room - 1].rstrip() + "…"
+    return prefix + title
+
+
+def complete_enhancement(
+    eid: str,
+    *,
+    pr_url: str | None = None,
+    path: Path = ENHANCEMENT_LOG_PATH,
+) -> bool:
+    """Mark done; optionally store ``pr_url`` and ``completed_at``. Returns True if updated."""
     entries = _load_all(path)
     found = False
     for entry in entries:
         if entry.get("id") == eid:
             entry["status"] = "done"
+            entry["completed_at"] = datetime.now(UTC).isoformat()
+            if pr_url:
+                entry["pr_url"] = pr_url.strip()
             found = True
             break
     if found:
@@ -142,6 +190,38 @@ def title_to_branch_slug(title: str, *, max_len: int = 40) -> str:
     if len(slug) > max_len:
         slug = slug[:max_len].rstrip("-")
     return slug
+
+
+def format_worker_spawn_message(entry: dict) -> str:
+    """First user message to start a dedicated agent run for one backlog item."""
+    eid = entry.get("id", "")
+    title = entry.get("title", "").strip()
+    if title:
+        return f"/work-on-enhancement {eid} — {title}"
+    return f"/work-on-enhancement {eid}"
+
+
+def list_worker_spawns(
+    *,
+    path: Path | None = None,
+) -> list[dict]:
+    """One spawn spec per open enhancement (newest-first, same order as list_enhancements)."""
+    log_path = ENHANCEMENT_LOG_PATH if path is None else path
+    specs: list[dict] = []
+    for entry in list_enhancements(path=log_path):
+        title = entry.get("title", "")
+        slug = title_to_branch_slug(title)
+        specs.append(
+            {
+                "id": entry.get("id"),
+                "title": title,
+                "area": entry.get("area", "other"),
+                "branch": f"cursor/{slug}-21af",
+                "agent_message": format_worker_spawn_message(entry),
+                "prompt": format_agent_prompt(entry),
+            }
+        )
+    return specs
 
 
 def format_agent_prompt(entry: dict) -> str:
@@ -181,7 +261,14 @@ def format_agent_prompt(entry: dict) -> str:
         "**Git workflow:**",
         f"- Fetch `origin/main`, then create branch `{branch}` off `main`.",
         "- Implement with focused commits; run `uv run ruff check` on touched Python.",
-        "- Push and open or update a PR; link the enhancement ID in the description.",
-        f"- When done, run: `uv run python -m src.grocery_wizard dev close-enhancement {eid}`",
+        "",
+        "**Ship (you must do this — user does not manage the backlog):**",
+        f"- PR title: `… dev enhancement-pr-title {eid}` → use output as GitHub PR title.",
+        "- Push; create or update the PR for this branch.",
+        f"- Done + PR link: `… dev complete-enhancement {eid}` (`gh pr view` or `--pr-url`).",
+        f"- Verify: `… dev list-enhancements --all` shows {eid} [done] and PR URL.",
+        "",
+        "Full commands use: uv run python -m src.grocery_wizard",
+        "More: .cursor/commands/work-on-enhancement.md",
     ]
     return "\n".join(lines)
