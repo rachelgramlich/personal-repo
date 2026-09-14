@@ -87,6 +87,8 @@ rice
 
 # --- Dairy (uncomment what you always have) ---
 eggs
+parmesan
+parm
 
 # --- Water ---
 water
