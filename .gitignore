@@ -17,3 +17,7 @@ pycache/
 # uv
 .uv/
 src/personal_repo.egg-info/
+
+# Streamlit agent skills (environment-specific symlinks into .venv)
+.agents/skills/developing-with-streamlit
+.cursor/skills/developing-with-streamlit

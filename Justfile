@@ -6,9 +6,12 @@ set dotenv-load
 default:
     @just --list
 
-# Setup: Install Python dependencies
+# Setup: Install Python dependencies and Streamlit agent skills (for Cursor / UI work)
 setup:
     uv sync --all-extras
+    uv run streamlit skills --yes
+    mkdir -p .cursor/skills
+    ln -sfn "$(readlink .agents/skills/developing-with-streamlit)" .cursor/skills/developing-with-streamlit
 
 # Upgrade and sync dependencies
 setup-upgrade:

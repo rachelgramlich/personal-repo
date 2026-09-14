@@ -22,4 +22,6 @@
 
 The enhancement backlog lives on **GitHub Issues** (label `grocery-wizard`). Agents should follow [AGENTS.md](AGENTS.md). Slash commands live in **`.cursor/commands/`** (committed). Requires `gh` for backlog commands. Do not commit `.cursor/mcp.json` (tokens).
 
+`just setup` runs `streamlit skills` and links the same skill into `.cursor/skills/` for Cursor (gitignored symlinks into `.venv`).
+
 # Execution
