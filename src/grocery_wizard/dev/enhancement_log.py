@@ -163,7 +163,10 @@ def close_enhancement(eid: str, *, path: Path | None = None) -> bool:
 
 
 def format_pr_title(entry: dict, *, max_len: int = 256) -> str:
-    eid = entry.get("id") or "enh_???"
+    eid = entry.get("id") or ""
+    if not eid:
+        num = entry.get("issue_number")
+        eid = f"#{num}" if num else "issue"
     title = (entry.get("title") or "").strip()
     prefix = f"{eid}: "
     room = max_len - len(prefix)
