@@ -273,7 +273,7 @@ def main(argv: list[str] | None = None) -> int:
 
     list_enh_parser = dev_subparsers.add_parser(
         "list-enhancements",
-        help="List open enhancement issues (label grocery-wizard-enhancement)",
+        help="List open enhancement issues (label grocery-wizard)",
     )
     list_enh_parser.add_argument(
         "--all",

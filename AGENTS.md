@@ -2,7 +2,7 @@
 
 ## Enhancement backlog
 
-- **Storage:** GitHub Issues with label `grocery-wizard-enhancement` (area labels `gw-area-*`).
+- **Storage:** GitHub Issues with label `grocery-wizard` (optional area labels `gw-area-*`). Legacy imports may still carry `grocery-wizard-enhancement`.
 - **List open items:** `uv run python -m src.grocery_wizard dev list-enhancements`
 - **Implement one item:** `uv run python -m src.grocery_wizard dev work-on-enhancement <ID>`
   - Same as `dev show-enhancement <ID>` — prints the full implementation + ship checklist.

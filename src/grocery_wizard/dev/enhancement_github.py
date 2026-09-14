@@ -9,7 +9,10 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any
 
-ENHANCEMENT_LABEL = "grocery-wizard-enhancement"
+# Primary backlog label (issues #78+). Legacy imports may still use grocery-wizard-enhancement.
+ENHANCEMENT_LABEL = "grocery-wizard"
+LEGACY_ENHANCEMENT_LABEL = "grocery-wizard-enhancement"
+BACKLOG_LABELS = frozenset({ENHANCEMENT_LABEL, LEGACY_ENHANCEMENT_LABEL})
 AREA_LABEL_PREFIX = "gw-area-"
 
 _ENH_ID_RE = re.compile(r"^\s*enh_\d{3}\s*$", re.IGNORECASE)
@@ -17,7 +20,12 @@ _ENH_ID_BODY_RE = re.compile(
     r"\*\*Enhancement ID:\*\*\s*`?(enh_\d{3})`?",
     re.IGNORECASE,
 )
+_ENH_ID_MENTION_RE = re.compile(r"\b(enh_\d{3})\b", re.IGNORECASE)
 _AREA_BODY_RE = re.compile(r"\*\*Area:\*\*\s*(\w+)", re.IGNORECASE)
+_AREA_MARKDOWN_RE = re.compile(
+    r"^##\s*Area\s*\n+\s*`?(\w+)`?\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 _PR_BODY_RE = re.compile(r"\*\*PR:\*\*\s*(https?://\S+)", re.IGNORECASE)
 
 
@@ -76,18 +84,37 @@ def format_issue_body(
     return "\n".join(lines)
 
 
+def _description_from_body(text: str) -> str:
+    if "\n---\n" in text:
+        return text.split("\n---\n", 1)[0].strip()
+    # Markdown issues: drop trailing ## Area section from the agent brief description.
+    m = re.search(r"\n##\s*Area\s*\n", text, re.IGNORECASE)
+    if m:
+        return text[: m.start()].strip()
+    return text.strip()
+
+
 def parse_issue_body(body: str) -> dict[str, str]:
     text = body or ""
     enh_match = _ENH_ID_BODY_RE.search(text)
-    area_match = _AREA_BODY_RE.search(text)
+    area_match = _AREA_BODY_RE.search(text) or _AREA_MARKDOWN_RE.search(text)
     pr_match = _PR_BODY_RE.search(text)
-    description = text.split("\n---\n", 1)[0].strip()
+    enh_id = enh_match.group(1).lower() if enh_match else ""
+    if not enh_id:
+        mentions = _ENH_ID_MENTION_RE.findall(text)
+        if len(mentions) == 1:
+            enh_id = mentions[0].lower()
+    description = _description_from_body(text)
     return {
         "description": description,
-        "id": enh_match.group(1).lower() if enh_match else "",
+        "id": enh_id,
         "area_from_body": area_match.group(1).lower() if area_match else "",
         "pr_url": pr_match.group(1).strip() if pr_match else "",
     }
+
+
+def _has_backlog_label(label_names: list[str]) -> bool:
+    return bool(BACKLOG_LABELS.intersection(label_names))
 
 
 def _issue_to_entry(issue: dict[str, Any]) -> dict[str, Any]:
@@ -111,14 +138,13 @@ def _issue_to_entry(issue: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _fetch_issues(*, state: str) -> list[dict[str, Any]]:
-    """state: OPEN, CLOSED, or ALL."""
+def _fetch_issues_for_label(*, state: str, label: str) -> list[dict[str, Any]]:
     raw = _run_gh(
         [
             "issue",
             "list",
             "--label",
-            ENHANCEMENT_LABEL,
+            label,
             "--state",
             state,
             "--limit",
@@ -130,6 +156,17 @@ def _fetch_issues(*, state: str) -> list[dict[str, Any]]:
     if not raw:
         return []
     return json.loads(raw)
+
+
+def _fetch_issues(*, state: str) -> list[dict[str, Any]]:
+    """state: OPEN, CLOSED, or ALL. Merges primary and legacy backlog labels."""
+    by_number: dict[int, dict[str, Any]] = {}
+    for label in (ENHANCEMENT_LABEL, LEGACY_ENHANCEMENT_LABEL):
+        for issue in _fetch_issues_for_label(state=state, label=label):
+            num = issue.get("number")
+            if isinstance(num, int):
+                by_number[num] = issue
+    return list(by_number.values())
 
 
 def list_issues(*, include_closed: bool = False) -> list[dict[str, Any]]:
@@ -153,7 +190,7 @@ def get_issue(raw_id: str) -> dict[str, Any] | None:
     if lookup.isdigit():
         issue = _view_issue(lookup)
         label_names = [lb.get("name", "") for lb in issue.get("labels") or []]
-        if ENHANCEMENT_LABEL not in label_names:
+        if not _has_backlog_label(label_names):
             return None
         return _issue_to_entry(issue)
 
@@ -274,6 +311,7 @@ def ensure_labels() -> None:
 
     to_create: list[tuple[str, str, str]] = [
         (ENHANCEMENT_LABEL, "5319E7", "grocery_wizard enhancement backlog"),
+        (LEGACY_ENHANCEMENT_LABEL, "5319E7", "Legacy enhancement backlog label"),
         ("gw-area-ui", "1D76DB", "Enhancement area: UI"),
         ("gw-area-parser", "0E8A16", "Enhancement area: parser"),
         ("gw-area-shopping", "FBCA04", "Enhancement area: shopping"),
