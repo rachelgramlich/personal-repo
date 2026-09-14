@@ -256,6 +256,40 @@ def create_issue(
     return entry
 
 
+def link_issue_pr(raw_id: str, *, pr_url: str) -> bool:
+    """Record PR on the issue body and comment; leave the issue open for merge-time close."""
+    entry = get_issue(raw_id)
+    if entry is None:
+        return False
+    number = entry.get("issue_number")
+    if not number:
+        return False
+
+    pr = pr_url.strip()
+    if not pr:
+        return False
+    body = format_issue_body(
+        area=entry.get("area") or "other",
+        description=entry.get("description") or "",
+        pr_url=pr,
+        completed_at="",
+    )
+    _run_gh(["issue", "edit", str(number), "--body", body])
+    _run_gh(
+        [
+            "issue",
+            "comment",
+            str(number),
+            "--body",
+            (
+                f"PR opened: {pr} "
+                f"(closes on merge when the PR body includes `Closes #{number}`)."
+            ),
+        ],
+    )
+    return True
+
+
 def close_issue(raw_id: str, *, pr_url: str | None = None) -> bool:
     entry = get_issue(raw_id)
     if entry is None:
@@ -277,3 +311,10 @@ def close_issue(raw_id: str, *, pr_url: str | None = None) -> bool:
         _run_gh(["issue", "comment", str(number), "--body", f"Shipped in {pr}"])
     _run_gh(["issue", "close", str(number)])
     return True
+
+
+def comment_on_pr(pr_url: str, body: str) -> None:
+    text = body.strip()
+    if not text:
+        raise ValueError("comment body must be non-empty")
+    _run_gh(["pr", "comment", pr_url.strip(), "--body", text])

@@ -13,6 +13,7 @@ __all__ = [
     "list_enhancements",
     "list_worker_spawns",
     "migrate_jsonl_to_github",
+    "record_manual_verification",
 ]
 
 import json
@@ -159,7 +160,19 @@ def get_enhancement(eid: str, *, path: Path | None = None) -> dict | None:
 
 
 def close_enhancement(eid: str, *, path: Path | None = None) -> bool:
-    return complete_enhancement(eid, pr_url=None, path=path)
+    if path is not None:
+        entries = _load_all_file(path)
+        found = False
+        for entry in entries:
+            if entry.get("id") == eid:
+                entry["status"] = "done"
+                entry["completed_at"] = datetime.now(UTC).isoformat()
+                found = True
+                break
+        if found:
+            _save_all_file(entries, path)
+        return found
+    return gh.close_issue(eid, pr_url=None)
 
 
 def format_pr_title(entry: dict, *, max_len: int = 256) -> str:
@@ -188,13 +201,12 @@ def complete_enhancement(
     pr_url: str | None = None,
     path: Path | None = None,
 ) -> bool:
+    """Link a PR on the backlog item; GitHub issue stays open until merge (Closes #N)."""
     if path is not None:
         entries = _load_all_file(path)
         found = False
         for entry in entries:
             if entry.get("id") == eid:
-                entry["status"] = "done"
-                entry["completed_at"] = datetime.now(UTC).isoformat()
                 if pr_url:
                     entry["pr_url"] = pr_url.strip()
                 found = True
@@ -202,7 +214,24 @@ def complete_enhancement(
         if found:
             _save_all_file(entries, path)
         return found
-    return gh.close_issue(eid, pr_url=pr_url)
+    if not pr_url or not pr_url.strip():
+        return False
+    return gh.link_issue_pr(eid, pr_url=pr_url)
+
+
+def record_manual_verification(
+    *,
+    pr_url: str,
+    issue_number: str | None = None,
+    note: str = "",
+) -> None:
+    """Post a PR comment that manual UAT passed (after user confirms in agent chat)."""
+    extra = note.strip()
+    issue_bit = f" (issue #{issue_number})" if issue_number else ""
+    text = f"**Manual verification:** passed (user confirmed in agent chat){issue_bit}."
+    if extra:
+        text = f"{text}\n\n{extra}"
+    gh.comment_on_pr(pr_url, text)
 
 
 def title_to_branch_slug(title: str, *, max_len: int = 40) -> str:
@@ -286,14 +315,16 @@ def format_agent_prompt(entry: dict) -> str:
         "",
         "**Ship (you must do this — user does not manage the backlog):**",
         f"- PR title: `uv run python -m src.grocery_wizard dev enhancement-pr-title {eid}`",
-        "- Push; create or update the PR for this branch.",
+        "- Push; create or update the PR using the repo PR template (**Manual verification**).",
+        f"- PR body must include `Closes #{eid}` (issue closes on merge, not when PR opens).",
         (
-            f"- Close issue + link PR: "
+            f"- Link PR on the open issue: "
             f"`uv run python -m src.grocery_wizard dev complete-enhancement {eid}`"
         ),
+        "- Tell the user to run **Manual verification** from the PR; echo that section.",
         (
-            "- Verify: `uv run python -m src.grocery_wizard dev list-enhancements --all` "
-            "shows the issue closed."
+            "- When the user confirms manual passed, post sign-off on the PR: "
+            f"`uv run python -m src.grocery_wizard dev record-manual-verification {eid}`"
         ),
         "",
         "More: .cursor/commands/work-on-enhancement.md",

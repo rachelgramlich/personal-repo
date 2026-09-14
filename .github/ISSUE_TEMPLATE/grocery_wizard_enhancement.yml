@@ -1,0 +1,43 @@
+name: Grocery Wizard enhancement
+description: Backlog item for the Grocery Wizard app (intentional product/engineering work)
+title: "[Grocery Wizard] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Pick up with `/work-on-enhancement <issue-number>` or
+        `uv run python -m src.grocery_wizard dev work-on-enhancement <issue-number>`.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What should change and why?
+      placeholder: User-visible outcome, constraints, links, acceptance hints…
+    validations:
+      required: true
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected behavior & manual test hints
+      description: |
+        How should it work when done? Include surface (UI/CLI), where to go, steps, and expected results —
+        these flow into the PR **Manual verification** section.
+      placeholder: |
+        Surface: Streamlit …
+        Steps: 1. … 2. …
+        Expected: …
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - ui
+        - parser
+        - shopping
+        - recipes
+        - cli
+        - other
+    validations:
+      required: true

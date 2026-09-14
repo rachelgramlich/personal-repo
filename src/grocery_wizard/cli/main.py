@@ -333,7 +333,7 @@ def main(argv: list[str] | None = None) -> int:
 
     complete_enh_parser = dev_subparsers.add_parser(
         "complete-enhancement",
-        help="Mark an enhancement done and link the GitHub PR",
+        help="Link the GitHub PR on the issue (issue stays open until PR merge)",
     )
     complete_enh_parser.add_argument("id", help="GitHub issue number (e.g. 96)")
     complete_enh_parser.add_argument(
@@ -342,6 +342,23 @@ def main(argv: list[str] | None = None) -> int:
         help="PR URL (default: current branch via gh pr view)",
     )
     complete_enh_parser.set_defaults(func=cmd_dev_complete_enhancement)
+
+    manual_ver_parser = dev_subparsers.add_parser(
+        "record-manual-verification",
+        help="Post manual UAT sign-off comment on the PR (after user confirms)",
+    )
+    manual_ver_parser.add_argument("id", help="GitHub issue number (e.g. 96)")
+    manual_ver_parser.add_argument(
+        "--pr-url",
+        default="",
+        help="PR URL (default: current branch via gh pr view)",
+    )
+    manual_ver_parser.add_argument(
+        "--note",
+        default="",
+        help="Optional extra detail for the PR comment",
+    )
+    manual_ver_parser.set_defaults(func=cmd_dev_record_manual_verification)
 
     pr_title_parser = dev_subparsers.add_parser(
         "enhancement-pr-title",
@@ -1177,7 +1194,37 @@ def cmd_dev_complete_enhancement(args: argparse.Namespace) -> int:
     if not complete_enhancement(args.id, pr_url=pr_url):
         print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
         return 1
-    print(f"Marked {args.id} as done. PR: {pr_url}")
+    print(
+        f"Linked PR on issue #{args.id} (issue stays open until merge). PR: {pr_url}\n"
+        f"Ensure the PR body includes `Closes #{args.id}`."
+    )
+    return 0
+
+
+def cmd_dev_record_manual_verification(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.dev.enhancement_log import get_enhancement, record_manual_verification
+
+    entry = get_enhancement(args.id)
+    if entry is None:
+        print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
+        return 1
+
+    pr_url = (args.pr_url or "").strip()
+    if not pr_url:
+        pr_url = _gh_pr_url_for_current_branch() or ""
+    if not pr_url:
+        print(
+            "Could not resolve PR URL. Pass --pr-url, or open a PR on this branch (gh).",
+            file=sys.stderr,
+        )
+        return 1
+
+    record_manual_verification(
+        pr_url=pr_url,
+        issue_number=str(args.id).removeprefix("#"),
+        note=(args.note or "").strip(),
+    )
+    print(f"Posted manual verification sign-off on PR: {pr_url}")
     return 0
 
 
