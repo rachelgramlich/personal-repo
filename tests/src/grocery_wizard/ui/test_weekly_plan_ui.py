@@ -32,6 +32,16 @@ def test_weekly_plan_edit_manually_expander_has_text_area_only() -> None:
     assert "Swap selected" not in source
 
 
+def test_scratch_plan_slot_first_manual_picker() -> None:
+    source = APP_PATH.read_text(encoding="utf-8")
+    assert "Choose recipe manually" in source
+    assert "_render_slot_manual_picker" in source
+    assert "plan_week_filter" in source
+    assert "Keep these recipes" not in source
+    assert 'st.expander("More options"' not in source
+    assert "Fill remaining slots" in source
+
+
 def test_weekly_plan_build_shows_per_meal_swap_and_edit_manually() -> None:
     """AppTest smoke test: Build my plan renders per-meal ↺ buttons and simplified expander."""
     from streamlit.testing.v1 import AppTest

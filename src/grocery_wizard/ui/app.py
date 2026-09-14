@@ -709,6 +709,72 @@ def _current_plan_names() -> list[str]:
     return _parse_line_items(st.session_state.get("plan_meals_text", "").replace(",", "\n"))
 
 
+def _write_plan_names(names: list[str]) -> None:
+    st.session_state.plan_meals_text = "\n".join(names)
+
+
+def _locked_recipes_for_plan_build(*, meal_count: int) -> list[str]:
+    """Pinned meals for auto-fill; saved plans keep loaded recipes by default (#105)."""
+    if _weekly_plan_mode() != "saved":
+        return []
+    current = _current_plan_names()
+    if not current:
+        return []
+    return current[: int(meal_count)]
+
+
+def _set_plan_slot_recipe(plan: list[str], slot_index: int, recipe_name: str) -> list[str]:
+    updated = list(plan)
+    while len(updated) < slot_index:
+        updated.append("")
+    updated[slot_index - 1] = recipe_name
+    return updated
+
+
+def _render_slot_manual_picker(
+    *,
+    slot_index: int,
+    current_name: str,
+    all_recipes: list,
+    filter_columns: list[ColumnInfo],
+    filter_defaults: MealPlanFilters,
+    schema_columns: dict[str, ColumnInfo],
+    ingredient_index: dict[str, set[str]],
+) -> None:
+    with st.expander("Choose recipe manually", expanded=False):
+        st.caption("Filters apply to this meal slot only.")
+        slot_filters = _render_meal_plan_filters(
+            filter_columns,
+            filter_defaults,
+            key_prefix=f"plan_slot_{slot_index}",
+            ingredient_index=ingredient_index,
+        )
+        slot_pool = filter_recipes(
+            all_recipes,
+            slot_filters,
+            schema_columns,
+            ingredient_index=ingredient_index,
+        )
+        slot_names = [recipe.name for recipe in slot_pool]
+        if not slot_names:
+            st.warning("No recipes match these filters.")
+            return
+        default_index = slot_names.index(current_name) if current_name in slot_names else 0
+        picked = st.selectbox(
+            "Recipe",
+            slot_names,
+            index=default_index,
+            key=f"plan_slot_pick_{slot_index}",
+        )
+        if st.button("Use this recipe", key=f"plan_slot_apply_{slot_index}"):
+            updated = _set_plan_slot_recipe(_current_plan_names(), slot_index, picked)
+            _write_plan_names(updated)
+            _invalidate_weekly_plan_save_state()
+            _clear_grocery_session_overrides()
+            _clear_grocery_result()
+            st.rerun()
+
+
 def _session_pantry_extra() -> set[str]:
     if "grocery_session_pantry" not in st.session_state:
         st.session_state.grocery_session_pantry = set()
@@ -843,7 +909,6 @@ def _reset_weekly_plan_workflow(*, clear_mode: bool = False) -> None:
     for key in (
         "plan_meals_text",
         "plan_rejected_names",
-        "plan_locked_recipes",
         "weekly_plan_loaded_name",
         "weekly_plan_last_saved_name",
         "weekly_plan_saved_fingerprint",
@@ -1129,7 +1194,6 @@ def render_create_weekly_plan() -> None:
     schema = db.schema
     config = load_config()
     all_recipes = db.query_recipes()
-    recipe_names = [recipe.name for recipe in all_recipes]
 
     if "plan_meals_text" not in st.session_state:
         st.session_state.plan_meals_text = ""
@@ -1153,35 +1217,33 @@ def render_create_weekly_plan() -> None:
         st.session_state["_ingredient_index"] = build_ingredient_index(all_recipes)
     ingredient_index: dict[str, set[str]] = st.session_state["_ingredient_index"]
 
-    locked: list[str] = []
-    with st.expander("More options", expanded=False):
-        locked = st.multiselect(
-            "Keep these recipes",
-            recipe_names,
-            default=[],
-            key="plan_locked_recipes",
-        )
-        filters = _render_meal_plan_filters(
-            filter_columns,
-            filter_defaults,
-            key_prefix="plan_filter",
-            ingredient_index=ingredient_index,
-        )
+    st.markdown("#### Generate your plan")
+    st.caption(
+        "Auto-fill the week using recipe-type filters below. Ingredient filters are "
+        "available per meal when you choose a recipe manually."
+    )
+    week_filters = _render_meal_plan_filters(
+        filter_columns,
+        filter_defaults,
+        key_prefix="plan_week_filter",
+        ingredient_index=None,
+    )
 
     suggestion_pool = filter_recipes(
-        all_recipes, filters, schema.all_columns, ingredient_index=ingredient_index
+        all_recipes, week_filters, schema.all_columns, ingredient_index=ingredient_index
     )
 
     if st.button("Build my plan", type="primary", key="build_plan"):
+        locked_for_build = _locked_recipes_for_plan_build(meal_count=int(meal_count))
         plan = suggest_meals(
             all_recipes,
             meals=int(meal_count),
-            locked_names=locked,
-            filters=filters,
+            locked_names=locked_for_build,
+            filters=week_filters,
             schema_columns=schema.all_columns,
             ingredient_index=ingredient_index,
         )
-        st.session_state.plan_meals_text = "\n".join(plan)
+        _write_plan_names(plan)
         st.session_state.plan_rejected_names = []
         _invalidate_weekly_plan_save_state()
         _clear_grocery_session_overrides()
@@ -1200,33 +1262,60 @@ def render_create_weekly_plan() -> None:
                 pool=suggestion_pool,
                 rejected_names=rejected,
             )
-            st.session_state.plan_meals_text = "\n".join(new_plan)
+            _write_plan_names(new_plan)
             st.session_state.plan_rejected_names = sorted(rejected)
             _invalidate_weekly_plan_save_state()
             _clear_grocery_session_overrides()
             _clear_grocery_result()
             st.rerun()
 
+        st.markdown("**Your meals**")
         for index, name in enumerate(current_plan, start=1):
             meal_col, swap_col = st.columns([8, 1])
             with meal_col:
-                st.write(f"{index}. {name}")
+                st.write(f"**Meal {index}** — {name}")
+                _render_slot_manual_picker(
+                    slot_index=index,
+                    current_name=name,
+                    all_recipes=all_recipes,
+                    filter_columns=filter_columns,
+                    filter_defaults=filter_defaults,
+                    schema_columns=schema.all_columns,
+                    ingredient_index=ingredient_index,
+                )
             with swap_col:
                 if st.button("↺", key=f"swap_meal_{index}", help="Swap this meal"):
                     _apply_plan_swap([name])
+
+        if len(current_plan) < int(meal_count) and st.button(
+            "Fill remaining slots", key="fill_remaining_plan"
+        ):
+            plan = suggest_meals(
+                all_recipes,
+                meals=int(meal_count),
+                locked_names=current_plan,
+                filters=week_filters,
+                schema_columns=schema.all_columns,
+                ingredient_index=ingredient_index,
+            )
+            _write_plan_names(plan)
+            _invalidate_weekly_plan_save_state()
+            _clear_grocery_session_overrides()
+            _clear_grocery_result()
+            st.rerun()
 
         if st.button("↺ Re-generate everything", key="regenerate_plan"):
             rejected = set(st.session_state.get("plan_rejected_names", []))
             plan = suggest_meals(
                 all_recipes,
                 meals=int(meal_count),
-                locked_names=locked,
-                filters=filters,
+                locked_names=[],
+                filters=week_filters,
                 schema_columns=schema.all_columns,
                 rejected_names=rejected,
                 ingredient_index=ingredient_index,
             )
-            st.session_state.plan_meals_text = "\n".join(plan)
+            _write_plan_names(plan)
             _invalidate_weekly_plan_save_state()
             _clear_grocery_session_overrides()
             _clear_grocery_result()

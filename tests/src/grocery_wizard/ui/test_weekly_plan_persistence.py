@@ -7,6 +7,12 @@ from pathlib import Path
 APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui" / "app.py"
 
 
+def test_saved_plan_build_keeps_loaded_recipes_by_default() -> None:
+    source = APP_PATH.read_text(encoding="utf-8")
+    assert "_locked_recipes_for_plan_build" in source
+    assert "locked_for_build = _locked_recipes_for_plan_build" in source
+
+
 def test_weekly_plan_entry_modes_in_app() -> None:
     source = APP_PATH.read_text(encoding="utf-8")
     assert "_render_weekly_plan_entry" in source
