@@ -498,6 +498,51 @@ def test_build_grocery_list_returns_missing_ingredients_for_empty_recipes(tmp_pa
     assert missing == ["Empty"]
 
 
+def test_build_grocery_list_uses_ingredient_overrides_instead_of_notion(tmp_path: Path) -> None:
+    """Per-recipe review UI passes edited text that must replace Notion ingredients."""
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Stew", "1 cup flour\n2 cups beef stock"),
+    ]
+
+    items, _, _, missing, provenance, _ = build_grocery_list(
+        db,
+        recipe_names=["Stew"],
+        pantry_path=pantry_path,
+        ingredient_overrides={"stew": "3 carrots\n1 onion"},
+    )
+
+    assert missing == []
+    assert "carrots" in " ".join(items).lower()
+    assert "onion" in " ".join(items).lower()
+    assert "flour" not in " ".join(items).lower()
+    assert any("Stew" in recipes for recipes in provenance.values())
+
+
+def test_build_grocery_list_override_can_supply_ingredients_when_notion_empty(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+
+    empty = _recipe("Blank", "")
+    empty.ingredients = None
+
+    db = MagicMock()
+    db.query_recipes.return_value = [empty]
+
+    items, _, _, missing, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Blank"],
+        pantry_path=pantry_path,
+        ingredient_overrides={"blank": "2 limes"},
+    )
+
+    assert missing == []
+    assert any("lime" in item.lower() for item in items)
+
+
 def test_run_grocery_list_backfill_missing_only_syncs_empty_recipes(tmp_path: Path) -> None:
     """--backfill-missing on CLI only syncs recipes that actually lack ingredients."""
     from src.grocery_wizard.ingredients.sync import SyncSummary
@@ -1036,7 +1081,6 @@ def test_format_item_provenance_strips_bullet_prefixes() -> None:
 def test_format_meals_and_grocery_list_excludes_provenance() -> None:
     meals = [("Soup", "https://example.com/soup")]
     grocery_items = ["peas"]
-    provenance = {"peas": ["Crispy Potato Quesadillas"]}
 
     text = format_meals_and_grocery_list(meals, grocery_items)
 
