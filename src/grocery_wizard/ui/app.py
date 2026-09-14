@@ -11,6 +11,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 import json
+from datetime import UTC, date, datetime
 from typing import Any
 
 import streamlit as st
@@ -36,9 +37,12 @@ from src.grocery_wizard.planning.meal_planner import (
 )
 from src.grocery_wizard.planning.saved_weekly_plans import (
     SavedWeeklyPlan,
-    append_saved_plan,
+    ensure_saved_weekly_plan,
+    find_matching_plan,
     list_saved_plans,
     load_plan_recipes,
+    normalize_recipe_names,
+    week_start_sunday,
 )
 from src.grocery_wizard.recipes.classify import classify_recipe
 from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text, scrape_recipe
@@ -703,8 +707,21 @@ def _weekly_plan_mode() -> str | None:
     return mode if mode in _WEEKLY_PLAN_MODES else None
 
 
+def _weekly_plan_reference_date() -> date:
+    return datetime.now(tz=UTC).date()
+
+
 def _weekly_plan_fingerprint(recipe_names: list[str]) -> tuple[str, ...]:
-    return tuple(recipe_names)
+    week_start = week_start_sunday(_weekly_plan_reference_date())
+    return (week_start.isoformat(), *normalize_recipe_names(recipe_names))
+
+
+def _matching_saved_plan(recipe_names: list[str]) -> SavedWeeklyPlan | None:
+    week_start = week_start_sunday(_weekly_plan_reference_date())
+    recipes = normalize_recipe_names(recipe_names)
+    if not recipes:
+        return None
+    return find_matching_plan(week_start, recipes)
 
 
 def _invalidate_weekly_plan_save_state() -> None:
@@ -712,13 +729,26 @@ def _invalidate_weekly_plan_save_state() -> None:
     st.session_state.pop("weekly_plan_saved_fingerprint", None)
 
 
-def _commit_weekly_plan_to_repo(recipe_names: list[str]) -> SavedWeeklyPlan:
-    """Append plan to repo CSV and refresh local week_plan.json for diversity hints."""
-    plan = append_saved_plan(recipe_names)
-    save_week_plan(recipe_names, WEEK_PLAN_PATH)
+def _sync_weekly_plan_save_state(recipe_names: list[str], plan: SavedWeeklyPlan) -> None:
     st.session_state.weekly_plan_last_saved_slug = plan.slug
     st.session_state.weekly_plan_saved_fingerprint = _weekly_plan_fingerprint(recipe_names)
+
+
+def _commit_weekly_plan_to_repo(recipe_names: list[str]) -> SavedWeeklyPlan:
+    """Ensure plan exists in repo CSV and refresh local week_plan.json for diversity hints."""
+    plan, _created = ensure_saved_weekly_plan(recipe_names)
+    save_week_plan(recipe_names, WEEK_PLAN_PATH)
+    _sync_weekly_plan_save_state(recipe_names, plan)
     return plan
+
+
+def _ensure_weekly_plan_saved_before_grocery(recipe_names: list[str]) -> None:
+    """Auto-save meal plan when entering grocery flow if not already stored for this week."""
+    if _weekly_plan_mode() == "dev" or not recipe_names:
+        return
+    plan, _created = ensure_saved_weekly_plan(recipe_names)
+    save_week_plan(recipe_names, WEEK_PLAN_PATH)
+    _sync_weekly_plan_save_state(recipe_names, plan)
 
 
 def _render_save_plan_controls(recipe_names: list[str]) -> None:
@@ -727,12 +757,9 @@ def _render_save_plan_controls(recipe_names: list[str]) -> None:
     if mode == "dev" or not recipe_names:
         return
 
-    fingerprint = _weekly_plan_fingerprint(recipe_names)
-    last_fingerprint = st.session_state.get("weekly_plan_saved_fingerprint")
-    last_slug = st.session_state.get("weekly_plan_last_saved_slug")
-
-    if last_fingerprint == fingerprint and last_slug:
-        st.success(f"Plan saved as **{last_slug}**")
+    existing = _matching_saved_plan(recipe_names)
+    if existing is not None:
+        st.success(f"Plan saved as **{existing.slug}**")
         return
 
     label = "Save plan to repo" if mode == "new" else "Save as new plan version"
@@ -763,8 +790,8 @@ def _render_weekly_plan_entry() -> bool:
         "Weekly plan session",
         options=_WEEKLY_PLAN_MODES,
         format_func=lambda value: {
-            "new": "Start a new list (use Save plan to commit meals to the repo)",
-            "saved": "Start from a saved list (recipes only — grocery list is not saved)",
+            "new": "Start a new list (Save plan anytime, or auto-saves when you create a grocery list)",
+            "saved": "Start from a saved list (grocery list is not saved; meals auto-save if new)",
             "dev": "Dev mode (nothing saved)",
         }[value],
         key="weekly_plan_mode_choice",
@@ -1086,6 +1113,7 @@ def render_create_weekly_plan() -> None:
     )
 
     if st.button("Create grocery list", type="primary", key="create_grocery"):
+        _ensure_weekly_plan_saved_before_grocery(current_plan)
         _clear_grocery_result()
         _start_recipe_review(
             db,

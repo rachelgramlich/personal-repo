@@ -4,16 +4,19 @@ from __future__ import annotations
 
 __all__ = [
     "SavedWeeklyPlan",
-    "append_saved_plan",
+    "ensure_saved_weekly_plan",
+    "find_matching_plan",
     "format_plan_name",
     "list_saved_plans",
     "load_plan_recipes",
-    "next_plan_identity",
+    "next_plan_version",
+    "normalize_recipe_names",
+    "week_start_sunday",
 ]
 
 import csv
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from src.grocery_wizard.config import SAVED_WEEKLY_PLANS_PATH
@@ -24,23 +27,38 @@ CSV_FIELDNAMES = ("date", "version", "name", "slug", "recipes")
 
 @dataclass(frozen=True)
 class SavedWeeklyPlan:
-    plan_date: date
+    """One saved meal plan. ``week_start`` is the Sunday that begins the plan week."""
+
+    week_start: date
     version: int
     name: str
     slug: str
     recipes: tuple[str, ...]
 
 
-def format_plan_name(plan_date: date, version: int) -> str:
-    return f"{plan_date.isoformat()}_plan_v{version}"
+def week_start_sunday(d: date) -> date:
+    """Return the Sunday on or before ``d`` (Sunday-start weeks)."""
+    days_since_sunday = (d.weekday() + 1) % 7
+    return d - timedelta(days=days_since_sunday)
 
 
-def _parse_plan_date(raw: str) -> date:
+def format_plan_name(week_start: date, version: int) -> str:
+    return f"{week_start.isoformat()}_plan_v{version}"
+
+
+def normalize_recipe_names(recipe_names: list[str]) -> tuple[str, ...]:
+    return tuple(name.strip() for name in recipe_names if name.strip())
+
+
+def _parse_week_start(raw: str) -> date:
     return date.fromisoformat(raw.strip())
 
 
-def _encode_recipes(recipes: list[str]) -> str:
-    cleaned = [name.strip() for name in recipes if name.strip()]
+def _encode_recipes(recipes: list[str] | tuple[str, ...]) -> str:
+    if isinstance(recipes, tuple):
+        cleaned = list(recipes)
+    else:
+        cleaned = [name.strip() for name in recipes if name.strip()]
     return RECIPE_SEPARATOR.join(cleaned)
 
 
@@ -53,7 +71,7 @@ def _decode_recipes(raw: str) -> tuple[str, ...]:
 def _row_to_plan(row: dict[str, str]) -> SavedWeeklyPlan | None:
     try:
         version = int(row["version"])
-        plan_date = _parse_plan_date(row["date"])
+        week_start = _parse_week_start(row["date"])
     except (KeyError, ValueError):
         return None
     slug = (row.get("slug") or "").strip()
@@ -61,7 +79,7 @@ def _row_to_plan(row: dict[str, str]) -> SavedWeeklyPlan | None:
     if not slug:
         return None
     return SavedWeeklyPlan(
-        plan_date=plan_date,
+        week_start=week_start,
         version=version,
         name=name,
         slug=slug,
@@ -70,7 +88,7 @@ def _row_to_plan(row: dict[str, str]) -> SavedWeeklyPlan | None:
 
 
 def list_saved_plans(*, path: Path = SAVED_WEEKLY_PLANS_PATH) -> list[SavedWeeklyPlan]:
-    """Return saved plans newest-first (by date, then version)."""
+    """Return saved plans newest-first (by week start, then version)."""
     if not path.exists() or path.stat().st_size == 0:
         return []
 
@@ -84,7 +102,7 @@ def list_saved_plans(*, path: Path = SAVED_WEEKLY_PLANS_PATH) -> list[SavedWeekl
             if plan is not None:
                 plans.append(plan)
 
-    plans.sort(key=lambda plan: (plan.plan_date, plan.version), reverse=True)
+    plans.sort(key=lambda plan: (plan.week_start, plan.version), reverse=True)
     return plans
 
 
@@ -96,17 +114,27 @@ def load_plan_recipes(slug: str, *, path: Path = SAVED_WEEKLY_PLANS_PATH) -> lis
     return []
 
 
-def next_plan_identity(
-    plan_date: date | None = None,
+def find_matching_plan(
+    week_start: date,
+    recipes: tuple[str, ...],
     *,
     path: Path = SAVED_WEEKLY_PLANS_PATH,
-) -> tuple[int, str, str]:
-    """Return (version, name, slug) for the next plan on the given date."""
-    when = plan_date or datetime.now(tz=UTC).date()
-    existing = [plan for plan in list_saved_plans(path=path) if plan.plan_date == when]
-    version = max((plan.version for plan in existing), default=0) + 1
-    name = format_plan_name(when, version)
-    return version, name, name
+) -> SavedWeeklyPlan | None:
+    """Return an existing plan with the same Sunday week start and recipe list."""
+    for plan in list_saved_plans(path=path):
+        if plan.week_start == week_start and plan.recipes == recipes:
+            return plan
+    return None
+
+
+def next_plan_version(
+    week_start: date,
+    *,
+    path: Path = SAVED_WEEKLY_PLANS_PATH,
+) -> int:
+    """Next version number for a new distinct recipe list in the given week."""
+    existing = [plan for plan in list_saved_plans(path=path) if plan.week_start == week_start]
+    return max((plan.version for plan in existing), default=0) + 1
 
 
 def _ensure_csv_header(path: Path) -> None:
@@ -117,32 +145,46 @@ def _ensure_csv_header(path: Path) -> None:
             writer.writeheader()
 
 
-def append_saved_plan(
+def ensure_saved_weekly_plan(
     recipe_names: list[str],
     *,
-    plan_date: date | None = None,
+    reference_date: date | None = None,
     path: Path = SAVED_WEEKLY_PLANS_PATH,
-) -> SavedWeeklyPlan:
-    """Append a new saved weekly plan row and return the stored record."""
-    when = plan_date or datetime.now(tz=UTC).date()
-    version, name, slug = next_plan_identity(when, path=path)
+) -> tuple[SavedWeeklyPlan, bool]:
+    """Persist a plan when missing for this week+recipes.
+
+    Same Sunday week start + identical recipe list → return existing row (no duplicate).
+    Same week + different recipes → append ``_v2``, ``_v3``, …; earlier rows are never overwritten.
+    """
+    when = reference_date or datetime.now(tz=UTC).date()
+    week_start = week_start_sunday(when)
+    recipes = normalize_recipe_names(recipe_names)
+    if not recipes:
+        raise ValueError("recipe_names must not be empty")
+
+    existing = find_matching_plan(week_start, recipes, path=path)
+    if existing is not None:
+        return existing, False
+
+    version = next_plan_version(week_start, path=path)
+    name = format_plan_name(week_start, version)
     plan = SavedWeeklyPlan(
-        plan_date=when,
+        week_start=week_start,
         version=version,
         name=name,
-        slug=slug,
-        recipes=tuple(name.strip() for name in recipe_names if name.strip()),
+        slug=name,
+        recipes=recipes,
     )
     _ensure_csv_header(path)
     with path.open("a", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=CSV_FIELDNAMES)
         writer.writerow(
             {
-                "date": plan.plan_date.isoformat(),
+                "date": plan.week_start.isoformat(),
                 "version": str(plan.version),
                 "name": plan.name,
                 "slug": plan.slug,
-                "recipes": _encode_recipes(list(plan.recipes)),
+                "recipes": _encode_recipes(plan.recipes),
             }
         )
-    return plan
+    return plan, True

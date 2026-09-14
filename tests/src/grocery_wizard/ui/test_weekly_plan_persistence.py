@@ -11,18 +11,17 @@ def test_weekly_plan_entry_modes_in_app() -> None:
     source = APP_PATH.read_text(encoding="utf-8")
     assert "_render_weekly_plan_entry" in source
     assert "weekly_plan_mode" in source
-    assert "append_saved_plan" in source
+    assert "ensure_saved_weekly_plan" in source
     assert "_render_save_plan_controls" in source
-    assert "_commit_weekly_plan_to_repo" in source
+    assert "_ensure_weekly_plan_saved_before_grocery" in source
+    assert "week_start_sunday" in source
     assert "Dev mode (nothing saved)" in source
 
 
-def test_create_grocery_does_not_auto_save_plan() -> None:
+def test_create_grocery_auto_saves_plan_if_missing() -> None:
     source = APP_PATH.read_text(encoding="utf-8")
     section = source.split('if st.button("Create grocery list"', 1)[1].split("_start_recipe_review", 1)[0]
-    assert "append_saved_plan" not in section
-    assert "save_week_plan" not in section
-    assert "_commit_weekly_plan_to_repo" not in section
+    assert "_ensure_weekly_plan_saved_before_grocery" in section
 
 
 def test_explicit_save_plan_button_after_meals() -> None:
