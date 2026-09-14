@@ -275,11 +275,37 @@ def main(argv: list[str] | None = None) -> int:
     add_enh_parser.add_argument("--title", help="Short one-liner title")
     add_enh_parser.add_argument("--description", default="", help="Longer freeform description")
     add_enh_parser.add_argument(
+        "--expected-behavior",
+        default="",
+        dest="expected_behavior",
+        help="How it should work + manual test hints (required for non-interactive backlog items)",
+    )
+    add_enh_parser.add_argument(
         "--area",
         choices=["ui", "parser", "shopping", "recipes", "cli", "other"],
         help="Area of the codebase this enhancement relates to",
     )
     add_enh_parser.set_defaults(func=cmd_dev_add_enhancement)
+
+    report_bug_parser = dev_subparsers.add_parser(
+        "report-bug",
+        help="Open a GitHub bug report (Bug report template, not the enhancement backlog)",
+    )
+    report_bug_parser.add_argument("--title", help="Short one-liner title")
+    report_bug_parser.add_argument(
+        "--description",
+        default="",
+        help="Plain-language summary of the bug",
+    )
+    report_bug_parser.add_argument("--repro", default="", help="Steps to reproduce")
+    report_bug_parser.add_argument("--actual", default="", help="What happened")
+    report_bug_parser.add_argument("--expected", default="", help="What should have happened")
+    report_bug_parser.add_argument(
+        "--context",
+        default="",
+        help="Screenshots, logs, environment (optional)",
+    )
+    report_bug_parser.set_defaults(func=cmd_dev_report_bug)
 
     list_enh_parser = dev_subparsers.add_parser(
         "list-enhancements",
@@ -1036,7 +1062,9 @@ def cmd_dev_add_enhancement(args: argparse.Namespace) -> int:
 
     title: str = args.title or ""
     description: str = args.description or ""
+    expected_behavior: str = args.expected_behavior or ""
     area: str | None = args.area
+    non_interactive = bool(args.title)
 
     if not title:
         title = input("Title: ").strip()
@@ -1047,6 +1075,19 @@ def cmd_dev_add_enhancement(args: argparse.Namespace) -> int:
     if not description:
         description = input("Description (optional, press Enter to skip): ").strip()
 
+    if not expected_behavior:
+        expected_behavior = input(
+            "Expected behavior & manual test hints (required for backlog): "
+        ).strip()
+
+    if non_interactive and not expected_behavior.strip():
+        print(
+            "Expected behavior is required for backlog items. "
+            "Pass --expected-behavior (GitHub: Grocery Wizard enhancement template).",
+            file=sys.stderr,
+        )
+        return 1
+
     if area is None:
         choices_str = "/".join(VALID_AREAS)
         area = input(f"Area [{choices_str}] (default: other): ").strip() or "other"
@@ -1054,12 +1095,66 @@ def cmd_dev_add_enhancement(args: argparse.Namespace) -> int:
             print(f"Unknown area '{area}'. Choose from: {choices_str}", file=sys.stderr)
             return 1
 
-    entry = create_enhancement(title, description, area)
+    entry = create_enhancement(
+        title, description, area, expected_behavior=expected_behavior
+    )
     num = entry.get("issue_number")
     ref = f"#{num}" if num else entry.get("id") or "?"
     print(f"Added enhancement {ref}: {title}")
     if entry.get("issue_url"):
         print(entry["issue_url"])
+    return 0
+
+
+def cmd_dev_report_bug(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.dev.enhancement_log import report_bug
+
+    title: str = args.title or ""
+    description: str = args.description or ""
+    repro: str = args.repro or ""
+    actual: str = args.actual or ""
+    expected: str = args.expected or ""
+    context: str = args.context or ""
+
+    if not title:
+        title = input("Title: ").strip()
+    if not description:
+        description = input("Describe the bug: ").strip()
+    if not repro:
+        repro = input("Steps to reproduce: ").strip()
+    if not actual:
+        actual = input("Actual behavior: ").strip()
+    if not expected:
+        expected = input("Expected behavior: ").strip()
+
+    missing = [
+        name
+        for name, val in [
+            ("title", title),
+            ("description", description),
+            ("repro", repro),
+            ("actual", actual),
+            ("expected", expected),
+        ]
+        if not val.strip()
+    ]
+    if missing:
+        print(f"Missing required field(s): {', '.join(missing)}", file=sys.stderr)
+        return 1
+
+    issue = report_bug(
+        title,
+        description=description,
+        repro=repro,
+        actual=actual,
+        expected=expected,
+        context=context,
+    )
+    num = issue.get("number")
+    ref = f"#{num}" if num else "?"
+    print(f"Opened bug report {ref}: {title}")
+    if issue.get("url"):
+        print(issue["url"])
     return 0
 
 

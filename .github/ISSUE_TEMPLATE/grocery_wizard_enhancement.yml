@@ -1,5 +1,5 @@
 name: Grocery Wizard enhancement
-description: Backlog item for the Grocery Wizard app (intentional product/engineering work)
+description: Feature or improvement for the backlog (picked up via /work-on-enhancement)
 title: "[Grocery Wizard] "
 body:
   - type: markdown
@@ -27,7 +27,7 @@ body:
         Steps: 1. … 2. …
         Expected: …
     validations:
-      required: false
+      required: true
   - type: dropdown
     id: area
     attributes:
