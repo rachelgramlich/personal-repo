@@ -63,9 +63,34 @@ def _try_split_on_conjunction(text: str) -> tuple[str, str] | None:
     right = text[match.end() :].strip()
     if not left or not right:
         return None
+    if _left_is_qty_plus_bare_color(left):
+        return None
     if not _looks_like_ingredient(left) or not _looks_like_ingredient(right):
         return None
     return left, right
+
+
+_COLOR_ADJECTIVES = frozenset(
+    {"red", "yellow", "green", "white", "black", "orange", "purple", "golden"}
+)
+
+
+def _left_is_qty_plus_bare_color(left: str) -> bool:
+    """True when *left* is only a quantity plus a color word (e.g. ``2 red``)."""
+    text = left.strip().lower()
+    text = _QUANTITY_RE.sub("", text, count=1).strip()
+    words = text.split()
+    while words and words[0] in _SIZES:
+        words.pop(0)
+    if not words:
+        return False
+    if len(words) == 1:
+        return words[0] in _COLOR_ADJECTIVES
+    return (
+        len(words) == 2
+        and words[0] in _COLOR_ADJECTIVES
+        and words[1] in _COLOR_ADJECTIVES
+    )
 
 
 def _looks_like_ingredient(part: str) -> bool:
@@ -75,6 +100,7 @@ def _looks_like_ingredient(part: str) -> bool:
     if not cleaned:
         return False
 
+    cleaned = _strip_leading_amount(cleaned)
     words = cleaned.lower().split()
     words = _strip_leading_tokens(words, _UNITS | _SIZES)
     while words and words[0] in _PREP_WORDS:

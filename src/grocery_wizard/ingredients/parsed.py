@@ -455,6 +455,14 @@ def _first_alternative(name: str) -> str:
     parts = [part.strip() for part in _OR_ALTERNATIVE_RE.split(name.strip()) if part.strip()]
     if not parts:
         return name.strip()
+    if len(parts) == 2:
+        first_words, second_words = parts[0].split(), parts[1].split()
+        if (
+            len(second_words) >= 2
+            and second_words[-1].lower() not in parts[0].lower()
+            and len(first_words) <= 2
+        ):
+            return name.strip()
     return max(parts, key=lambda part: len(part.split()))
 
 
