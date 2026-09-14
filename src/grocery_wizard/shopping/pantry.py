@@ -49,6 +49,9 @@ _FRESH_COLORED_PEPPER_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Generic pantry ``pepper`` must not match fresh bell peppers (``red pepper``).
+_GENERIC_PEPPER_PANTRY = frozenset({"pepper", "peppers"})
+
 
 def _pantry_match_key(text: str) -> str:
     return text.strip().lower().replace("-", " ")
@@ -72,6 +75,8 @@ def is_pantry_item(normalized: str, pantry: set[str]) -> bool:
     if _FRESH_COLORED_PEPPER_RE.match(name):
         for item in pantry:
             item_norm = _pantry_match_key(item)
+            if item_norm in _GENERIC_PEPPER_PANTRY:
+                continue
             if name == item_norm:
                 return True
             if _contains_word_phrase(name_words, item_norm.split()):

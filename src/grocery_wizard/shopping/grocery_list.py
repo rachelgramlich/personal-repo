@@ -68,6 +68,27 @@ from src.grocery_wizard.shopping.store_aisles import (
 
 _NAME_LINK_MATCH_THRESHOLD = 0.85
 _NYT_SLUG_ID_PREFIX = re.compile(r"^\d+-")
+
+_COLOR_ONION_RE = re.compile(r"^(?:red|yellow|white|sweet)\s+onions?$", re.IGNORECASE)
+_ONION_OR_ALTERNATIVE_DISPLAY = "red or yellow onions"
+
+
+def _grocery_collection_key(display_name: str) -> str:
+    """Canonical dedupe key; merges color onion variants with OR-alternative lines."""
+    lowered = display_name.strip().lower()
+    if lowered == _ONION_OR_ALTERNATIVE_DISPLAY.lower():
+        return lowered
+    if _COLOR_ONION_RE.match(lowered):
+        return _ONION_OR_ALTERNATIVE_DISPLAY.lower()
+    return lowered
+
+
+def _prefer_onion_display_name(existing: str, incoming: str) -> str:
+    if " or " in incoming.lower():
+        return incoming
+    if " or " in existing.lower():
+        return existing
+    return incoming if len(incoming.split()) >= len(existing.split()) else existing
 _TITLE_NORMALIZE = re.compile(r"[^a-z0-9\s]+")
 
 
@@ -581,9 +602,12 @@ def _collect_ingredient_line(
             if display_name not in excluded_pantry:
                 excluded_pantry.append(display_name)
             continue
-        key = display_name.lower()
+        key = _grocery_collection_key(display_name)
         if key in collected:
-            collected[key][1].append(amount)
+            existing_name, amounts = collected[key]
+            display_name = _prefer_onion_display_name(existing_name, display_name)
+            amounts.append(amount)
+            collected[key] = (display_name, amounts)
         else:
             collected[key] = (display_name, [amount])
         if recipe_name and provenance is not None:
