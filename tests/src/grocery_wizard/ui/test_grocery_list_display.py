@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.grocery_wizard.shopping.grocery_list import format_meals_and_grocery_list
+from src.grocery_wizard.shopping.grocery_list import (
+    format_grocery_items_copy_text,
+    format_meals_and_grocery_list,
+    format_meals_copy_text,
+)
 from src.grocery_wizard.ui.app import _compute_grocery_drafts
 
 APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui" / "app.py"
@@ -43,6 +47,20 @@ st.text_area("display", key="display_key")
     at.button[0].click().run()
 
     assert at.text_area[0].value == "Value: 1"
+
+
+def test_copy_text_excludes_section_header_lines() -> None:
+    meals = [("Soup", "https://example.com/soup")]
+    grocery_items = ["onions", "milk"]
+
+    meals_copy = format_meals_copy_text(meals)
+    grocery_copy = format_grocery_items_copy_text(grocery_items)
+
+    assert meals_copy == "- Soup (https://example.com/soup)"
+    assert "Meals" not in meals_copy.splitlines()
+    assert grocery_copy == "- onions\n- milk"
+    assert "Grocery List" not in grocery_copy.splitlines()
+    assert "grocery list" not in grocery_copy.lower().splitlines()
 
 
 def test_format_meals_and_grocery_list_keeps_aisle_sort_without_headers() -> None:
