@@ -116,6 +116,18 @@ def test_matches_pantry_search(search: str, item: str, expected: bool) -> None:
     assert _matches_pantry_search(search, item) is expected
 
 
+def test_hyphenated_red_pepper_flakes_matches_pantry_entry() -> None:
+    pantry = {"red pepper flakes", "pepper"}
+    assert is_pantry_item("red-pepper flakes", pantry)
+    assert is_pantry_item("red pepper flakes", pantry)
+
+
+def test_fresh_red_pepper_not_matched_by_generic_pepper_pantry() -> None:
+    pantry = {"pepper", "red pepper flakes"}
+    assert not is_pantry_item("red pepper", pantry)
+    assert is_pantry_item("red pepper flakes", pantry)
+
+
 def test_append_and_remove_pantry_item(tmp_path: Path) -> None:
     path = tmp_path / "pantry.txt"
     path.write_text("# --- Spices ---\nsalt\n", encoding="utf-8")

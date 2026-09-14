@@ -15,6 +15,7 @@ __all__ = [
 ]
 
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -38,6 +39,16 @@ def load_pantry(path: Path | None = None) -> set[str]:
     return items
 
 
+_FRESH_COLORED_PEPPER_RE = re.compile(
+    r"^(red|green|yellow|orange)\s+peppers?$",
+    re.IGNORECASE,
+)
+
+
+def _pantry_match_key(text: str) -> str:
+    return text.strip().lower().replace("-", " ")
+
+
 def is_pantry_item(normalized: str, pantry: set[str]) -> bool:
     """Return True if normalized ingredient matches a pantry item.
 
@@ -46,22 +57,34 @@ def is_pantry_item(normalized: str, pantry: set[str]) -> bool:
     the reverse (ingredient word appearing inside a longer pantry phrase like
     ``beef stock``).
     """
-    name = normalized.strip().lower()
+    name = _pantry_match_key(normalized)
     if not name:
         return False
 
     name_words = name.split()
+
+    # Fresh bell peppers (produce) must not match generic pantry ``pepper`` alone.
+    if _FRESH_COLORED_PEPPER_RE.match(name):
+        for item in pantry:
+            item_norm = _pantry_match_key(item)
+            if name == item_norm:
+                return True
+            if _contains_word_phrase(name_words, item_norm.split()):
+                return True
+        return False
+
     for item in pantry:
-        if name == item:
+        item_norm = _pantry_match_key(item)
+        if name == item_norm:
             return True
-        if _contains_word_phrase(name_words, item.split()):
+        if _contains_word_phrase(name_words, item_norm.split()):
             return True
         # Narrow reverse rule: single-token ingredient (e.g. "oil") matches
         # when it equals the *last* word of a multi-word pantry phrase
         # (e.g. "olive oil", "vegetable oil").  This avoids re-introducing
         # broad false positives like "beef" matching "beef stock".
         if len(name_words) == 1:
-            item_words = item.split()
+            item_words = item_norm.split()
             if len(item_words) > 1 and item_words[-1] == name_words[0]:
                 return True
     return False
