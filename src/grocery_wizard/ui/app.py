@@ -45,8 +45,11 @@ from src.grocery_wizard.shopping.grocery_list import (
     merge_grocery_items,
 )
 from src.grocery_wizard.shopping.line_items import parse_line_items
+from src.grocery_wizard.shopping.pantry import append_pantry_item
 from src.grocery_wizard.shopping.recurring_weekly_items import (
+    apply_recurring_session_overrides,
     load_recurring_weekly_items,
+    remove_recurring_weekly_item,
     write_recurring_weekly_items,
 )
 
@@ -658,6 +661,113 @@ def _current_plan_names() -> list[str]:
     return _parse_line_items(st.session_state.get("plan_meals_text", "").replace(",", "\n"))
 
 
+def _session_pantry_extra() -> set[str]:
+    if "grocery_session_pantry" not in st.session_state:
+        st.session_state.grocery_session_pantry = set()
+    return st.session_state.grocery_session_pantry
+
+
+def _session_recurring_removals() -> set[str]:
+    if "grocery_session_recurring_removals" not in st.session_state:
+        st.session_state.grocery_session_recurring_removals = set()
+    return st.session_state.grocery_session_recurring_removals
+
+
+def _session_recurring_additions() -> list[str]:
+    if "grocery_session_recurring_additions" not in st.session_state:
+        st.session_state.grocery_session_recurring_additions = []
+    return st.session_state.grocery_session_recurring_additions
+
+
+def _clear_grocery_session_overrides() -> None:
+    st.session_state.pop("grocery_session_pantry", None)
+    st.session_state.pop("grocery_session_recurring_removals", None)
+    st.session_state.pop("grocery_session_recurring_additions", None)
+
+
+def _effective_recurring_items(template: list[str]) -> list[str]:
+    return apply_recurring_session_overrides(
+        template,
+        additions=_session_recurring_additions(),
+        removals=_session_recurring_removals(),
+    )
+
+
+def _render_persistence_scope_radio(*, key: str) -> str:
+    """Return ``session`` or ``template`` for pantry / recurring edits."""
+    return st.radio(
+        "Apply change to",
+        options=["session", "template"],
+        format_func=lambda choice: (
+            "This run only (this week's grocery list)"
+            if choice == "session"
+            else "Recurring template (saved for future weeks)"
+        ),
+        horizontal=False,
+        key=key,
+    )
+
+
+def _render_pantry_and_weekly_item_manager(template_recurring: list[str]) -> None:
+    """Add pantry staples or adjust the weekly recurring list with an explicit scope."""
+    st.markdown("**Pantry & weekly recurring list**")
+    st.caption(
+        "Add pantry items or remove recurring weekly items. Choose whether the change "
+        "applies only to this run or updates the saved template."
+    )
+    scope = _render_persistence_scope_radio(key="pantry_weekly_scope")
+
+    add_pantry = st.text_input(
+        "Add pantry item",
+        placeholder="e.g. soy sauce",
+        key="manage_add_pantry_item",
+    )
+    if st.button("Add to pantry", key="manage_add_pantry_btn"):
+        name = add_pantry.strip()
+        if not name:
+            st.warning("Enter an item name.")
+        elif scope == "session":
+            _session_pantry_extra().add(name.lower())
+            st.success(f"Added “{name}” to pantry for this run only.")
+            st.rerun()
+        elif append_pantry_item(name):
+            st.success(f"Saved “{name}” to the pantry template.")
+            st.rerun()
+        else:
+            st.warning("Could not add — empty name or already in pantry.")
+
+    remove_weekly = st.text_input(
+        "Remove from weekly recurring list",
+        placeholder="Item name to remove",
+        key="manage_remove_weekly_item",
+    )
+    if st.button("Remove weekly item", key="manage_remove_weekly_btn"):
+        name = remove_weekly.strip()
+        if not name:
+            st.warning("Enter an item name to remove.")
+        elif scope == "session":
+            _session_recurring_removals().add(name.lower())
+            st.success(f"Removed “{name}” from recurring items for this run only.")
+            st.rerun()
+        elif remove_recurring_weekly_item(name):
+            st.success(f"Removed “{name}” from the recurring template.")
+            st.rerun()
+        else:
+            st.warning("No matching item in the recurring template.")
+
+    if scope == "session" and (
+        _session_pantry_extra() or _session_recurring_removals() or _session_recurring_additions()
+    ):
+        st.caption(
+            "This-run overrides: "
+            f"pantry +{len(_session_pantry_extra())}, "
+            f"recurring -{len(_session_recurring_removals())}, "
+            f"+{len(_session_recurring_additions())} added."
+        )
+
+    _ = template_recurring  # reserved for display in later steps
+
+
 def _clear_grocery_result() -> None:
     """Remove the cached grocery result, review state, and associated widget state."""
     for key in (
@@ -759,6 +869,7 @@ def _render_per_recipe_review(db: NotionRecipesDB, selected: list[str]) -> None:
                         db,
                         recipe_names=selected,
                         exclude_pantry=opts["exclude_pantry"],
+                        pantry_extra=_session_pantry_extra(),
                         recurring_weekly_items=recurring_weekly_items,
                         include_recurring_weekly_items=True,
                         ingredient_overrides=overrides,
@@ -865,6 +976,7 @@ def render_create_weekly_plan() -> None:
         )
         st.session_state.plan_meals_text = "\n".join(plan)
         st.session_state.plan_rejected_names = []
+        _clear_grocery_session_overrides()
         _clear_grocery_result()
         st.rerun()
 
@@ -882,6 +994,7 @@ def render_create_weekly_plan() -> None:
             )
             st.session_state.plan_meals_text = "\n".join(new_plan)
             st.session_state.plan_rejected_names = sorted(rejected)
+            _clear_grocery_session_overrides()
             _clear_grocery_result()
             st.rerun()
 
@@ -905,6 +1018,7 @@ def render_create_weekly_plan() -> None:
                 ingredient_index=ingredient_index,
             )
             st.session_state.plan_meals_text = "\n".join(plan)
+            _clear_grocery_session_overrides()
             _clear_grocery_result()
             st.rerun()
 
@@ -930,16 +1044,22 @@ def render_create_weekly_plan() -> None:
         st.caption("Build a meal plan above to continue.")
         return
 
-    default_recurring = load_recurring_weekly_items()
+    template_recurring = load_recurring_weekly_items()
+    default_recurring = _effective_recurring_items(template_recurring)
     exclude_pantry = True
     recurring_text = "\n".join(default_recurring)
 
     with st.expander("Grocery list options", expanded=False):
         exclude_pantry = st.checkbox("Exclude pantry items", value=True)
+        _render_pantry_and_weekly_item_manager(template_recurring)
         recurring_text = st.text_area(
-            "Recurring weekly items (one per line)",
+            "Recurring items for this week (one per line)",
             value="\n".join(default_recurring),
             height=100,
+            help=(
+                "Edits here apply to this run only; use Recurring template scope above "
+                "to change defaults."
+            ),
         )
 
     extra_items_text = st.text_area(
@@ -1075,6 +1195,7 @@ def _render_grocery_result() -> None:
         st.caption(f"_{edit_count} ingredient edit(s) logged for later review._")
 
     if st.button("Edit meals", key="grocery_edit_meals"):
+        _clear_grocery_session_overrides()
         _clear_grocery_result()
         st.rerun()
 

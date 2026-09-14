@@ -9,10 +9,12 @@ import pytest
 from src.grocery_wizard.config import PANTRY_PATH
 from src.grocery_wizard.shopping.pantry import (
     _matches_pantry_search,
+    append_pantry_item,
     format_pantry_display,
     is_pantry_item,
     load_pantry,
     parse_pantry_file,
+    remove_pantry_item_by_name,
     write_pantry_file,
 )
 
@@ -112,3 +114,13 @@ def test_is_pantry_item_single_token_last_word_rule(
 )
 def test_matches_pantry_search(search: str, item: str, expected: bool) -> None:
     assert _matches_pantry_search(search, item) is expected
+
+
+def test_append_and_remove_pantry_item(tmp_path: Path) -> None:
+    path = tmp_path / "pantry.txt"
+    path.write_text("# --- Spices ---\nsalt\n", encoding="utf-8")
+    assert append_pantry_item("cumin", path=path)
+    assert "cumin" in load_pantry(path)
+    assert append_pantry_item("cumin", path=path) is False
+    assert remove_pantry_item_by_name("salt", path=path)
+    assert "salt" not in load_pantry(path)
