@@ -132,6 +132,12 @@ Use when you edit Notion directly, need to refresh ingredient data, or debug sch
 | `dev refresh-all-ingredients` | Re-download ingredients for every recipe |
 | `dev audit-recipes` | Show which recipes need attention |
 | `dev show-schema` | Show how Notion columns are detected |
+| `dev add-enhancement` | Append a feature idea to `.local/grocery_wizard/enhancements.jsonl` |
+| `dev list-enhancements` | List open backlog items (`--all` includes closed) |
+| `dev show-enhancement` | Print full instructions for one backlog ID |
+| `dev close-enhancement` | Mark a backlog item done after you ship it |
+
+**Cursor:** copy [docs/cursor-commands/](../../docs/cursor-commands/README.md) into `.cursor/commands/` for `/add-enhancement`, `/list-enhancements`, and `/work-on-enhancement` in Agent chat.
 
 ```shell
 # Recipes added in Notion with a link but no ingredients
