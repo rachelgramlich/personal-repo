@@ -514,7 +514,7 @@ def cmd_dev_schema(_args: argparse.Namespace) -> int:
     db = NotionRecipesDB(config)
     schema = db.schema
 
-    print(f"Database ID: {config.notion_database_id}")
+    print(f"Recipes database ID: {config.notion_recipe_database_id}")
     print(f"Name column: {schema.name_column}")
     print(f"Link column: {schema.link_column}")
     print(f"Ingredients column: {schema.ingredients_column or '(not detected)'}")

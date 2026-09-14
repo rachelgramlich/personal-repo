@@ -37,7 +37,7 @@ def test_nyt_synced_column_name_detects_checkbox() -> None:
     db = NotionRecipesDB.__new__(NotionRecipesDB)
     db._config = Config(
         notion_api_key="key",
-        notion_database_id="db",
+        notion_recipe_database_id="db",
     )
     db.schema = _schema_with_nyt_checkbox()
 
@@ -48,7 +48,7 @@ def test_nyt_synced_column_name_missing_returns_none() -> None:
     db = NotionRecipesDB.__new__(NotionRecipesDB)
     db._config = Config(
         notion_api_key="key",
-        notion_database_id="db",
+        notion_recipe_database_id="db",
     )
     db.schema = DatabaseSchema(
         name_column="Name",

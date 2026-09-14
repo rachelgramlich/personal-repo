@@ -179,7 +179,7 @@ Same subfolders as source — e.g. `recipes/test_scraper.py` tests `recipes/scra
 | Path | Purpose |
 |------|---------|
 | `.local/grocery_wizard/week_plan.json` | This week's planned recipe names |
-| `.env` | `NOTION_API_KEY`, `NOTION_DATABASE_ID`, NYT credentials (see `.env.example`) |
+| `.env` | `NOTION_API_KEY`, `NOTION_RECIPE_DATABASE_ID`, NYT credentials (see `.env.example`) |
 
 ### Entry points
 
@@ -216,7 +216,7 @@ Normalization and pantry exclusion happen at grocery-list time only — not when
 2. Share your **Recipes** database with the integration (⋯ → Connections).
 3. Copy `.env.example` to `.env` and fill in:
    - `NOTION_API_KEY` — integration secret
-   - `NOTION_DATABASE_ID` — your Recipes database ID
+   - `NOTION_RECIPE_DATABASE_ID` — your Recipes database ID
 4. From repo root: `just setup`
 5. Verify: `uv run python -m src.grocery_wizard.cli dev show-schema`
 
