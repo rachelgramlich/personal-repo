@@ -49,8 +49,9 @@ from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text,
 from src.grocery_wizard.recipes.weeknight import DEFAULT_WEEKNIGHT_COLUMN
 from src.grocery_wizard.shopping.grocery_list import (
     build_grocery_list,
+    format_grocery_items_copy_text,
     format_item_provenance,
-    format_meals_and_grocery_list,
+    format_meals_copy_text,
     merge_grocery_items,
 )
 from src.grocery_wizard.shopping.line_items import parse_line_items
@@ -1433,14 +1434,8 @@ def _render_grocery_result() -> None:
     if final_items or meal_names:
         db = get_db()
         meals = _meal_entries_with_links(db, meal_names)
-        list_text = format_meals_and_grocery_list(meals, final_items)
-
-        if "\n\nGrocery List\n" in list_text:
-            meals_copy_text, grocery_body = list_text.split("\n\nGrocery List\n", 1)
-            grocery_copy_text = f"Grocery List\n{grocery_body}"
-        else:
-            meals_copy_text = list_text
-            grocery_copy_text = "Grocery List"
+        meals_copy_text = format_meals_copy_text(meals)
+        grocery_copy_text = format_grocery_items_copy_text(final_items)
 
         st.markdown("**Meals**")
         meals_fingerprint = tuple(meals)

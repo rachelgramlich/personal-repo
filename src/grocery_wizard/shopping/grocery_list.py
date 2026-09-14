@@ -7,8 +7,10 @@ __all__ = [
     "build_grocery_list",
     "detect_name_link_mismatch",
     "format_grocery_item",
+    "format_grocery_items_copy_text",
     "format_item_provenance",
     "format_meals_and_grocery_list",
+    "format_meals_copy_text",
     "format_name_link_mismatch_warning",
     "format_sync_message",
     "merge_grocery_items",
@@ -443,25 +445,37 @@ def merge_grocery_items(
     return merged
 
 
-def format_meals_and_grocery_list(
-    meals: list[tuple[str, str | None]],
-    grocery_items: list[str],
-) -> str:
-    """Format meals and grocery items as a single copy/pasteable block."""
-    lines = ["Meals"]
+def format_meals_copy_text(meals: list[tuple[str, str | None]]) -> str:
+    """Meals block for copy/export (bullets only — no section title line)."""
+    lines: list[str] = []
     for name, link in meals:
         if link:
             lines.append(f"- {name} ({link})")
         else:
             lines.append(f"- {name}")
-
-    lines.append("")
-    lines.append("Grocery List")
-
-    sorted_items = merge_grocery_items(grocery_items)
-    lines.extend(f"- {item}" for item in sorted_items)
-
     return "\n".join(lines)
+
+
+def format_grocery_items_copy_text(grocery_items: list[str]) -> str:
+    """Grocery block for copy/export (bullets only — no section title line)."""
+    sorted_items = merge_grocery_items(grocery_items)
+    return "\n".join(f"- {item}" for item in sorted_items)
+
+
+def format_meals_and_grocery_list(
+    meals: list[tuple[str, str | None]],
+    grocery_items: list[str],
+) -> str:
+    """Format meals and grocery items as a single copy/pasteable block."""
+    meals_body = format_meals_copy_text(meals)
+    grocery_body = format_grocery_items_copy_text(grocery_items)
+    if meals_body and grocery_body:
+        return f"Meals\n{meals_body}\n\nGrocery List\n{grocery_body}"
+    if meals_body:
+        return f"Meals\n{meals_body}\n\nGrocery List"
+    if grocery_body:
+        return f"Grocery List\n{grocery_body}"
+    return "Grocery List"
 
 
 def _resolve_recurring_weekly_items(
