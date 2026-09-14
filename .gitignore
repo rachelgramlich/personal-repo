@@ -11,7 +11,8 @@ pycache/
 
 # IDE
 .vscode/
-.cursor/
+# Cursor: commit project commands/settings; keep secrets local
+.cursor/mcp.json
 
 # uv
 .uv/

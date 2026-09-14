@@ -18,4 +18,8 @@
    just setup
    ```
 
+## Cursor (optional)
+
+The enhancement backlog is **committed** at `src/grocery_wizard/dev/enhancements.jsonl`. Agents should follow [AGENTS.md](AGENTS.md). Slash commands live in **`.cursor/commands/`** (committed). Do not commit `.cursor/mcp.json` (tokens).
+
 # Execution

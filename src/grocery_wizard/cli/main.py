@@ -301,12 +301,38 @@ def main(argv: list[str] | None = None) -> int:
     )
     show_enh_parser.set_defaults(func=cmd_dev_show_enhancement)
 
+    work_enh_parser = dev_subparsers.add_parser(
+        "work-on-enhancement",
+        help="Full agent brief to implement an enhancement (alias of show-enhancement)",
+    )
+    work_enh_parser.add_argument("id", help="Enhancement ID (e.g. enh_001)")
+    work_enh_parser.set_defaults(func=cmd_dev_work_on_enhancement)
+
     close_enh_parser = dev_subparsers.add_parser(
         "close-enhancement",
-        help="Mark an enhancement as done",
+        help="Mark an enhancement as done (no PR link; prefer complete-enhancement)",
     )
     close_enh_parser.add_argument("id", help="Enhancement ID (e.g. enh_001)")
     close_enh_parser.set_defaults(func=cmd_dev_close_enhancement)
+
+    complete_enh_parser = dev_subparsers.add_parser(
+        "complete-enhancement",
+        help="Mark an enhancement done and link the GitHub PR",
+    )
+    complete_enh_parser.add_argument("id", help="Enhancement ID (e.g. enh_001)")
+    complete_enh_parser.add_argument(
+        "--pr-url",
+        default="",
+        help="PR URL (default: current branch via gh pr view)",
+    )
+    complete_enh_parser.set_defaults(func=cmd_dev_complete_enhancement)
+
+    pr_title_parser = dev_subparsers.add_parser(
+        "enhancement-pr-title",
+        help="Print the standard PR title for an enhancement",
+    )
+    pr_title_parser.add_argument("id", help="Enhancement ID (e.g. enh_001)")
+    pr_title_parser.set_defaults(func=cmd_dev_enhancement_pr_title)
 
     spawn_workers_parser = dev_subparsers.add_parser(
         "spawn-enhancement-workers",
@@ -1016,28 +1042,38 @@ def cmd_dev_list_enhancements(args: argparse.Namespace) -> int:
         title = entry.get("title", "")
         status = entry.get("status", "open")
         status_tag = f" [{status}]" if status != "open" else ""
-        print(f"{eid} [{area}] {title}{status_tag}")
+        pr_url = entry.get("pr_url", "")
+        pr_tag = f" → {pr_url}" if pr_url else ""
+        print(f"{eid} [{area}] {title}{status_tag}{pr_tag}")
     return 0
 
 
-def cmd_dev_show_enhancement(args: argparse.Namespace) -> int:
+def _print_enhancement_brief(eid: str, *, close_after: bool = False) -> int:
     from src.grocery_wizard.dev.enhancement_log import (
         close_enhancement,
         format_agent_prompt,
         get_enhancement,
     )
 
-    entry = get_enhancement(args.id)
+    entry = get_enhancement(eid)
     if entry is None:
-        print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
+        print(f"Enhancement '{eid}' not found.", file=sys.stderr)
         return 1
 
     print(format_agent_prompt(entry))
 
-    if args.close:
-        close_enhancement(args.id)
-        print(f"\nMarked {args.id} as done.")
+    if close_after:
+        close_enhancement(eid)
+        print(f"\nMarked {eid} as done.")
     return 0
+
+
+def cmd_dev_show_enhancement(args: argparse.Namespace) -> int:
+    return _print_enhancement_brief(args.id, close_after=args.close)
+
+
+def cmd_dev_work_on_enhancement(args: argparse.Namespace) -> int:
+    return _print_enhancement_brief(args.id, close_after=False)
 
 
 def cmd_dev_close_enhancement(args: argparse.Namespace) -> int:
@@ -1047,7 +1083,61 @@ def cmd_dev_close_enhancement(args: argparse.Namespace) -> int:
     if not found:
         print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
         return 1
-    print(f"Marked {args.id} as done.")
+    print(f"Marked {args.id} as done (no PR linked). Prefer: dev complete-enhancement {args.id}")
+    return 0
+
+
+def _gh_pr_url_for_current_branch() -> str | None:
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", "--json", "url", "-q", ".url"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return None
+    if result.returncode != 0:
+        return None
+    url = result.stdout.strip()
+    return url or None
+
+
+def cmd_dev_enhancement_pr_title(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.dev.enhancement_log import format_pr_title, get_enhancement
+
+    entry = get_enhancement(args.id)
+    if entry is None:
+        print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
+        return 1
+    print(format_pr_title(entry))
+    return 0
+
+
+def cmd_dev_complete_enhancement(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.dev.enhancement_log import complete_enhancement, get_enhancement
+
+    entry = get_enhancement(args.id)
+    if entry is None:
+        print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
+        return 1
+
+    pr_url = (args.pr_url or "").strip()
+    if not pr_url:
+        pr_url = _gh_pr_url_for_current_branch() or ""
+    if not pr_url:
+        print(
+            "Could not resolve PR URL. Pass --pr-url, or open a PR on this branch (gh).",
+            file=sys.stderr,
+        )
+        return 1
+
+    if not complete_enhancement(args.id, pr_url=pr_url):
+        print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
+        return 1
+    print(f"Marked {args.id} as done. PR: {pr_url}")
     return 0
 
 
