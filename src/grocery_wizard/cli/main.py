@@ -1128,7 +1128,10 @@ def cmd_dev_close_enhancement(args: argparse.Namespace) -> int:
     if not found:
         print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
         return 1
-    print(f"Marked {args.id} as done (no PR linked).")
+    print(
+        f"Closed enhancement #{args.id} on GitHub. "
+        "Normal ship path: merge a PR whose body includes `Closes #N`."
+    )
     return 0
 
 

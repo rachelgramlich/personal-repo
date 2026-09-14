@@ -257,6 +257,7 @@ def create_issue(
 
 
 def close_issue(raw_id: str, *, pr_url: str | None = None) -> bool:
+    """Close a backlog issue via ``gh`` (``dev close-enhancement``; JSONL import when done)."""
     entry = get_issue(raw_id)
     if entry is None:
         return False
