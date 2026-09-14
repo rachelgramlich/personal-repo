@@ -54,7 +54,7 @@ DEFAULT_NYT_SYNCED_COLUMN = "Synced from NYT recipe box"
 class NotionRecipesDB:
     def __init__(self, config: Config) -> None:
         self._client = Client(auth=config.notion_api_key)
-        self._database_id = config.notion_database_id
+        self._database_id = config.notion_recipe_database_id
         self._config = config
         self._data_source_id = self._resolve_data_source_id()
         self.schema = self._load_schema()

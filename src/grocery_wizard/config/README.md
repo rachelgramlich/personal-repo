@@ -43,6 +43,6 @@ Pantry edits from the UI similarly distinguish one-off vs changing the saved sta
 
 ## Notion env (recipes today; more when implemented)
 
-Required today: `NOTION_API_KEY`, `NOTION_DATABASE_ID` (Recipes).
+Required today: `NOTION_API_KEY`, `NOTION_RECIPE_DATABASE_ID` (Recipes). `NOTION_DATABASE_ID` is still accepted as a legacy alias.
 
-Planned optional IDs (names may change in code): pantry, recurring, and weekly-plans databases — same integration as recipes, so cloud agents can read/write without git.
+Optional (Notion backends for #96): `NOTION_PANTRY_DATABASE_ID`, `NOTION_RECURRING_WEEKLY_DATABASE_ID`, `NOTION_WEEKLY_MEAL_PLANS_DATABASE_ID` — same integration as recipes.

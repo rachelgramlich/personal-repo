@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field, ValidationError, field_validator
+from pydantic import AliasChoices, Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent
@@ -38,7 +38,21 @@ class Config(BaseSettings):
     )
 
     notion_api_key: str = Field(validation_alias="NOTION_API_KEY")
-    notion_database_id: str = Field(validation_alias="NOTION_DATABASE_ID")
+    notion_recipe_database_id: str = Field(
+        validation_alias=AliasChoices("NOTION_RECIPE_DATABASE_ID", "NOTION_DATABASE_ID"),
+    )
+    notion_pantry_database_id: str | None = Field(
+        default=None,
+        validation_alias="NOTION_PANTRY_DATABASE_ID",
+    )
+    notion_recurring_weekly_database_id: str | None = Field(
+        default=None,
+        validation_alias="NOTION_RECURRING_WEEKLY_DATABASE_ID",
+    )
+    notion_weekly_meal_plans_database_id: str | None = Field(
+        default=None,
+        validation_alias="NOTION_WEEKLY_MEAL_PLANS_DATABASE_ID",
+    )
     default_meals: int = Field(default=7, validation_alias="GROCERY_WIZARD_DEFAULT_MEALS")
     notion_data_source_id: str | None = Field(
         default=None,
@@ -57,7 +71,10 @@ class Config(BaseSettings):
 
     @field_validator(
         "notion_api_key",
-        "notion_database_id",
+        "notion_recipe_database_id",
+        "notion_pantry_database_id",
+        "notion_recurring_weekly_database_id",
+        "notion_weekly_meal_plans_database_id",
         "notion_data_source_id",
         "name_column",
         "link_column",
@@ -79,11 +96,13 @@ class Config(BaseSettings):
             raise ValueError("NOTION_API_KEY is required (set in .env or Cloud Agent Secrets)")
         return value
 
-    @field_validator("notion_database_id")
+    @field_validator("notion_recipe_database_id")
     @classmethod
-    def _require_database_id(cls, value: str | None) -> str:
+    def _require_recipe_database_id(cls, value: str | None) -> str:
         if not value:
-            raise ValueError("NOTION_DATABASE_ID is required (set in .env or Cloud Agent Secrets)")
+            raise ValueError(
+                "NOTION_RECIPE_DATABASE_ID is required (set in .env or Cloud Agent Secrets)"
+            )
         return value
 
 
@@ -98,8 +117,8 @@ def load_config() -> Config:
                 raise ValueError(
                     "NOTION_API_KEY is required (set in .env or Cloud Agent Secrets)"
                 ) from exc
-            if "notion_database_id" in loc:
+            if "notion_recipe_database_id" in loc:
                 raise ValueError(
-                    "NOTION_DATABASE_ID is required (set in .env or Cloud Agent Secrets)"
+                    "NOTION_RECIPE_DATABASE_ID is required (set in .env or Cloud Agent Secrets)"
                 ) from exc
         raise
