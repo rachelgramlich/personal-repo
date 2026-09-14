@@ -34,11 +34,15 @@ from src.grocery_wizard.planning.meal_planner import (
     save_week_plan,
     suggest_meals,
 )
+from src.grocery_wizard.planning.saved_weekly_plans import (
+    append_saved_plan,
+    list_saved_plans,
+    load_plan_recipes,
+)
 from src.grocery_wizard.recipes.classify import classify_recipe
 from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text, scrape_recipe
 from src.grocery_wizard.recipes.weeknight import DEFAULT_WEEKNIGHT_COLUMN
 from src.grocery_wizard.shopping.grocery_list import (
-    _load_week_plan_names,
     build_grocery_list,
     format_item_provenance,
     format_meals_and_grocery_list,
@@ -674,6 +678,105 @@ def _clear_grocery_result() -> None:
             st.session_state.pop(key, None)
 
 
+_WEEKLY_PLAN_MODES = ("new", "saved", "dev")
+
+
+def _reset_weekly_plan_workflow(*, clear_mode: bool = False) -> None:
+    """Clear meal-plan and grocery state for a fresh weekly-plan session."""
+    for key in (
+        "plan_meals_text",
+        "plan_rejected_names",
+        "plan_locked_recipes",
+        "weekly_plan_loaded_slug",
+    ):
+        st.session_state.pop(key, None)
+    if clear_mode:
+        st.session_state.pop("weekly_plan_mode", None)
+    _clear_grocery_result()
+
+
+def _weekly_plan_mode() -> str | None:
+    mode = st.session_state.get("weekly_plan_mode")
+    return mode if mode in _WEEKLY_PLAN_MODES else None
+
+
+def _persist_weekly_plan_if_needed(recipe_names: list[str]) -> None:
+    """Save meal selections to repo CSV and local week plan unless in dev/saved-only mode."""
+    mode = _weekly_plan_mode()
+    if mode == "new":
+        append_saved_plan(recipe_names)
+        save_week_plan(recipe_names, WEEK_PLAN_PATH)
+    elif mode in ("dev", "saved"):
+        return
+    else:
+        save_week_plan(recipe_names, WEEK_PLAN_PATH)
+
+
+def _render_weekly_plan_entry() -> bool:
+    """Prompt for new / saved / dev mode. Returns True when the user may continue planning."""
+    mode = _weekly_plan_mode()
+    if mode is not None:
+        labels = {
+            "new": "New weekly plan",
+            "saved": "Continue from a saved plan",
+            "dev": "Dev mode (do not save)",
+        }
+        loaded = st.session_state.get("weekly_plan_loaded_slug")
+        detail = f" — loaded **{loaded}**" if mode == "saved" and loaded else ""
+        st.info(f"**{labels[mode]}**{detail}")
+        if st.button("Change how I started", key="weekly_plan_change_mode"):
+            _reset_weekly_plan_workflow(clear_mode=True)
+            st.rerun()
+        return True
+
+    st.markdown("### How do you want to start?")
+    choice = st.radio(
+        "Weekly plan session",
+        options=_WEEKLY_PLAN_MODES,
+        format_func=lambda value: {
+            "new": "Start a new list (saved to the repo when you create your grocery list)",
+            "saved": "Start from a saved list (recipes only — grocery list is not saved)",
+            "dev": "Dev mode (nothing saved)",
+        }[value],
+        key="weekly_plan_mode_choice",
+        label_visibility="collapsed",
+    )
+
+    saved_plans = list_saved_plans()
+    selected_slug: str | None = None
+    if choice == "saved":
+        if not saved_plans:
+            st.warning("No saved weekly plans yet. Start a new list first.")
+        else:
+            options = [plan.slug for plan in saved_plans]
+            def _saved_plan_label(slug: str) -> str:
+                for plan in saved_plans:
+                    if plan.slug == slug:
+                        return f"{plan.name} ({len(plan.recipes)} meals)"
+                return slug
+
+            selected_slug = st.selectbox(
+                "Saved plan",
+                options,
+                format_func=_saved_plan_label,
+                key="weekly_plan_saved_slug_pick",
+            )
+
+    if st.button("Continue", type="primary", key="weekly_plan_mode_continue"):
+        if choice == "saved" and not saved_plans:
+            return False
+        st.session_state.weekly_plan_mode = choice
+        _reset_weekly_plan_workflow(clear_mode=False)
+        if choice == "saved" and selected_slug:
+            st.session_state.plan_meals_text = "\n".join(load_plan_recipes(selected_slug))
+            st.session_state.weekly_plan_loaded_slug = selected_slug
+        elif choice in ("new", "dev"):
+            st.session_state.plan_meals_text = ""
+        st.rerun()
+
+    return False
+
+
 def _invalidate_stale_grocery_result() -> None:
     """Drop cached grocery results when the meal plan has changed."""
     result = st.session_state.get("grocery_result")
@@ -802,15 +905,17 @@ def render_create_weekly_plan() -> None:
 
     _invalidate_stale_grocery_result()
 
+    if not _render_weekly_plan_entry():
+        return
+
     db = get_db()
     schema = db.schema
     config = load_config()
     all_recipes = db.query_recipes()
     recipe_names = [recipe.name for recipe in all_recipes]
 
-    week_plan_names = _load_week_plan_names(WEEK_PLAN_PATH)
     if "plan_meals_text" not in st.session_state:
-        st.session_state.plan_meals_text = "\n".join(week_plan_names)
+        st.session_state.plan_meals_text = ""
 
     st.markdown("### 1. Meals")
     meal_count = st.number_input(
@@ -947,7 +1052,7 @@ def render_create_weekly_plan() -> None:
     )
 
     if st.button("Create grocery list", type="primary", key="create_grocery"):
-        save_week_plan(current_plan, WEEK_PLAN_PATH)
+        _persist_weekly_plan_if_needed(current_plan)
         _clear_grocery_result()
         _start_recipe_review(
             db,
