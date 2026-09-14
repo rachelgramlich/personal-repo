@@ -217,10 +217,6 @@ def _issue_to_entry(issue: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _repo_slug() -> str:
-    return _run_gh(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).strip()
-
-
 def _search_backlog_issues(*, state: str) -> list[dict[str, Any]]:
     """state: ``open`` or ``closed`` (``gh issue list --search`` on current repo)."""
     if state not in {"open", "closed"}:
@@ -328,8 +324,6 @@ def create_issue(
             issue_title,
             "--body",
             body,
-            "--template",
-            FEATURE_ISSUE_TEMPLATE,
         ]
     )
     entry = _issue_to_entry(_view_issue(_issue_number_from_url(url)))
@@ -370,8 +364,6 @@ def create_bug_issue(
             body,
             "--label",
             "bug",
-            "--template",
-            BUG_ISSUE_TEMPLATE,
         ]
     )
     return json.loads(
