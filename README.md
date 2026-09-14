@@ -18,4 +18,8 @@
    just setup
    ```
 
+## Cursor (optional)
+
+The `.cursor/` folder is **local only** (gitignored). To use enhancement backlog slash commands in Agent chat, copy templates from [docs/cursor-commands/](docs/cursor-commands/README.md) into `.cursor/commands/`. The CLI (`uv run python -m src.grocery_wizard dev …`) works without Cursor.
+
 # Execution

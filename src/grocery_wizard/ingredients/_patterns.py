@@ -232,6 +232,8 @@ _JUNK_ONLY_PHRASES = frozenset(
         "leaves and tender stems",
         "stems and leaves",
         "boiling water",
+        # Bare "juice" with no qualifier is meaningless as a grocery item
+        "juice",
     }
 )
 
