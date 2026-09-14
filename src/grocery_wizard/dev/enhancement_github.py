@@ -222,13 +222,15 @@ def _repo_slug() -> str:
 
 
 def _search_backlog_issues(*, state: str) -> list[dict[str, Any]]:
-    """state: ``open`` or ``closed`` (gh search issues)."""
-    repo = _repo_slug()
+    """state: ``open`` or ``closed`` (``gh issue list --search`` on current repo)."""
+    if state not in {"open", "closed"}:
+        raise ValueError(f"unsupported search state {state!r}")
     raw = _run_gh(
         [
-            "search",
-            "issues",
-            f'repo:{repo} "Grocery Wizard" in:title',
+            "issue",
+            "list",
+            "--search",
+            "Grocery Wizard in:title",
             "--state",
             state,
             "--limit",
