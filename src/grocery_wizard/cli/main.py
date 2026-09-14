@@ -308,6 +308,24 @@ def main(argv: list[str] | None = None) -> int:
     close_enh_parser.add_argument("id", help="Enhancement ID (e.g. enh_001)")
     close_enh_parser.set_defaults(func=cmd_dev_close_enhancement)
 
+    spawn_workers_parser = dev_subparsers.add_parser(
+        "spawn-enhancement-workers",
+        help="List spawn specs for parallel workers (one per open enhancement)",
+    )
+    spawn_workers_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="output_json",
+        help="Output JSON array of spawn specs (agent_message + full prompt)",
+    )
+    spawn_workers_parser.set_defaults(func=cmd_dev_spawn_enhancement_workers)
+
+    install_cursor_parser = dev_subparsers.add_parser(
+        "install-cursor-commands",
+        help="Write enhancement backlog slash commands to .cursor/commands/ (local only)",
+    )
+    install_cursor_parser.set_defaults(func=cmd_dev_install_cursor_commands)
+
     nyt_parser = subparsers.add_parser(
         "nyt",
         help="NYT Cooking integration (saved recipes, sync to Notion)",
@@ -1030,6 +1048,44 @@ def cmd_dev_close_enhancement(args: argparse.Namespace) -> int:
         print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
         return 1
     print(f"Marked {args.id} as done.")
+    return 0
+
+
+def cmd_dev_spawn_enhancement_workers(args: argparse.Namespace) -> int:
+    import json as _json
+
+    from src.grocery_wizard.dev.enhancement_log import list_worker_spawns
+
+    specs = list_worker_spawns()
+    if args.output_json:
+        print(_json.dumps(specs, indent=2))
+        return 0
+
+    if not specs:
+        print("No open enhancements — nothing to spawn.")
+        return 0
+
+    print(f"Spawn {len(specs)} worker(s) (one per open enhancement):\n")
+    for spec in specs:
+        eid = spec.get("id", "?")
+        title = spec.get("title", "")
+        branch = spec.get("branch", "")
+        message = spec.get("agent_message", "")
+        print(f"{eid} [{spec.get('area', 'other')}] {title}")
+        print(f"  branch: {branch}")
+        print(f"  Cloud Agent first message: {message}")
+        print()
+    return 0
+
+
+def cmd_dev_install_cursor_commands(_args: argparse.Namespace) -> int:
+    from src.grocery_wizard.dev.install_cursor_commands import install_cursor_commands
+
+    repo_root = install_cursor_commands()
+    print(
+        f"Installed to {repo_root}/.cursor/commands/ — "
+        "use /add-enhancement, /list-enhancements, /work-on-enhancement, /work-all-enhancements"
+    )
     return 0
 
 
