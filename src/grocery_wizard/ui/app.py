@@ -15,7 +15,6 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from src.grocery_wizard.config import WEEK_PLAN_PATH, load_config
 from src.grocery_wizard.dev.edit_log import log_ingredient_edits
@@ -80,7 +79,7 @@ def _meal_entries_with_links(
 
 def _render_copy_button(text: str, *, label: str = "Copy list", key: str) -> None:
     """One-click copy for the final grocery list (falls back to manual copy on HTTP)."""
-    components.html(
+    st.iframe(
         f"""
         <div style="display:flex; align-items:center; gap:0.5rem;">
           <button id="btn_{key}" style="
