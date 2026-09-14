@@ -39,6 +39,10 @@ def test_weekly_plan_build_shows_per_meal_swap_and_edit_manually() -> None:
     at = AppTest.from_file(APP_FILE, default_timeout=60)
     at.run(timeout=60)
 
+    continue_buttons = [b for b in at.button if b.label == "Continue"]
+    assert continue_buttons, "Weekly plan entry Continue button missing"
+    continue_buttons[0].click().run(timeout=60)
+
     build_buttons = [b for b in at.button if b.label == "Build my plan"]
     assert build_buttons, "Build my plan button missing"
     build_buttons[0].click().run(timeout=60)
