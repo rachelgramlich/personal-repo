@@ -12,7 +12,6 @@ __all__ = [
 ]
 
 import json
-import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -134,16 +133,6 @@ def close_enhancement(eid: str, *, path: Path = ENHANCEMENT_LOG_PATH) -> bool:
     return found
 
 
-def title_to_branch_slug(title: str, *, max_len: int = 40) -> str:
-    """Derive a git branch slug from an enhancement title."""
-    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
-    if not slug:
-        slug = "enhancement"
-    if len(slug) > max_len:
-        slug = slug[:max_len].rstrip("-")
-    return slug
-
-
 def format_agent_prompt(entry: dict) -> str:
     """Return a ready-to-paste agent prompt for the given enhancement entry."""
     area = entry.get("area", "other")
@@ -153,20 +142,14 @@ def format_agent_prompt(entry: dict) -> str:
     else:
         files_text = "  (no specific files mapped for this area)"
 
-    title = entry.get("title", "")
-    eid = entry.get("id", "")
-    slug = title_to_branch_slug(title)
-    branch = f"cursor/{slug}-21af"
-
     boilerplate = (
-        "You are working in the grocery_wizard repo. "
+        "You are working in `/workspace` on branch `main`. "
         "Read the relevant files first, then implement the following enhancement:"
     )
     lines = [
         boilerplate,
         "",
-        f"**ID:** {eid}",
-        f"**Title:** {title}",
+        f"**Title:** {entry.get('title', '')}",
     ]
     desc = entry.get("description", "").strip()
     if desc:
@@ -178,10 +161,6 @@ def format_agent_prompt(entry: dict) -> str:
         "**Relevant files to read first:**",
         files_text,
         "",
-        "**Git workflow:**",
-        f"- Fetch `origin/main`, then create branch `{branch}` off `main`.",
-        "- Implement with focused commits; run `uv run ruff check` on touched Python.",
-        "- Push and open or update a PR; link the enhancement ID in the description.",
-        f"- When done, run: `uv run python -m src.grocery_wizard dev close-enhancement {eid}`",
+        "**Branch:** create a new branch off `main` for this work.",
     ]
     return "\n".join(lines)
