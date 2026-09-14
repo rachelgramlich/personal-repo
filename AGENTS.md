@@ -2,13 +2,16 @@
 
 ## Enhancement backlog
 
-- **File (committed):** `src/grocery_wizard/dev/enhancements.jsonl`
+- **Storage:** GitHub Issues with label `grocery-wizard-enhancement` (area labels `gw-area-*`).
 - **List open items:** `uv run python -m src.grocery_wizard dev list-enhancements`
 - **Implement one item:** `uv run python -m src.grocery_wizard dev work-on-enhancement <ID>`
   - Same as `dev show-enhancement <ID>` — prints the full implementation + ship checklist.
-- **Add an item:** `uv run python -m src.grocery_wizard dev add-enhancement --title "…"`
+  - `<ID>` is `enh_001` style or a GitHub issue number (`84` / `#84`).
+- **Add an item:** `uv run python -m src.grocery_wizard dev add-enhancement --title "…"` (requires `gh`).
 
-When shipping an enhancement, the agent must set the PR title via `dev enhancement-pr-title <ID>` and run `dev complete-enhancement <ID>` so the backlog records the PR URL. Do not ask the user to run `close-enhancement` or edit the JSONL by hand.
+When shipping an enhancement, the agent must set the PR title via `dev enhancement-pr-title <ID>` and run `dev complete-enhancement <ID>` to close the issue and link the PR. Do not ask the user to close issues by hand.
+
+Legacy JSONL (if any) can be imported once: `dev migrate-enhancements-to-github`.
 
 ### Cursor slash commands
 

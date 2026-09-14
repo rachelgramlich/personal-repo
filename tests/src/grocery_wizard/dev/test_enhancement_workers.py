@@ -36,7 +36,11 @@ def test_spawn_cli_json(tmp_path: Path, monkeypatch) -> None:
 
     log = tmp_path / "enhancements.jsonl"
     add_enhancement("CLI spawn test", path=log)
-    monkeypatch.setattr(enhancement_log, "ENHANCEMENT_LOG_PATH", log)
+    monkeypatch.setattr(
+        enhancement_log,
+        "list_worker_spawns",
+        lambda **kw: list_worker_spawns(path=log),
+    )
 
     buf = io.StringIO()
     monkeypatch.setattr(sys, "stdout", buf)

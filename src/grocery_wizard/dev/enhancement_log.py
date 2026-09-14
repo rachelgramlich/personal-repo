@@ -1,10 +1,9 @@
-"""Local enhancement backlog — store and retrieve feature ideas for later agent use."""
+"""Enhancement backlog — GitHub Issues (default) or JSONL file (tests only)."""
 
 from __future__ import annotations
 
 __all__ = [
     "AREA_FILES",
-    "ENHANCEMENT_LOG_PATH",
     "add_enhancement",
     "close_enhancement",
     "complete_enhancement",
@@ -13,16 +12,19 @@ __all__ = [
     "get_enhancement",
     "list_enhancements",
     "list_worker_spawns",
+    "migrate_jsonl_to_github",
 ]
 
 import json
 import re
-import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
-ENHANCEMENT_LOG_PATH = Path("src/grocery_wizard/dev/enhancements.jsonl")
-_LEGACY_ENHANCEMENT_LOG_PATH = Path(".local/grocery_wizard/enhancements.jsonl")
+from src.grocery_wizard.dev import enhancement_github as gh
+
+# Legacy paths for one-time migration and tests (not the committed backlog).
+_LEGACY_COMMITTED_JSONL = Path("src/grocery_wizard/dev/enhancements.jsonl")
+_LEGACY_LOCAL_JSONL = Path(".local/grocery_wizard/enhancements.jsonl")
 
 AREA_FILES: dict[str, list[str]] = {
     "ui": ["src/grocery_wizard/ui/app.py"],
@@ -45,21 +47,7 @@ AREA_FILES: dict[str, list[str]] = {
 VALID_AREAS = list(AREA_FILES.keys())
 
 
-def _resolve_log_path(path: Path) -> Path:
-    """Use committed backlog; one-time copy from legacy ``.local/`` if needed."""
-    if path != ENHANCEMENT_LOG_PATH:
-        return path
-    if ENHANCEMENT_LOG_PATH.exists():
-        return ENHANCEMENT_LOG_PATH
-    legacy = _LEGACY_ENHANCEMENT_LOG_PATH
-    if legacy.exists() and legacy.stat().st_size > 0:
-        ENHANCEMENT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(legacy, ENHANCEMENT_LOG_PATH)
-    return ENHANCEMENT_LOG_PATH
-
-
-def _load_all(path: Path) -> list[dict]:
-    path = _resolve_log_path(path)
+def _load_all_file(path: Path) -> list[dict]:
     if not path.exists() or path.stat().st_size == 0:
         return []
     entries = []
@@ -75,15 +63,14 @@ def _load_all(path: Path) -> list[dict]:
     return entries
 
 
-def _save_all(entries: list[dict], path: Path) -> None:
-    path = _resolve_log_path(path)
+def _save_all_file(entries: list[dict], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         for entry in entries:
             f.write(json.dumps(entry) + "\n")
 
 
-def _next_id(entries: list[dict]) -> str:
+def _next_id_file(entries: list[dict]) -> str:
     max_num = 0
     for entry in entries:
         eid = entry.get("id", "")
@@ -96,16 +83,14 @@ def _next_id(entries: list[dict]) -> str:
     return f"enh_{max_num + 1:03d}"
 
 
-def add_enhancement(
+def _add_enhancement_file(
     title: str,
-    description: str = "",
-    area: str = "other",
-    *,
-    path: Path = ENHANCEMENT_LOG_PATH,
+    description: str,
+    area: str,
+    path: Path,
 ) -> str:
-    """Append a new enhancement entry and return its assigned ID."""
-    entries = _load_all(path)
-    new_id = _next_id(entries)
+    entries = _load_all_file(path)
+    new_id = _next_id_file(entries)
     entry = {
         "id": new_id,
         "timestamp": datetime.now(UTC).isoformat(),
@@ -115,40 +100,69 @@ def add_enhancement(
         "area": area,
         "tags": [],
     }
-    path = _resolve_log_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
     return new_id
 
 
+def add_enhancement(
+    title: str,
+    description: str = "",
+    area: str = "other",
+    *,
+    path: Path | None = None,
+) -> str:
+    """Create a backlog item; returns enhancement ID (e.g. enh_003)."""
+    return create_enhancement(title, description, area, path=path)["id"]
+
+
+def create_enhancement(
+    title: str,
+    description: str = "",
+    area: str = "other",
+    *,
+    path: Path | None = None,
+) -> dict:
+    """Create a backlog item; returns entry metadata (includes ``issue_url`` on GitHub)."""
+    if path is not None:
+        new_id = _add_enhancement_file(title, description, area, path)
+        entry = get_enhancement(new_id, path=path)
+        return entry or {"id": new_id, "title": title, "area": area}
+    gh.ensure_labels()
+    entry = gh.create_issue(title, description, area)
+    if not entry.get("id"):
+        raise RuntimeError("GitHub issue created but enhancement ID missing from body.")
+    return entry
+
+
 def list_enhancements(
     *,
     include_closed: bool = False,
-    path: Path = ENHANCEMENT_LOG_PATH,
+    path: Path | None = None,
 ) -> list[dict]:
-    """Return enhancements newest-first, optionally including closed/done ones."""
-    entries = _load_all(path)
-    if not include_closed:
-        entries = [e for e in entries if e.get("status") == "open"]
-    return list(reversed(entries))
+    if path is not None:
+        entries = _load_all_file(path)
+        if not include_closed:
+            entries = [e for e in entries if e.get("status") == "open"]
+        return list(reversed(entries))
+    return gh.list_issues(include_closed=include_closed)
 
 
-def get_enhancement(eid: str, *, path: Path = ENHANCEMENT_LOG_PATH) -> dict | None:
-    """Return a single enhancement by ID, or None if not found."""
-    for entry in _load_all(path):
-        if entry.get("id") == eid:
-            return entry
-    return None
+def get_enhancement(eid: str, *, path: Path | None = None) -> dict | None:
+    if path is not None:
+        for entry in _load_all_file(path):
+            if entry.get("id") == eid:
+                return entry
+        return None
+    return gh.get_issue(eid)
 
 
-def close_enhancement(eid: str, *, path: Path = ENHANCEMENT_LOG_PATH) -> bool:
-    """Set status to 'done' without a PR link. Prefer complete_enhancement when shipping."""
+def close_enhancement(eid: str, *, path: Path | None = None) -> bool:
     return complete_enhancement(eid, pr_url=None, path=path)
 
 
 def format_pr_title(entry: dict, *, max_len: int = 256) -> str:
-    """GitHub PR title: ``{enh_id}: {title}`` (truncated to GitHub's limit)."""
     eid = entry.get("id") or "enh_???"
     title = (entry.get("title") or "").strip()
     prefix = f"{eid}: "
@@ -164,26 +178,26 @@ def complete_enhancement(
     eid: str,
     *,
     pr_url: str | None = None,
-    path: Path = ENHANCEMENT_LOG_PATH,
+    path: Path | None = None,
 ) -> bool:
-    """Mark done; optionally store ``pr_url`` and ``completed_at``. Returns True if updated."""
-    entries = _load_all(path)
-    found = False
-    for entry in entries:
-        if entry.get("id") == eid:
-            entry["status"] = "done"
-            entry["completed_at"] = datetime.now(UTC).isoformat()
-            if pr_url:
-                entry["pr_url"] = pr_url.strip()
-            found = True
-            break
-    if found:
-        _save_all(entries, path)
-    return found
+    if path is not None:
+        entries = _load_all_file(path)
+        found = False
+        for entry in entries:
+            if entry.get("id") == eid:
+                entry["status"] = "done"
+                entry["completed_at"] = datetime.now(UTC).isoformat()
+                if pr_url:
+                    entry["pr_url"] = pr_url.strip()
+                found = True
+                break
+        if found:
+            _save_all_file(entries, path)
+        return found
+    return gh.close_issue(eid, pr_url=pr_url)
 
 
 def title_to_branch_slug(title: str, *, max_len: int = 40) -> str:
-    """Derive a git branch slug from an enhancement title."""
     slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
     if not slug:
         slug = "enhancement"
@@ -193,27 +207,24 @@ def title_to_branch_slug(title: str, *, max_len: int = 40) -> str:
 
 
 def format_worker_spawn_message(entry: dict) -> str:
-    """First user message to start a dedicated agent run for one backlog item."""
-    eid = entry.get("id", "")
+    eid = entry.get("id") or str(entry.get("issue_number") or "")
     title = entry.get("title", "").strip()
-    if title:
+    if title and eid:
         return f"/work-on-enhancement {eid} — {title}"
-    return f"/work-on-enhancement {eid}"
+    if eid:
+        return f"/work-on-enhancement {eid}"
+    return "/work-on-enhancement"
 
 
-def list_worker_spawns(
-    *,
-    path: Path | None = None,
-) -> list[dict]:
-    """One spawn spec per open enhancement (newest-first, same order as list_enhancements)."""
-    log_path = ENHANCEMENT_LOG_PATH if path is None else path
+def list_worker_spawns(*, path: Path | None = None) -> list[dict]:
     specs: list[dict] = []
-    for entry in list_enhancements(path=log_path):
+    for entry in list_enhancements(path=path):
         title = entry.get("title", "")
         slug = title_to_branch_slug(title)
+        eid = entry.get("id") or entry.get("issue_number")
         specs.append(
             {
-                "id": entry.get("id"),
+                "id": eid,
                 "title": title,
                 "area": entry.get("area", "other"),
                 "branch": f"cursor/{slug}-21af",
@@ -225,7 +236,6 @@ def list_worker_spawns(
 
 
 def format_agent_prompt(entry: dict) -> str:
-    """Return a ready-to-paste agent prompt for the given enhancement entry."""
     area = entry.get("area", "other")
     files = AREA_FILES.get(area, [])
     if files:
@@ -234,7 +244,8 @@ def format_agent_prompt(entry: dict) -> str:
         files_text = "  (no specific files mapped for this area)"
 
     title = entry.get("title", "")
-    eid = entry.get("id", "")
+    eid = entry.get("id") or entry.get("issue_number") or ""
+    issue_ref = entry.get("issue_url") or ""
     slug = title_to_branch_slug(title)
     branch = f"cursor/{slug}-21af"
 
@@ -248,6 +259,8 @@ def format_agent_prompt(entry: dict) -> str:
         f"**ID:** {eid}",
         f"**Title:** {title}",
     ]
+    if issue_ref:
+        lines.append(f"**GitHub issue:** {issue_ref}")
     desc = entry.get("description", "").strip()
     if desc:
         lines += ["", "**Description:**", desc]
@@ -263,12 +276,65 @@ def format_agent_prompt(entry: dict) -> str:
         "- Implement with focused commits; run `uv run ruff check` on touched Python.",
         "",
         "**Ship (you must do this — user does not manage the backlog):**",
-        f"- PR title: `… dev enhancement-pr-title {eid}` → use output as GitHub PR title.",
+        f"- PR title: `uv run python -m src.grocery_wizard dev enhancement-pr-title {eid}`",
         "- Push; create or update the PR for this branch.",
-        f"- Done + PR link: `… dev complete-enhancement {eid}` (`gh pr view` or `--pr-url`).",
-        f"- Verify: `… dev list-enhancements --all` shows {eid} [done] and PR URL.",
+        (
+            f"- Close issue + link PR: "
+            f"`uv run python -m src.grocery_wizard dev complete-enhancement {eid}`"
+        ),
+        (
+            "- Verify: `uv run python -m src.grocery_wizard dev list-enhancements --all` "
+            "shows the issue closed."
+        ),
         "",
-        "Full commands use: uv run python -m src.grocery_wizard",
         "More: .cursor/commands/work-on-enhancement.md",
     ]
     return "\n".join(lines)
+
+
+def _jsonl_migration_paths() -> list[Path]:
+    return [
+        p
+        for p in (_LEGACY_COMMITTED_JSONL, _LEGACY_LOCAL_JSONL)
+        if p.exists() and p.stat().st_size > 0
+    ]
+
+
+def migrate_jsonl_to_github(*, dry_run: bool = False) -> list[dict]:
+    """Import legacy JSONL rows into GitHub Issues; returns created issue summaries."""
+    gh.ensure_labels()
+    created: list[dict] = []
+    seen_ids: set[str] = set()
+    for path in _jsonl_migration_paths():
+        for row in _load_all_file(path):
+            eid = row.get("id") or ""
+            if not eid or eid in seen_ids:
+                continue
+            seen_ids.add(eid)
+            if gh.get_issue(eid) is not None:
+                continue
+            title = row.get("title") or eid
+            description = row.get("description") or ""
+            area = row.get("area") or "other"
+            if area not in VALID_AREAS:
+                area = "other"
+            if dry_run:
+                created.append({"id": eid, "title": title, "dry_run": True})
+                continue
+            issue = gh.create_issue(
+                title,
+                description,
+                area,
+                enh_id=eid,
+                closed=row.get("status") == "done",
+                pr_url=row.get("pr_url") or "",
+                completed_at=row.get("completed_at") or "",
+            )
+            created.append(
+                {
+                    "id": eid,
+                    "number": issue.get("issue_number"),
+                    "url": issue.get("issue_url"),
+                }
+            )
+    return created

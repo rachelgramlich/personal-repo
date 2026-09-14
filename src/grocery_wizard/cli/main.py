@@ -260,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
 
     add_enh_parser = dev_subparsers.add_parser(
         "add-enhancement",
-        help="Add a feature idea or fix to the local enhancement backlog",
+        help="Open a GitHub issue in the enhancement backlog",
     )
     add_enh_parser.add_argument("--title", help="Short one-liner title")
     add_enh_parser.add_argument("--description", default="", help="Longer freeform description")
@@ -273,7 +273,7 @@ def main(argv: list[str] | None = None) -> int:
 
     list_enh_parser = dev_subparsers.add_parser(
         "list-enhancements",
-        help="List open enhancements in the backlog",
+        help="List open enhancement issues (label grocery-wizard-enhancement)",
     )
     list_enh_parser.add_argument(
         "--all",
@@ -293,7 +293,10 @@ def main(argv: list[str] | None = None) -> int:
         "show-enhancement",
         help="Show a ready-to-paste agent prompt for an enhancement",
     )
-    show_enh_parser.add_argument("id", help="Enhancement ID (e.g. enh_001)")
+    show_enh_parser.add_argument(
+        "id",
+        help="Enhancement ID (enh_001) or GitHub issue number (#74 or 74)",
+    )
     show_enh_parser.add_argument(
         "--close",
         action="store_true",
@@ -305,7 +308,10 @@ def main(argv: list[str] | None = None) -> int:
         "work-on-enhancement",
         help="Full agent brief to implement an enhancement (alias of show-enhancement)",
     )
-    work_enh_parser.add_argument("id", help="Enhancement ID (e.g. enh_001)")
+    work_enh_parser.add_argument(
+        "id",
+        help="Enhancement ID (enh_001) or GitHub issue number (#74 or 74)",
+    )
     work_enh_parser.set_defaults(func=cmd_dev_work_on_enhancement)
 
     close_enh_parser = dev_subparsers.add_parser(
@@ -348,9 +354,20 @@ def main(argv: list[str] | None = None) -> int:
 
     install_cursor_parser = dev_subparsers.add_parser(
         "install-cursor-commands",
-        help="Write enhancement backlog slash commands to .cursor/commands/ (local only)",
+        help="Write enhancement slash commands to .cursor/commands/",
     )
     install_cursor_parser.set_defaults(func=cmd_dev_install_cursor_commands)
+
+    migrate_enh_parser = dev_subparsers.add_parser(
+        "migrate-enhancements-to-github",
+        help="One-time import from legacy enhancements.jsonl into GitHub Issues",
+    )
+    migrate_enh_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print what would be imported without creating issues",
+    )
+    migrate_enh_parser.set_defaults(func=cmd_dev_migrate_enhancements_to_github)
 
     nyt_parser = subparsers.add_parser(
         "nyt",
@@ -993,7 +1010,7 @@ def cmd_nyt_apply_metadata(args: argparse.Namespace) -> int:
 
 
 def cmd_dev_add_enhancement(args: argparse.Namespace) -> int:
-    from src.grocery_wizard.dev.enhancement_log import VALID_AREAS, add_enhancement
+    from src.grocery_wizard.dev.enhancement_log import VALID_AREAS, create_enhancement
 
     title: str = args.title or ""
     description: str = args.description or ""
@@ -1015,8 +1032,11 @@ def cmd_dev_add_enhancement(args: argparse.Namespace) -> int:
             print(f"Unknown area '{area}'. Choose from: {choices_str}", file=sys.stderr)
             return 1
 
-    eid = add_enhancement(title, description, area)
+    entry = create_enhancement(title, description, area)
+    eid = entry.get("id") or ""
     print(f"Added enhancement {eid}: {title}")
+    if entry.get("issue_url"):
+        print(entry["issue_url"])
     return 0
 
 
@@ -1039,12 +1059,16 @@ def cmd_dev_list_enhancements(args: argparse.Namespace) -> int:
     for entry in entries:
         area = entry.get("area", "other")
         eid = entry.get("id", "?")
+        num = entry.get("issue_number")
+        num_tag = f"#{num} " if num else ""
         title = entry.get("title", "")
         status = entry.get("status", "open")
         status_tag = f" [{status}]" if status != "open" else ""
+        issue_url = entry.get("issue_url", "")
         pr_url = entry.get("pr_url", "")
-        pr_tag = f" → {pr_url}" if pr_url else ""
-        print(f"{eid} [{area}] {title}{status_tag}{pr_tag}")
+        link = pr_url or issue_url
+        link_tag = f" → {link}" if link else ""
+        print(f"{num_tag}{eid} [{area}] {title}{status_tag}{link_tag}")
     return 0
 
 
@@ -1174,8 +1198,34 @@ def cmd_dev_install_cursor_commands(_args: argparse.Namespace) -> int:
     repo_root = install_cursor_commands()
     print(
         f"Installed to {repo_root}/.cursor/commands/ — "
-        "use /add-enhancement, /list-enhancements, /work-on-enhancement, /work-all-enhancements"
+        "use /add-enhancement, /list-enhancements, /work-on-enhancement"
     )
+    return 0
+
+
+def cmd_dev_migrate_enhancements_to_github(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.dev.enhancement_log import migrate_jsonl_to_github
+
+    try:
+        created = migrate_jsonl_to_github(dry_run=args.dry_run)
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    if not created:
+        print("Nothing to migrate (no legacy JSONL or all IDs already on GitHub).")
+        return 0
+    if args.dry_run:
+        print("Would import:")
+    else:
+        print("Imported:")
+    for row in created:
+        eid = row.get("id", "?")
+        title = row.get("title", "")
+        url = row.get("url", "")
+        num = row.get("number")
+        suffix = f" → {url}" if url else ""
+        num_part = f"#{num} " if num else ""
+        print(f"  {num_part}{eid} {title}{suffix}")
     return 0
 
 
