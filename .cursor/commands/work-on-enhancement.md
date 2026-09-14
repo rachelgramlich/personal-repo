@@ -4,8 +4,8 @@ Pick up one backlog item and implement it end-to-end. **You** handle the PR and 
 
 ## Context
 
-- Backlog: GitHub Issues with **Grocery Wizard** in the title.
-- New issues can use the **Grocery Wizard enhancement** template (expected behavior / manual test hints).
+- Backlog: GitHub Issues with the **`grocery-wizard`** label (legacy title matches still work during migration).
+- New issues use the **Grocery Wizard enhancement** form (label + expected behavior / manual test hints).
 - **`dev suggest-fixes`** + `ingredient_edits.jsonl` = data-driven parser fix hints from UI edits.
 - **Enhancements** = intentional backlog; primary UX is this command (not ad-hoc CLI).
 

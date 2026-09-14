@@ -1,6 +1,7 @@
 name: Grocery Wizard enhancement
 description: Feature or improvement for the backlog (picked up via /work-on-enhancement)
-title: "[Grocery Wizard] "
+labels:
+  - grocery-wizard
 body:
   - type: markdown
     attributes:

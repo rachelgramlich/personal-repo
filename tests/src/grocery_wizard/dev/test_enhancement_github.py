@@ -1,24 +1,24 @@
-import pytest
-
 from src.grocery_wizard.dev.enhancement_github import (
-    format_backlog_title,
+    BACKLOG_LABEL,
     format_bug_issue_body,
     format_feature_issue_body,
     format_issue_body,
     is_backlog_issue,
+    normalize_backlog_title,
     parse_issue_body,
     strip_backlog_title_prefix,
 )
 
 
-def test_format_backlog_title_adds_prefix() -> None:
-    assert format_backlog_title("My feature") == "[Grocery Wizard] My feature"
-    assert format_backlog_title("[Grocery Wizard] Already") == "[Grocery Wizard] Already"
+def test_normalize_backlog_title_strips_legacy_prefix() -> None:
+    assert normalize_backlog_title("My feature") == "My feature"
+    assert normalize_backlog_title("[Grocery Wizard] Already") == "Already"
 
 
-def test_is_backlog_issue_matches_title() -> None:
-    assert is_backlog_issue({"title": "[Grocery Wizard] Pantry"})
-    assert not is_backlog_issue({"title": "Random bug"})
+def test_is_backlog_issue_matches_label_or_legacy_title() -> None:
+    assert is_backlog_issue({"title": "[Grocery Wizard] Pantry", "labels": []})
+    assert is_backlog_issue({"title": "Pantry sync", "labels": [{"name": BACKLOG_LABEL}]})
+    assert not is_backlog_issue({"title": "Random bug", "labels": [{"name": "bug"}]})
 
 
 def test_strip_backlog_title_prefix() -> None:

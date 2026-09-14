@@ -4,7 +4,7 @@ Show open items from the GitHub enhancement backlog.
 
 ## Context
 
-- Backlog: GitHub Issues with **Grocery Wizard** in the title (listed via `gh search`).
+- Backlog: GitHub Issues with the **`grocery-wizard`** label (legacy title matches still listed during migration).
 - Ingredient edit logs (`.local/grocery_wizard/ingredient_edits.jsonl`) feed **`dev suggest-fixes`** for automatic parser suggestions; enhancements are **manual feature/fix ideas** you implement when you have time via **`/work-on-enhancement`**.
 
 ## Your task
