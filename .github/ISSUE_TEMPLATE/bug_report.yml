@@ -1,0 +1,51 @@
+name: Bug report
+description: Something is broken in Grocery Wizard (not a backlog feature request)
+title: "[Grocery Wizard] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For **new product work**, use **Grocery Wizard enhancement** instead.
+        Bugs are fixed directly; they are not picked up via `/work-on-enhancement`.
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: What went wrong, in plain language?
+      placeholder: e.g. Pantry sync drops items when …
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps an agent or developer can follow.
+      placeholder: |
+        1. …
+        2. …
+        3. See …
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, logs, environment, links…
+    validations:
+      required: false

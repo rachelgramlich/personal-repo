@@ -7,7 +7,9 @@
 - **Implement one item:** `uv run python -m src.grocery_wizard dev work-on-enhancement <issue-number>`
   - Same as `dev show-enhancement <issue-number>` — prints the full implementation + ship checklist.
   - Use the GitHub issue number (`96` / `#96`).
-- **Add an item:** `uv run python -m src.grocery_wizard dev add-enhancement --title "…"` (requires `gh`).
+- **Add backlog item:** `uv run python -m src.grocery_wizard dev add-enhancement --title "…" --expected-behavior "…"` (GitHub template **Grocery Wizard enhancement**; requires `gh`).
+- **Report a bug:** `uv run python -m src.grocery_wizard dev report-bug …` (template **Bug report**; not the backlog).
+- **Issue forms:** `.github/ISSUE_TEMPLATE/grocery_wizard_enhancement.yml`, `bug_report.yml`.
 
 When shipping an enhancement, the agent must:
 

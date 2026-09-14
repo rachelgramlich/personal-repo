@@ -10,11 +10,18 @@ from typing import Any
 
 BACKLOG_TITLE_PREFIX = "[Grocery Wizard] "
 AREA_LABEL_PREFIX = "gw-area-"
+FEATURE_ISSUE_TEMPLATE = "Grocery Wizard enhancement"
+BUG_ISSUE_TEMPLATE = "Bug report"
 
 _AREA_BODY_RE = re.compile(r"\*\*Area:\*\*\s*(\w+)", re.IGNORECASE)
 _AREA_MARKDOWN_RE = re.compile(
     r"^##\s*Area\s*\n+\s*`?(\w+)`?\s*$",
     re.IGNORECASE | re.MULTILINE,
+)
+_AREA_FORM_RE = re.compile(r"###\s*Area\s*\n+\s*(\w+)", re.IGNORECASE)
+_FORM_SECTION_RE = re.compile(
+    r"###\s*(?P<heading>[^\n]+)\s*\n+(?P<body>.*?)(?=\n###|\n---|\Z)",
+    re.DOTALL | re.IGNORECASE,
 )
 _PR_BODY_RE = re.compile(r"\*\*PR:\*\*\s*(https?://\S+)", re.IGNORECASE)
 _BACKLOG_TITLE_PREFIX_RE = re.compile(
@@ -71,28 +78,80 @@ def is_backlog_issue(issue: dict[str, Any]) -> bool:
     return "grocery wizard" in (issue.get("title") or "").lower()
 
 
+def _form_section(body: str, heading_prefix: str) -> str:
+    prefix = heading_prefix.lower()
+    for match in _FORM_SECTION_RE.finditer(body or ""):
+        heading = (match.group("heading") or "").strip().lower()
+        if heading.startswith(prefix):
+            return (match.group("body") or "").strip()
+    return ""
+
+
+def format_feature_issue_body(
+    *,
+    area: str,
+    description: str,
+    expected_behavior: str = "",
+    pr_url: str = "",
+    completed_at: str = "",
+) -> str:
+    """Body aligned with ``.github/ISSUE_TEMPLATE/grocery_wizard_enhancement.yml``."""
+    desc = (description or "").strip()
+    expected = (expected_behavior or "").strip()
+    parts: list[str] = [f"### Description\n\n{desc}"]
+    if expected:
+        parts.append(f"### Expected behavior & manual test hints\n\n{expected}")
+    parts.append(f"### Area\n\n{area}")
+    text = "\n\n".join(parts)
+    meta: list[str] = []
+    if pr_url:
+        meta.append(f"**PR:** {pr_url.strip()}")
+    if completed_at:
+        meta.append(f"**Completed:** {completed_at}")
+    if meta:
+        text = f"{text}\n\n---\n" + "\n".join(meta)
+    return text
+
+
 def format_issue_body(
     *,
     area: str,
     description: str,
+    expected_behavior: str = "",
     pr_url: str = "",
     completed_at: str = "",
 ) -> str:
-    desc = (description or "").strip()
-    lines: list[str] = []
-    if desc:
-        lines.append(desc)
-        lines.append("")
-    lines.append("---")
-    lines.append(f"**Area:** {area}")
-    if pr_url:
-        lines.append(f"**PR:** {pr_url.strip()}")
-    if completed_at:
-        lines.append(f"**Completed:** {completed_at}")
-    return "\n".join(lines)
+    return format_feature_issue_body(
+        area=area,
+        description=description,
+        expected_behavior=expected_behavior,
+        pr_url=pr_url,
+        completed_at=completed_at,
+    )
 
 
-def _description_from_body(text: str) -> str:
+def format_bug_issue_body(
+    *,
+    description: str,
+    repro: str,
+    actual: str,
+    expected: str,
+    context: str = "",
+) -> str:
+    """Body aligned with ``.github/ISSUE_TEMPLATE/bug_report.yml``."""
+    parts = [
+        f"### Describe the bug\n\n{(description or '').strip()}",
+        f"### Steps to reproduce\n\n{(repro or '').strip()}",
+        f"### Actual behavior\n\n{(actual or '').strip()}",
+        f"### Expected behavior\n\n{(expected or '').strip()}",
+    ]
+    extra = (context or "").strip()
+    if extra:
+        parts.append(f"### Additional context\n\n{extra}")
+    return "\n\n".join(parts)
+
+
+def _legacy_description_from_body(text: str) -> str:
     if "\n---\n" in text:
         return text.split("\n---\n", 1)[0].strip()
     m = re.search(r"\n##\s*Area\s*\n", text, re.IGNORECASE)
@@ -101,13 +160,31 @@ def _description_from_body(text: str) -> str:
     return text.strip()
 
 
+def _agent_description(description: str, expected_behavior: str) -> str:
+    desc = (description or "").strip()
+    expected = (expected_behavior or "").strip()
+    if not expected:
+        return desc
+    if not desc:
+        return f"**Expected behavior & manual test hints:**\n{expected}"
+    return f"{desc}\n\n**Expected behavior & manual test hints:**\n{expected}"
+
+
 def parse_issue_body(body: str) -> dict[str, str]:
     text = body or ""
-    area_match = _AREA_BODY_RE.search(text) or _AREA_MARKDOWN_RE.search(text)
+    area_match = (
+        _AREA_BODY_RE.search(text)
+        or _AREA_MARKDOWN_RE.search(text)
+        or _AREA_FORM_RE.search(text)
+    )
     pr_match = _PR_BODY_RE.search(text)
-    description = _description_from_body(text)
+    description = _form_section(text, "description") or _form_section(text, "describe the bug")
+    expected_behavior = _form_section(text, "expected behavior & manual test hints")
+    if not description and "###" not in text:
+        description = _legacy_description_from_body(text)
     return {
         "description": description,
+        "expected_behavior": expected_behavior,
         "area_from_body": area_match.group(1).lower() if area_match else "",
         "pr_url": pr_match.group(1).strip() if pr_match else "",
     }
@@ -122,6 +199,10 @@ def _issue_to_entry(issue: dict[str, Any]) -> dict[str, Any]:
     number = issue.get("number")
     issue_id = str(number) if number is not None else ""
     raw_title = issue.get("title") or ""
+    agent_desc = _agent_description(
+        parsed.get("description") or "",
+        parsed.get("expected_behavior") or "",
+    )
     return {
         "id": issue_id,
         "issue_number": number,
@@ -129,7 +210,7 @@ def _issue_to_entry(issue: dict[str, Any]) -> dict[str, Any]:
         "timestamp": issue.get("createdAt") or "",
         "status": "open" if state == "OPEN" else "done",
         "title": strip_backlog_title_prefix(raw_title),
-        "description": parsed.get("description") or "",
+        "description": agent_desc,
         "area": area,
         "tags": [],
         "pr_url": parsed.get("pr_url") or "",
@@ -224,13 +305,15 @@ def create_issue(
     description: str,
     area: str,
     *,
+    expected_behavior: str = "",
     closed: bool = False,
     pr_url: str = "",
     completed_at: str = "",
 ) -> dict[str, Any]:
-    body = format_issue_body(
+    body = format_feature_issue_body(
         area=area,
         description=description,
+        expected_behavior=expected_behavior,
         pr_url=pr_url,
         completed_at=completed_at,
     )
@@ -243,6 +326,8 @@ def create_issue(
             issue_title,
             "--body",
             body,
+            "--template",
+            FEATURE_ISSUE_TEMPLATE,
         ]
     )
     entry = _issue_to_entry(_view_issue(_issue_number_from_url(url)))
@@ -256,6 +341,50 @@ def create_issue(
     return entry
 
 
+def create_bug_issue(
+    title: str,
+    *,
+    description: str,
+    repro: str,
+    actual: str,
+    expected: str,
+    context: str = "",
+) -> dict[str, Any]:
+    body = format_bug_issue_body(
+        description=description,
+        repro=repro,
+        actual=actual,
+        expected=expected,
+        context=context,
+    )
+    issue_title = format_backlog_title(title)
+    url = _run_gh(
+        [
+            "issue",
+            "create",
+            "--title",
+            issue_title,
+            "--body",
+            body,
+            "--label",
+            "bug",
+            "--template",
+            BUG_ISSUE_TEMPLATE,
+        ]
+    )
+    return json.loads(
+        _run_gh(
+            [
+                "issue",
+                "view",
+                _issue_number_from_url(url),
+                "--json",
+                "number,title,url",
+            ]
+        )
+    )
+
+
 def close_issue(raw_id: str, *, pr_url: str | None = None) -> bool:
     """Close a backlog issue via ``gh`` (``dev close-enhancement``; JSONL import when done)."""
     entry = get_issue(raw_id)
@@ -267,9 +396,12 @@ def close_issue(raw_id: str, *, pr_url: str | None = None) -> bool:
 
     completed_at = datetime.now(UTC).isoformat()
     pr = (pr_url or entry.get("pr_url") or "").strip()
-    body = format_issue_body(
+    raw = _view_issue(number)
+    parsed = parse_issue_body(raw.get("body") or "")
+    body = format_feature_issue_body(
         area=entry.get("area") or "other",
-        description=entry.get("description") or "",
+        description=parsed.get("description") or "",
+        expected_behavior=parsed.get("expected_behavior") or "",
         pr_url=pr,
         completed_at=completed_at,
     )
