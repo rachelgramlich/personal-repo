@@ -225,6 +225,15 @@ _JUNK_ONLY_PHRASES = frozenset(
         "then chopped",
         "then sliced",
         "then grated",
+        # Prep/description fragments scraped as standalone lines
+        "left whole",
+        "tender stems",
+        "tender stems and leaves",
+        "leaves and tender stems",
+        "stems and leaves",
+        "boiling water",
+        # Bare "juice" with no qualifier is meaningless as a grocery item
+        "juice",
     }
 )
 

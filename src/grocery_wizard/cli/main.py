@@ -239,6 +239,25 @@ def main(argv: list[str] | None = None) -> int:
     )
     validate_pipeline_parser.set_defaults(func=cmd_dev_validate_pipeline)
 
+    suggest_fixes_parser = dev_subparsers.add_parser(
+        "suggest-fixes",
+        help="Analyse ingredient edit log and suggest junk phrase additions",
+    )
+    suggest_fixes_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="output_json",
+        help="Output raw aggregated data as JSON instead of a human-readable report",
+    )
+    suggest_fixes_parser.add_argument(
+        "--min-count",
+        type=int,
+        default=2,
+        metavar="N",
+        help="Minimum removal count to include a phrase in suggestions (default: 2)",
+    )
+    suggest_fixes_parser.set_defaults(func=cmd_dev_suggest_fixes)
+
     nyt_parser = subparsers.add_parser(
         "nyt",
         help="NYT Cooking integration (saved recipes, sync to Notion)",
@@ -570,6 +589,129 @@ def cmd_dev_validate_pipeline(args: argparse.Namespace) -> int:
     output_path.write_text(text, encoding="utf-8")
     print(text)
     print(f"\nReport saved to {output_path}")
+    return 0
+
+
+def cmd_dev_suggest_fixes(args: argparse.Namespace) -> int:
+    import json
+    from collections import Counter, defaultdict
+    from pathlib import Path
+
+    from src.grocery_wizard.dev.edit_log import EDIT_LOG_PATH
+
+    log_path = Path(EDIT_LOG_PATH)
+    if not log_path.exists() or log_path.stat().st_size == 0:
+        if args.output_json:
+            print(json.dumps({"phrases": [], "recipe_map": {}}))
+        else:
+            print("No ingredient edit log found.")
+            print(f"Expected: {log_path}")
+            print("Edits are logged automatically when you save changes in the review UI.")
+        return 0
+
+    removal_counts: Counter[str] = Counter()
+    recipe_map: dict[str, list[str]] = defaultdict(list)
+
+    with log_path.open(encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            recipe = entry.get("recipe_name", "unknown")
+            for removed in entry.get("removed_lines", []):
+                removal_counts[removed] += 1
+                if recipe not in recipe_map[removed]:
+                    recipe_map[removed].append(recipe)
+
+    min_count = args.min_count
+    candidates = [
+        {"phrase": phrase, "count": count, "recipes": sorted(recipe_map[phrase])}
+        for phrase, count in removal_counts.most_common()
+        if count >= min_count
+    ]
+
+    if args.output_json:
+        print(json.dumps({"min_count": min_count, "phrases": candidates}, indent=2))
+        return 0
+
+    if not candidates:
+        print(f"No ingredient lines removed {min_count}+ times yet.")
+        total_removals = sum(removal_counts.values())
+        unique_lines = len(removal_counts)
+        print(f"(Log has {total_removals} total removals across {unique_lines} unique lines.)")
+        return 0
+
+    # --- Section 1: Suggested junk phrase additions ---
+    print("=" * 70)
+    print("SECTION 1 — Suggested junk phrase additions")
+    print("=" * 70)
+    print()
+    print("Lines removed most often across all sessions (paste into")
+    print("_JUNK_ONLY_PHRASES in src/grocery_wizard/ingredients/_patterns.py):")
+    print()
+    for c in candidates:
+        print(f"    {c['phrase']!r},  # removed {c['count']}x")
+
+    # --- Section 2: Notion cleanup ---
+    print()
+    print("=" * 70)
+    print("SECTION 2 — Suggested Notion cleanup")
+    print("=" * 70)
+    print()
+    print("Recipes containing each suggested junk phrase (re-clean these in Notion):")
+    print()
+    for c in candidates:
+        recipes_str = ", ".join(c["recipes"]) if c["recipes"] else "(no recipe recorded)"
+        print(f"  {c['phrase']!r}  →  {recipes_str}")
+
+    # --- Section 3: How to create a PR ---
+    print()
+    print("=" * 70)
+    print("SECTION 3 — How to create a PR")
+    print("=" * 70)
+    print()
+    print("Step-by-step instructions:")
+    print()
+    print("  a) Add phrases to _JUNK_ONLY_PHRASES in")
+    print("     src/grocery_wizard/ingredients/_patterns.py")
+    print()
+    print("  b) Strip those lines from Notion entries:")
+    print()
+    print("     uv run python -m src.grocery_wizard.cli dev reformat-ingredients --dry-run")
+    print("     # Review the above, then run without --dry-run:")
+    print("     uv run python -m src.grocery_wizard.cli dev reformat-ingredients")
+    print()
+    print("  c) Commit and push:")
+    print()
+    phrase_list = ", ".join(repr(c["phrase"]) for c in candidates[:3])
+    if len(candidates) > 3:
+        phrase_list += f", … ({len(candidates)} total)"
+    branch = "cursor/add-junk-phrases-XXXX"
+    pr_title = f"fix(ingredients): add {len(candidates)} junk phrase(s) to parser patterns"
+    pr_body = (
+        "## Summary\\n\\n"
+        f"Adds {len(candidates)} frequently-removed ingredient line(s) to `_JUNK_ONLY_PHRASES` "
+        "in `_patterns.py` based on user edit-log analysis.\\n\\n"
+        "## Phrases added\\n\\n"
+        + "\\n".join(f"- `{c['phrase']}`" for c in candidates)
+        + "\\n\\n## Testing\\n\\n"
+        "- [ ] `uv run pytest` passes\\n"
+        "- [ ] `dev reformat-ingredients` strips affected lines from Notion\\n"
+    )
+    print(f"     git checkout -b {branch}")
+    print("     # (edit _patterns.py as described above)")
+    print("     git add src/grocery_wizard/ingredients/_patterns.py")
+    print(f"     git commit -m {pr_title!r}")
+    print(f"     git push -u origin {branch}")
+    print("     gh pr create \\")
+    print(f"       --title {pr_title!r} \\")
+    print(f"       --body {pr_body!r}")
+    print()
+
     return 0
 
 

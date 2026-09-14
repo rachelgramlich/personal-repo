@@ -60,6 +60,9 @@ curry powder
 italian seasoning
 nutmeg
 cayenne
+sesame seeds
+white sesame seeds
+black sesame seeds
 
 # --- Sauces & condiments ---
 soy sauce
@@ -84,3 +87,6 @@ rice
 
 # --- Dairy (uncomment what you always have) ---
 eggs
+
+# --- Water ---
+water

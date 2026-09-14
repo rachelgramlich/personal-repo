@@ -124,9 +124,8 @@ def recipe_matches_filters(
         if filters.ingredient_mode == "include":
             if not recipe_ingredients & selected:
                 return False
-        else:
-            if recipe_ingredients & selected:
-                return False
+        elif recipe_ingredients & selected:
+            return False
 
     return True
 
@@ -363,7 +362,9 @@ def suggest_meals(
     active_filters = filters if filters is not None else default_filters(schema_columns)
     locked_recipes = _resolve_locked_by_names(locked_names or [], all_recipes)[:meals]
 
-    full_pool = filter_recipes(all_recipes, active_filters, schema_columns, ingredient_index=ingredient_index)
+    full_pool = filter_recipes(
+        all_recipes, active_filters, schema_columns, ingredient_index=ingredient_index
+    )
     locked_ids = {recipe.page_id for recipe in locked_recipes}
     locked_name_set = {recipe.name for recipe in locked_recipes}
     session_rejected = set(rejected_names or ())

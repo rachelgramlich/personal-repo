@@ -273,6 +273,7 @@ def build_grocery_list(
     recurring_weekly_items: list[str] | None = None,
     include_recurring_weekly_items: bool = False,
     exclude_pantry: bool = True,
+    ingredient_overrides: dict[str, str] | None = None,
 ) -> tuple[list[str], list[str], None, list[str], dict[str, list[str]], list[NameLinkMismatch]]:
     """Build grocery list items, excluded pantry items, and skipped recipe names (for UI use).
 
@@ -282,6 +283,9 @@ def build_grocery_list(
 
     Also returns ``item_provenance`` (grocery item → source recipe names) and
     ``name_link_mismatches`` when Notion Name and Link disagree.
+
+    When ``ingredient_overrides`` is provided it maps recipe name (lowercase) to
+    edited ingredient text that supersedes whatever is stored in Notion.
     """
     recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
     pantry = load_pantry(pantry_path)
@@ -302,7 +306,13 @@ def build_grocery_list(
         if mismatch:
             name_link_mismatches.append(mismatch)
 
-        ingredient_lines = _get_ingredient_lines(recipe)
+        if ingredient_overrides and name.lower() in ingredient_overrides:
+            override_text = ingredient_overrides[name.lower()]
+            ingredient_lines = (
+                parse_ingredients_text(override_text)[0] if override_text.strip() else []
+            )
+        else:
+            ingredient_lines = _get_ingredient_lines(recipe)
         if not ingredient_lines:
             missing_ingredients.append(recipe.name)
             continue
