@@ -1018,9 +1018,12 @@ def _render_grocery_result() -> None:
         meals = _meal_entries_with_links(db, meal_names)
         list_text = format_meals_and_grocery_list(meals, final_items)
 
-        meals_copy_text = "\n".join(meal_names)
-        sorted_grocery_items = merge_grocery_items(final_items)
-        grocery_copy_text = "\n".join(f"- {item}" for item in sorted_grocery_items)
+        if "\n\nGrocery List\n" in list_text:
+            meals_copy_text, grocery_body = list_text.split("\n\nGrocery List\n", 1)
+            grocery_copy_text = f"Grocery List\n{grocery_body}"
+        else:
+            meals_copy_text = list_text
+            grocery_copy_text = "Grocery List"
 
         st.markdown("**Meals**")
         _render_copy_button(meals_copy_text, label="Copy meals", key="meals_copy")

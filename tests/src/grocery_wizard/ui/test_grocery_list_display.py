@@ -13,7 +13,7 @@ APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui"
 def test_grocery_final_list_syncs_session_state_before_keyed_text_area() -> None:
     """Keyed text_area ignores value= on reruns; app must push fresh list_text into session state."""
     source = APP_PATH.read_text(encoding="utf-8")
-    assert 'st.session_state["grocery_final_list"] = list_text' in source
+    assert 'st.session_state["grocery_final_list"] = grocery_copy_text' in source
     assert 'key="grocery_final_list"' in source
     assert "value=list_text" not in source
 
