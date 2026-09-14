@@ -709,6 +709,22 @@ def _current_plan_names() -> list[str]:
     return _parse_line_items(st.session_state.get("plan_meals_text", "").replace(",", "\n"))
 
 
+def _locked_recipes_for_plan_build(
+    *,
+    explicit_locked: list[str],
+    meal_count: int,
+) -> list[str]:
+    """Recipes pinned for auto-fill; saved plans keep loaded meals unless user overrides."""
+    if explicit_locked:
+        return explicit_locked
+    if _weekly_plan_mode() != "saved":
+        return []
+    current = _current_plan_names()
+    if not current:
+        return []
+    return current[: int(meal_count)]
+
+
 def _session_pantry_extra() -> set[str]:
     if "grocery_session_pantry" not in st.session_state:
         st.session_state.grocery_session_pantry = set()
@@ -1173,10 +1189,14 @@ def render_create_weekly_plan() -> None:
     )
 
     if st.button("Build my plan", type="primary", key="build_plan"):
+        locked_for_build = _locked_recipes_for_plan_build(
+            explicit_locked=locked,
+            meal_count=int(meal_count),
+        )
         plan = suggest_meals(
             all_recipes,
             meals=int(meal_count),
-            locked_names=locked,
+            locked_names=locked_for_build,
             filters=filters,
             schema_columns=schema.all_columns,
             ingredient_index=ingredient_index,
