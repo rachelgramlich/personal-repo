@@ -114,10 +114,36 @@ def _compute_grocery_drafts(
     items: list[str],
     readd: list[str],
     additional_text: str,
+    *,
+    run_removals: set[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     draft_items = merge_grocery_items(items, readd)
     final_items = merge_grocery_items(items, readd, _parse_line_items(additional_text))
+    if run_removals:
+        final_items = _apply_run_removals(final_items, run_removals)
     return draft_items, final_items
+
+
+def _apply_run_removals(items: list[str], removals: set[str]) -> list[str]:
+    """Drop lines whose normalized text matches a one-time removal for this run."""
+    if not removals:
+        return items
+    keys = {name.strip().lower() for name in removals if name.strip()}
+    filtered: list[str] = []
+    for line in items:
+        lowered = line.strip().lower()
+        if any(key in lowered or lowered in key for key in keys):
+            continue
+        filtered.append(line)
+    return filtered
+
+
+def _grocery_line_matches_name(line: str, name: str) -> bool:
+    lowered_line = line.strip().lower()
+    lowered_name = name.strip().lower()
+    if not lowered_line or not lowered_name:
+        return False
+    return lowered_name in lowered_line or lowered_line in lowered_name
 
 
 def _save_recurring_template(text: str, *, path: Path = RECURRING_WEEKLY_ITEMS_PATH) -> None:
@@ -906,6 +932,8 @@ def _render_per_recipe_review(db: NotionRecipesDB, selected: list[str]) -> None:
                 "name_link_mismatches": mismatches,
                 "readd": [],
                 "additional_text": extra_items_text,
+                "recurring_items": list(recurring_weekly_items),
+                "run_removals": [],
                 "source_recipes": tuple(selected),
                 "week_plan": tuple(selected),
                 "edit_count": edit_count,
@@ -1096,6 +1124,79 @@ def render_create_weekly_plan() -> None:
         st.rerun()
 
 
+def _render_added_and_removed_summary(result: dict) -> None:
+    recurring_items: list[str] = result.get("recurring_items") or []
+    extra_items = _parse_line_items(result.get("additional_text", ""))
+    added_items: list[str] = []
+    seen: set[str] = set()
+    for item in [*recurring_items, *extra_items]:
+        key = item.strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        added_items.append(item)
+
+    excluded: list[str] = list(result.get("excluded") or [])
+
+    st.markdown("### Added & removed this week")
+    col_added, col_removed = st.columns(2)
+    with col_added:
+        st.markdown("**Added items**")
+        st.caption("Recurring weekly items plus extras you entered.")
+        if added_items:
+            for item in added_items:
+                st.write(f"- {item}")
+        else:
+            st.write("_None_")
+    with col_removed:
+        st.markdown("**Removed items (pantry)**")
+        st.caption("Ingredients assumed on hand and left off the buy list.")
+        if excluded:
+            for item in excluded:
+                st.write(f"- {item}")
+        else:
+            st.write("_None_")
+
+    st.markdown("**Adjust before export**")
+    pantry_name = st.text_input(
+        "Add item to pantry",
+        placeholder="Item to treat as pantry staple",
+        key="output_add_pantry_name",
+    )
+    pantry_scope = _render_persistence_scope_radio(key="output_pantry_scope")
+    if st.button("Add to pantry", key="output_add_pantry_btn"):
+        name = pantry_name.strip()
+        if not name:
+            st.warning("Enter an item name.")
+        else:
+            if pantry_scope == "template":
+                append_pantry_item(name)
+            _session_pantry_extra().add(name.lower())
+            items: list[str] = list(result["items"])
+            result["items"] = [line for line in items if not _grocery_line_matches_name(line, name)]
+            excluded_set = {e.lower() for e in result.get("excluded", [])}
+            if name.lower() not in excluded_set:
+                result["excluded"] = sorted([*result.get("excluded", []), name], key=str.lower)
+            st.success(f"Moved “{name}” to pantry for this list.")
+            st.rerun()
+
+    remove_once = st.text_input(
+        "Remove from this list once",
+        placeholder="Item to skip on this run only",
+        key="output_remove_once_name",
+    )
+    if st.button("Remove for this run", key="output_remove_once_btn"):
+        name = remove_once.strip()
+        if not name:
+            st.warning("Enter an item name.")
+        else:
+            removals = set(result.get("run_removals") or [])
+            removals.add(name.lower())
+            result["run_removals"] = sorted(removals)
+            st.success(f"Removed “{name}” from this run only.")
+            st.rerun()
+
+
 def _render_grocery_result() -> None:
     result = st.session_state.grocery_result
     items: list[str] = result["items"]
@@ -1124,6 +1225,10 @@ def _render_grocery_result() -> None:
         with st.expander("Item sources (which recipe each item came from)"):
             st.text(format_item_provenance(item_provenance))
 
+    _render_added_and_removed_summary(result)
+    items = result["items"]
+    excluded = result["excluded"]
+
     readd: list[str] = []
     additional_text = result.get("additional_text", "")
 
@@ -1147,7 +1252,13 @@ def _render_grocery_result() -> None:
     result["readd"] = readd
     result["additional_text"] = additional_text
 
-    _, final_items = _compute_grocery_drafts(items, readd, additional_text)
+    run_removals = set(result.get("run_removals") or [])
+    _, final_items = _compute_grocery_drafts(
+        items,
+        readd,
+        additional_text,
+        run_removals=run_removals,
+    )
 
     if final_items or meal_names:
         db = get_db()
@@ -1176,6 +1287,7 @@ def _render_grocery_result() -> None:
         _render_copy_button(meals_for_copy, label="Copy meals", key="meals_copy")
 
         st.markdown("**Grocery List**")
+        st.caption("Edit the list below before copying or downloading.")
         grocery_fingerprint = (tuple(final_items),)
         if st.session_state.get("grocery_final_list_fingerprint") != grocery_fingerprint:
             st.session_state["grocery_final_list_fingerprint"] = grocery_fingerprint
