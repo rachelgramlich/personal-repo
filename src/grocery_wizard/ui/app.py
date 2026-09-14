@@ -665,6 +665,9 @@ def _clear_grocery_result() -> None:
         "grocery_additional_items",
         "grocery_readd",
         "grocery_final_list",
+        "grocery_final_list_fingerprint",
+        "meals_final_list",
+        "meals_final_list_fingerprint",
         "grocery_per_recipe_review",
         "grocery_review_options",
     ):
@@ -725,10 +728,11 @@ def _render_per_recipe_review(db: NotionRecipesDB, selected: list[str]) -> None:
     for idx, name in enumerate(selected):
         original_text = review.get(name, "")
         widget_key = f"review_ing_{idx}"
+        if widget_key not in st.session_state:
+            st.session_state[widget_key] = original_text
         with st.expander(name, expanded=False):
             st.text_area(
                 "Ingredients (one per line)",
-                value=original_text,
                 height=160,
                 key=widget_key,
                 label_visibility="collapsed",
@@ -1026,34 +1030,23 @@ def _render_grocery_result() -> None:
             grocery_copy_text = "Grocery List"
 
         st.markdown("**Meals**")
-        _render_copy_button(meals_copy_text, label="Copy meals", key="meals_copy")
+        meals_fingerprint = tuple(meals)
+        if st.session_state.get("meals_final_list_fingerprint") != meals_fingerprint:
+            st.session_state["meals_final_list_fingerprint"] = meals_fingerprint
+            st.session_state["meals_final_list"] = meals_copy_text
         st.text_area(
             "Meals",
-            value=meals_copy_text,
             height=120,
-            disabled=True,
             label_visibility="collapsed",
-            key="meals_display",
+            key="meals_final_list",
         )
+        meals_for_copy = st.session_state.get("meals_final_list", meals_copy_text)
+        _render_copy_button(meals_for_copy, label="Copy meals", key="meals_copy")
 
         st.markdown("**Grocery List**")
-        col_copy, col_download = st.columns(2)
-        with col_copy:
-            _render_copy_button(grocery_copy_text, label="Copy list", key="grocery_copy")
-        with col_download:
-            st.download_button(
-                "Download",
-                data=list_text,
-                file_name="weekly_plan.txt",
-                mime="text/plain",
-                use_container_width=True,
-            )
-        # Only overwrite the editable text area when the underlying data changes
-        # (i.e. final_items or meal_names changed), not on every Streamlit rerun.
-        # This preserves any manual edits the user made in the text area.
-        new_fingerprint = (tuple(final_items), tuple(meal_names))
-        if st.session_state.get("grocery_final_list_fingerprint") != new_fingerprint:
-            st.session_state["grocery_final_list_fingerprint"] = new_fingerprint
+        grocery_fingerprint = (tuple(final_items),)
+        if st.session_state.get("grocery_final_list_fingerprint") != grocery_fingerprint:
+            st.session_state["grocery_final_list_fingerprint"] = grocery_fingerprint
             st.session_state["grocery_final_list"] = grocery_copy_text
         st.text_area(
             "Grocery list",
@@ -1061,6 +1054,19 @@ def _render_grocery_result() -> None:
             label_visibility="collapsed",
             key="grocery_final_list",
         )
+        grocery_for_copy = st.session_state.get("grocery_final_list", grocery_copy_text)
+        download_text = f"{meals_for_copy}\n\n{grocery_for_copy}"
+        col_copy, col_download = st.columns(2)
+        with col_copy:
+            _render_copy_button(grocery_for_copy, label="Copy list", key="grocery_copy")
+        with col_download:
+            st.download_button(
+                "Download",
+                data=download_text,
+                file_name="weekly_plan.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
     elif not excluded and not meal_names:
         st.warning("No grocery items found.")
 
@@ -1073,8 +1079,9 @@ def _render_grocery_result() -> None:
         st.rerun()
 
     if st.button("Update list", key="grocery_update_list"):
-        # Force recompute of the text area by clearing the fingerprint, then rerun.
+        # Force recompute of both text areas by clearing fingerprints, then rerun.
         st.session_state.pop("grocery_final_list_fingerprint", None)
+        st.session_state.pop("meals_final_list_fingerprint", None)
         st.rerun()
 
 
