@@ -329,6 +329,13 @@
     "notes": "recipe_title_bleed"
   },
   {
+    "recipe": "Grilled Veggies over Orzo",
+    "raw_line": "chimichurri zucchini orzo lemon red pepper red onions",
+    "expect_after_prepare": "chimichurri\nzucchini\norzo\nlemon\nred pepper\nred onions",
+    "expect_normalized": "chimichurri zucchini orzo lemon red pepper red onions",
+    "notes": "issue_81_title_bleed_reformat"
+  },
+  {
     "recipe": "Gnocchi (synthetic)",
     "raw_line": "gnocchi sauce veggie for gnocchi",
     "expect_after_prepare": "gnocchi\nveggie",

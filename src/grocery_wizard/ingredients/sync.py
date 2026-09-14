@@ -311,10 +311,14 @@ def run_refresh_ingredients(
     *,
     dry_run: bool = False,
     split_only: bool = False,
+    recipe_name_filter: str | None = None,
     on_recipe_done: Callable[[int, int, RefreshResult], None] | None = None,
 ) -> RefreshSummary:
     """Refresh all recipes: scrape ingredients, split compounds, write to Notion."""
     recipes = db.query_recipes()
+    if recipe_name_filter:
+        needle = recipe_name_filter.strip().lower()
+        recipes = [recipe for recipe in recipes if needle in recipe.name.lower()]
     summary = RefreshSummary()
     total = len(recipes)
 

@@ -176,6 +176,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Show ingredient lines for each recipe",
     )
+    refresh_parser.add_argument(
+        "--recipe",
+        metavar="NAME",
+        help="Only refresh recipes whose Notion name contains this substring (case-insensitive)",
+    )
     refresh_parser.set_defaults(func=cmd_dev_refresh_all)
 
     reformat_parser = dev_subparsers.add_parser(
@@ -191,6 +196,11 @@ def main(argv: list[str] | None = None) -> int:
         "--verbose",
         action="store_true",
         help="Show ingredient lines for each recipe",
+    )
+    reformat_parser.add_argument(
+        "--recipe",
+        metavar="NAME",
+        help="Only reformat recipes whose Notion name contains this substring (case-insensitive)",
     )
     reformat_parser.set_defaults(func=cmd_dev_reformat)
 
@@ -603,7 +613,12 @@ def cmd_dev_refresh_all(args: argparse.Namespace) -> int:
 
     config = load_config()
     db = NotionRecipesDB(config)
-    recipes = db.query_recipes()
+    recipe_filter = getattr(args, "recipe", None)
+    if recipe_filter:
+        needle = recipe_filter.strip().lower()
+        recipes = [r for r in db.query_recipes() if needle in r.name.lower()]
+    else:
+        recipes = db.query_recipes()
     total = len(recipes)
 
     if args.split_only:
@@ -611,10 +626,11 @@ def cmd_dev_refresh_all(args: argparse.Namespace) -> int:
     else:
         mode = "scrape + split"
 
+    scope = f" matching '{recipe_filter}'" if recipe_filter else ""
     if args.dry_run:
-        print(f"Dry run: refreshing {total} recipe(s) ({mode})...")
+        print(f"Dry run: refreshing {total} recipe(s){scope} ({mode})...")
     else:
-        print(f"Refreshing {total} recipe(s) ({mode})...")
+        print(f"Refreshing {total} recipe(s){scope} ({mode})...")
         if total:
             print()
 
@@ -628,6 +644,7 @@ def cmd_dev_refresh_all(args: argparse.Namespace) -> int:
         db,
         dry_run=args.dry_run,
         split_only=args.split_only,
+        recipe_name_filter=recipe_filter,
         on_recipe_done=None if args.dry_run else on_recipe_done,
     )
 
