@@ -17,6 +17,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from src.grocery_wizard.config import RECURRING_WEEKLY_ITEMS_PATH, WEEK_PLAN_PATH, load_config
+from src.grocery_wizard.dev.edit_log import log_ingredient_edits
 from src.grocery_wizard.ingredients.sync import prepare_ingredients_for_notion
 from src.grocery_wizard.integrations.notion import (
     ColumnInfo,
@@ -658,9 +659,19 @@ def _current_plan_names() -> list[str]:
 
 
 def _clear_grocery_result() -> None:
-    """Remove the cached grocery result and its associated widget state."""
-    for key in ("grocery_result", "grocery_additional_items", "grocery_readd", "grocery_final_list"):
+    """Remove the cached grocery result, review state, and associated widget state."""
+    for key in (
+        "grocery_result",
+        "grocery_additional_items",
+        "grocery_readd",
+        "grocery_final_list",
+        "grocery_per_recipe_review",
+        "grocery_review_options",
+    ):
         st.session_state.pop(key, None)
+    for key in list(st.session_state.keys()):
+        if key.startswith("review_ing_"):
+            st.session_state.pop(key, None)
 
 
 def _invalidate_stale_grocery_result() -> None:
@@ -675,56 +686,114 @@ def _invalidate_stale_grocery_result() -> None:
         _clear_grocery_result()
 
 
-def _run_grocery_list_generation(
+
+def _start_recipe_review(
     db: NotionRecipesDB,
     selected: list[str],
     *,
     exclude_pantry: bool,
     recurring_text: str,
     default_recurring: list[str],
-    extra_items_text: str = "",
-) -> bool:
-    if not selected:
-        st.warning("Add at least one meal to your plan.")
-        return False
-
-    recurring_weekly_items = _parse_line_items(recurring_text)
-    _persist_recurring_if_edited(recurring_text, default_recurring)
-
-    with st.spinner("Building grocery list..."):
-        items, excluded, _sync_summary, missing_ingredients, item_provenance, mismatches = (
-            build_grocery_list(
-            db,
-            recipe_names=selected,
-            exclude_pantry=exclude_pantry,
-            recurring_weekly_items=recurring_weekly_items,
-            include_recurring_weekly_items=True,
-        )
-        )
-
-    if not items and not excluded and not _parse_line_items(extra_items_text):
-        if missing_ingredients:
-            st.warning(
-                "No grocery items found — all selected recipes are missing ingredients in Notion. "
-                f"Affected recipes: {', '.join(missing_ingredients)}. "
-                "Run `dev backfill-ingredients` to populate them from their links."
-            )
-        else:
-            st.warning("No grocery items found.")
-        return False
-
-    st.session_state.grocery_result = {
-        "items": items,
-        "excluded": excluded,
-        "missing_ingredients": missing_ingredients,
-        "item_provenance": item_provenance,
-        "name_link_mismatches": mismatches,
-        "readd": [],
-        "additional_text": extra_items_text,
-        "source_recipes": tuple(selected),
-        "week_plan": tuple(selected),
+    extra_items_text: str,
+) -> None:
+    """Fetch per-recipe ingredients from Notion and stash them for the review UI."""
+    recipes_by_name = {r.name.lower(): r for r in db.query_recipes()}
+    review: dict[str, str] = {}
+    for name in selected:
+        recipe = recipes_by_name.get(name.lower())
+        review[name] = recipe.ingredients or "" if recipe else ""
+    st.session_state.grocery_per_recipe_review = review
+    st.session_state.grocery_review_options = {
+        "exclude_pantry": exclude_pantry,
+        "recurring_text": recurring_text,
+        "default_recurring": default_recurring,
+        "extra_items_text": extra_items_text,
     }
-    return True
+
+
+def _render_per_recipe_review(db: NotionRecipesDB, selected: list[str]) -> None:
+    """Show one expandable text editor per recipe; build final list on confirmation."""
+    review: dict[str, str] = st.session_state.grocery_per_recipe_review
+    opts: dict = st.session_state.grocery_review_options
+
+    st.markdown("### Review ingredients")
+    st.caption(
+        "Each recipe's ingredients are shown below. Edit or delete lines before building "
+        "your grocery list."
+    )
+
+    for idx, name in enumerate(selected):
+        original_text = review.get(name, "")
+        widget_key = f"review_ing_{idx}"
+        with st.expander(name, expanded=False):
+            st.text_area(
+                "Ingredients (one per line)",
+                value=original_text,
+                height=160,
+                key=widget_key,
+                label_visibility="collapsed",
+            )
+
+    col_build, col_cancel = st.columns([3, 1])
+    with col_build:
+        if st.button("Build final list", type="primary", key="review_build_final"):
+            overrides: dict[str, str] = {}
+            edit_count = 0
+            for idx, name in enumerate(selected):
+                widget_key = f"review_ing_{idx}"
+                edited_text = st.session_state.get(widget_key, review.get(name, ""))
+                original_text = review.get(name, "")
+                overrides[name.lower()] = edited_text
+                edit_count += log_ingredient_edits(name, original_text, edited_text)
+
+            recurring_weekly_items = _parse_line_items(opts["recurring_text"])
+            _persist_recurring_if_edited(opts["recurring_text"], opts["default_recurring"])
+
+            with st.spinner("Building grocery list..."):
+                items, excluded, _sync_summary, missing_ingredients, item_provenance, mismatches = (
+                    build_grocery_list(
+                        db,
+                        recipe_names=selected,
+                        exclude_pantry=opts["exclude_pantry"],
+                        recurring_weekly_items=recurring_weekly_items,
+                        include_recurring_weekly_items=True,
+                        ingredient_overrides=overrides,
+                    )
+                )
+
+            extra_items_text = opts.get("extra_items_text", "")
+            if not items and not excluded and not _parse_line_items(extra_items_text):
+                if missing_ingredients:
+                    st.warning(
+                        "No grocery items found — all selected recipes are missing ingredients. "
+                        f"Affected recipes: {', '.join(missing_ingredients)}."
+                    )
+                else:
+                    st.warning("No grocery items found.")
+                return
+
+            st.session_state.grocery_result = {
+                "items": items,
+                "excluded": excluded,
+                "missing_ingredients": missing_ingredients,
+                "item_provenance": item_provenance,
+                "name_link_mismatches": mismatches,
+                "readd": [],
+                "additional_text": extra_items_text,
+                "source_recipes": tuple(selected),
+                "week_plan": tuple(selected),
+                "edit_count": edit_count,
+            }
+            st.session_state.pop("grocery_per_recipe_review", None)
+            st.session_state.pop("grocery_review_options", None)
+            for key in list(st.session_state.keys()):
+                if key.startswith("review_ing_"):
+                    st.session_state.pop(key, None)
+            st.rerun()
+    with col_cancel:
+        if st.button("Cancel", key="review_cancel"):
+            _clear_grocery_result()
+            st.rerun()
 
 
 def render_create_weekly_plan() -> None:
@@ -849,6 +918,10 @@ def render_create_weekly_plan() -> None:
         _render_grocery_result()
         return
 
+    if st.session_state.get("grocery_per_recipe_review") is not None:
+        _render_per_recipe_review(db, current_plan)
+        return
+
     if not current_plan:
         st.caption("Build a meal plan above to continue.")
         return
@@ -876,15 +949,15 @@ def render_create_weekly_plan() -> None:
     if st.button("Create grocery list", type="primary", key="create_grocery"):
         save_week_plan(current_plan, WEEK_PLAN_PATH)
         _clear_grocery_result()
-        if _run_grocery_list_generation(
+        _start_recipe_review(
             db,
             current_plan,
             exclude_pantry=exclude_pantry,
             recurring_text=recurring_text,
             default_recurring=default_recurring,
             extra_items_text=extra_items_text,
-        ):
-            st.rerun()
+        )
+        st.rerun()
 
 
 def _render_grocery_result() -> None:
@@ -958,9 +1031,13 @@ def _render_grocery_result() -> None:
                 mime="text/plain",
                 use_container_width=True,
             )
-        # Keyed text_area ignores value= on reruns; sync session state so Update list
-        # refreshes copy/download preview (checklist strip + aisle sort).
-        st.session_state["grocery_final_list"] = list_text
+        # Only overwrite the editable text area when the underlying data changes
+        # (i.e. final_items or meal_names changed), not on every Streamlit rerun.
+        # This preserves any manual edits the user made in the text area.
+        new_fingerprint = (tuple(final_items), tuple(meal_names))
+        if st.session_state.get("grocery_final_list_fingerprint") != new_fingerprint:
+            st.session_state["grocery_final_list_fingerprint"] = new_fingerprint
+            st.session_state["grocery_final_list"] = list_text
         st.text_area(
             "Your plan",
             height=320,
@@ -970,13 +1047,17 @@ def _render_grocery_result() -> None:
     elif not excluded and not meal_names:
         st.warning("No grocery items found.")
 
+    edit_count: int = result.get("edit_count", 0)
+    if edit_count:
+        st.caption(f"_{edit_count} ingredient edit(s) logged for later review._")
+
     if st.button("Edit meals", key="grocery_edit_meals"):
         _clear_grocery_result()
         st.rerun()
 
     if st.button("Update list", key="grocery_update_list"):
-        # Widget values are merged into result above; rerun refreshes copy/download output
-        # from cached base items + current customize settings (re-add, extras).
+        # Force recompute of the text area by clearing the fingerprint, then rerun.
+        st.session_state.pop("grocery_final_list_fingerprint", None)
         st.rerun()
 
 
