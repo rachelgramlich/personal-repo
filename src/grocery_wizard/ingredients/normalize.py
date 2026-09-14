@@ -35,6 +35,7 @@ from src.grocery_wizard.ingredients._patterns import (
     _CHECKLIST_ITEM_RE,
     _CONJUNCTION_SPLIT_RE,
     _GROCERY_NOUNS,
+    _INGREDIENT_ALTERNATIVE_RE,
     _INSTRUCTION_ONLY_RE,
     _INSTRUCTION_VERB_RE,
     _LEADING_QTY_RE,
@@ -42,7 +43,6 @@ from src.grocery_wizard.ingredients._patterns import (
     _MERGED_QTY_SPLIT_RE,
     _METADATA_LINE_RE,
     _RECIPE_STEP_RE,
-    _STOCK_OR_ALTERNATIVE_RE,
     _TORTILLA_PREFIXES,
     _UNITS,
 )
@@ -317,7 +317,7 @@ def split_recipe_title_bleed(text: str) -> list[str]:
     if _CONJUNCTION_SPLIT_RE.search(stripped):
         return [text]
 
-    if _STOCK_OR_ALTERNATIVE_RE.search(stripped):
+    if _INGREDIENT_ALTERNATIVE_RE.search(stripped):
         return [text]
 
     if "(" in stripped and ")" in stripped:

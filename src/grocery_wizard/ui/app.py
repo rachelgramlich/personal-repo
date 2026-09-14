@@ -1016,13 +1016,30 @@ def _render_grocery_result() -> None:
     if final_items or meal_names:
         db = get_db()
         meals = _meal_entries_with_links(db, meal_names)
-        list_text = format_meals_and_grocery_list(
-            meals,
-            final_items,
+        list_text = format_meals_and_grocery_list(meals, final_items)
+
+        if "\n\nGrocery List\n" in list_text:
+            meals_copy_text, grocery_body = list_text.split("\n\nGrocery List\n", 1)
+            grocery_copy_text = f"Grocery List\n{grocery_body}"
+        else:
+            meals_copy_text = list_text
+            grocery_copy_text = "Grocery List"
+
+        st.markdown("**Meals**")
+        _render_copy_button(meals_copy_text, label="Copy meals", key="meals_copy")
+        st.text_area(
+            "Meals",
+            value=meals_copy_text,
+            height=120,
+            disabled=True,
+            label_visibility="collapsed",
+            key="meals_display",
         )
+
+        st.markdown("**Grocery List**")
         col_copy, col_download = st.columns(2)
         with col_copy:
-            _render_copy_button(list_text, label="Copy plan", key="grocery_copy")
+            _render_copy_button(grocery_copy_text, label="Copy list", key="grocery_copy")
         with col_download:
             st.download_button(
                 "Download",
@@ -1037,9 +1054,9 @@ def _render_grocery_result() -> None:
         new_fingerprint = (tuple(final_items), tuple(meal_names))
         if st.session_state.get("grocery_final_list_fingerprint") != new_fingerprint:
             st.session_state["grocery_final_list_fingerprint"] = new_fingerprint
-            st.session_state["grocery_final_list"] = list_text
+            st.session_state["grocery_final_list"] = grocery_copy_text
         st.text_area(
-            "Your plan",
+            "Grocery list",
             height=320,
             label_visibility="collapsed",
             key="grocery_final_list",

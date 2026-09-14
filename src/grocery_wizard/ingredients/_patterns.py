@@ -232,8 +232,6 @@ _JUNK_ONLY_PHRASES = frozenset(
         "leaves and tender stems",
         "stems and leaves",
         "boiling water",
-        # Bare "juice" with no qualifier is meaningless as a grocery item
-        "juice",
     }
 )
 
@@ -243,8 +241,9 @@ _REMOVED_PREP_SEGMENT_RE = re.compile(
     re.IGNORECASE,
 )
 
-# ``chicken or vegetable stock`` alternatives must not be split on ``or``.
-_STOCK_OR_ALTERNATIVE_RE = re.compile(r"\bor\b.*\b(?:stock|broth)\b", re.IGNORECASE)
+# Any ``X or Y`` phrasing signals an ingredient alternative (e.g. "lemons or limes",
+# "chicken or vegetable stock").  Such lines must not be split by the title-bleed splitter.
+_INGREDIENT_ALTERNATIVE_RE = re.compile(r"\bor\b", re.IGNORECASE)
 
 _TORTILLA_PREFIXES = frozenset({"corn", "flour", "wheat", "whole-wheat", "whole"})
 

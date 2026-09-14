@@ -578,6 +578,52 @@ def test_stock_or_alternative_not_split_on_expand() -> None:
     assert normalize_ingredient(line) == "low-sodium chicken or vegetable stock"
 
 
+# ---------------------------------------------------------------------------
+# Ingredient "or" alternatives must NOT be split (pantry bug fixes)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "lemons or limes",
+        "limes or lemons",
+        "lemon or lime",
+        "lime or lemon",
+        "butter or oil",
+        "honey or maple syrup",
+        "red or white wine vinegar",
+    ],
+)
+def test_ingredient_or_alternative_not_split(line: str) -> None:
+    """'X or Y' ingredient alternatives must stay as a single item."""
+    result = expand_ingredient_line(line)
+    assert result == [line], f"Expected [{line!r}] but got {result!r}"
+
+
+def test_lemon_or_lime_juice_kept_as_valid_ingredient() -> None:
+    """'lemon or lime juice' must not be treated as junk."""
+    line = "lemon or lime juice"
+    assert not is_junk_ingredient(line)
+    result = expand_ingredient_line(line)
+    assert result == [line]
+
+
+def test_juice_of_lemons_or_limes_kept_as_valid_ingredient() -> None:
+    """'juice of 2 lemons or limes' must survive as a single, non-junk line."""
+    line = "juice of 2 lemons or limes"
+    assert not is_junk_ingredient(line)
+    result = expand_ingredient_line(line)
+    assert result == [line]
+
+
+def test_lemon_juice_not_filtered_as_junk() -> None:
+    """'lemon juice' must not be classified as junk (regression for 'juice' removal)."""
+    assert not is_junk_ingredient("lemon juice")
+    assert not is_junk_ingredient("lime juice")
+    assert normalize_ingredient("lemon juice") != ""
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
