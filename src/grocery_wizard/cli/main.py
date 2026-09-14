@@ -410,6 +410,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     migrate_enh_parser.set_defaults(func=cmd_dev_migrate_enhancements_to_github)
 
+    backfill_labels_parser = dev_subparsers.add_parser(
+        "backfill-enhancement-labels",
+        help="Add grocery-wizard label to legacy title-matched backlog issues",
+    )
+    backfill_labels_parser.add_argument(
+        "--strip-title-prefix",
+        action="store_true",
+        help="Remove [Grocery Wizard] / Grocery Wizard: from issue titles",
+    )
+    backfill_labels_parser.set_defaults(func=cmd_dev_backfill_enhancement_labels)
+
     nyt_parser = subparsers.add_parser(
         "nyt",
         help="NYT Cooking integration (saved recipes, sync to Notion)",
@@ -1347,6 +1358,27 @@ def cmd_dev_migrate_enhancements_to_github(args: argparse.Namespace) -> int:
         suffix = f" → {url}" if url else ""
         num_part = f"#{num} " if num else ""
         print(f"  {num_part}{eid} {title}{suffix}")
+    return 0
+
+
+def cmd_dev_backfill_enhancement_labels(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.dev.enhancement_github import GhError, backfill_backlog_labels
+
+    try:
+        updated = backfill_backlog_labels(strip_title_prefix=args.strip_title_prefix)
+    except GhError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    if not updated:
+        print("No legacy title-matched issues needed updates.")
+        return 0
+    for row in updated:
+        num = row.get("number")
+        actions = ", ".join(row.get("actions") or [])
+        url = row.get("url") or ""
+        suffix = f" ({url})" if url else ""
+        print(f"  #{num}: {actions}{suffix}")
+    print(f"Updated {len(updated)} issue(s).")
     return 0
 
 

@@ -8,10 +8,10 @@ import subprocess
 from datetime import UTC, datetime
 from typing import Any
 
+BACKLOG_LABEL = "grocery-wizard"
 BACKLOG_TITLE_PREFIX = "[Grocery Wizard] "
 AREA_LABEL_PREFIX = "gw-area-"
-FEATURE_ISSUE_TEMPLATE = "Grocery Wizard enhancement"
-BUG_ISSUE_TEMPLATE = "Bug report"
+_BACKLOG_SEARCH_QUERY = f'label:{BACKLOG_LABEL} OR "Grocery Wizard" in:title'
 
 _AREA_BODY_RE = re.compile(r"\*\*Area:\*\*\s*(\w+)", re.IGNORECASE)
 _AREA_MARKDOWN_RE = re.compile(
@@ -62,20 +62,57 @@ def label_to_area(labels: list[str]) -> str:
     return "other"
 
 
-def format_backlog_title(title: str) -> str:
-    """Ensure the issue title marks it as part of the Grocery Wizard backlog."""
-    cleaned = title.strip()
-    if "grocery wizard" in cleaned.lower():
-        return cleaned
-    return f"{BACKLOG_TITLE_PREFIX}{cleaned}"
-
-
 def strip_backlog_title_prefix(title: str) -> str:
     return _BACKLOG_TITLE_PREFIX_RE.sub("", title.strip(), count=1).strip()
 
 
+def normalize_backlog_title(title: str) -> str:
+    """Return a clean backlog title (no legacy ``[Grocery Wizard]`` prefix)."""
+    return strip_backlog_title_prefix(title)
+
+
+def _issue_label_names(issue: dict[str, Any]) -> list[str]:
+    labels = issue.get("labels") or []
+    names: list[str] = []
+    for label in labels:
+        if isinstance(label, dict):
+            names.append(label.get("name") or "")
+        else:
+            names.append(str(label))
+    return names
+
+
+def _legacy_title_backlog(title: str) -> bool:
+    return "grocery wizard" in (title or "").lower()
+
+
 def is_backlog_issue(issue: dict[str, Any]) -> bool:
-    return "grocery wizard" in (issue.get("title") or "").lower()
+    if BACKLOG_LABEL in _issue_label_names(issue):
+        return True
+    return _legacy_title_backlog(issue.get("title") or "")
+
+
+def ensure_backlog_label() -> None:
+    """Create the ``grocery-wizard`` label on the repo if it is missing."""
+    raw = _run_gh(["label", "list", "--json", "name"])
+    names = {entry.get("name") for entry in json.loads(raw or "[]") if isinstance(entry, dict)}
+    if BACKLOG_LABEL in names:
+        return
+    _run_gh(
+        [
+            "label",
+            "create",
+            BACKLOG_LABEL,
+            "--description",
+            "Grocery Wizard enhancement backlog",
+            "--color",
+            "1D76DB",
+        ]
+    )
+
+
+def _backlog_labels_for_area(area: str) -> list[str]:
+    return [BACKLOG_LABEL, area_to_label(area)]
 
 
 def _form_section(body: str, heading_prefix: str) -> str:
@@ -217,10 +254,6 @@ def _issue_to_entry(issue: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _repo_slug() -> str:
-    return _run_gh(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).strip()
-
-
 def _search_backlog_issues(*, state: str) -> list[dict[str, Any]]:
     """state: ``open`` or ``closed`` (``gh issue list --search`` on current repo)."""
     if state not in {"open", "closed"}:
@@ -230,7 +263,7 @@ def _search_backlog_issues(*, state: str) -> list[dict[str, Any]]:
             "issue",
             "list",
             "--search",
-            "Grocery Wizard in:title",
+            _BACKLOG_SEARCH_QUERY,
             "--state",
             state,
             "--limit",
@@ -319,19 +352,19 @@ def create_issue(
         pr_url=pr_url,
         completed_at=completed_at,
     )
-    issue_title = format_backlog_title(title)
-    url = _run_gh(
-        [
-            "issue",
-            "create",
-            "--title",
-            issue_title,
-            "--body",
-            body,
-            "--template",
-            FEATURE_ISSUE_TEMPLATE,
-        ]
-    )
+    ensure_backlog_label()
+    issue_title = normalize_backlog_title(title)
+    create_args = [
+        "issue",
+        "create",
+        "--title",
+        issue_title,
+        "--body",
+        body,
+    ]
+    for label in _backlog_labels_for_area(area):
+        create_args.extend(["--label", label])
+    url = _run_gh(create_args)
     entry = _issue_to_entry(_view_issue(_issue_number_from_url(url)))
     if closed:
         number = entry.get("issue_number")
@@ -359,7 +392,7 @@ def create_bug_issue(
         expected=expected,
         context=context,
     )
-    issue_title = format_backlog_title(title)
+    issue_title = title.strip()
     url = _run_gh(
         [
             "issue",
@@ -370,8 +403,6 @@ def create_bug_issue(
             body,
             "--label",
             "bug",
-            "--template",
-            BUG_ISSUE_TEMPLATE,
         ]
     )
     return json.loads(
@@ -412,6 +443,55 @@ def close_issue(raw_id: str, *, pr_url: str | None = None) -> bool:
         _run_gh(["issue", "comment", str(number), "--body", f"Shipped in {pr}"])
     _run_gh(["issue", "close", str(number)])
     return True
+
+
+def backfill_backlog_labels(*, strip_title_prefix: bool = False) -> list[dict[str, Any]]:
+    """One-time migration: label legacy title-matched issues; optionally strip title prefix."""
+    ensure_backlog_label()
+    updated: list[dict[str, Any]] = []
+    for state in ("open", "closed"):
+        raw = _run_gh(
+            [
+                "issue",
+                "list",
+                "--search",
+                '"Grocery Wizard" in:title',
+                "--state",
+                state,
+                "--limit",
+                "100",
+                "--json",
+                "number,title,url,labels",
+            ]
+        )
+        if not raw:
+            continue
+        for issue in json.loads(raw):
+            if not _legacy_title_backlog(issue.get("title") or ""):
+                continue
+            number = issue.get("number")
+            if not isinstance(number, int):
+                continue
+            label_names = _issue_label_names(issue)
+            actions: list[str] = []
+            if BACKLOG_LABEL not in label_names:
+                _run_gh(["issue", "edit", str(number), "--add-label", BACKLOG_LABEL])
+                actions.append("labeled")
+            if strip_title_prefix:
+                raw_title = issue.get("title") or ""
+                clean = normalize_backlog_title(raw_title)
+                if clean and clean != raw_title:
+                    _run_gh(["issue", "edit", str(number), "--title", clean])
+                    actions.append("title")
+            if actions:
+                updated.append(
+                    {
+                        "number": number,
+                        "url": issue.get("url") or "",
+                        "actions": actions,
+                    }
+                )
+    return updated
 
 
 def comment_on_pr(pr_url: str, body: str) -> None:

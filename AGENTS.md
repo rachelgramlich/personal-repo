@@ -2,12 +2,13 @@
 
 ## Enhancement backlog
 
-- **Storage:** GitHub Issues whose title contains **Grocery Wizard** (new issues get a `[Grocery Wizard]` prefix). No labels or `enh_NNN` IDs required.
+- **Storage:** GitHub Issues with the **`grocery-wizard`** label (clean titles; no required prefix). Legacy issues may still match **Grocery Wizard** in the title until backfilled.
 - **List open items:** `uv run python -m src.grocery_wizard dev list-enhancements`
 - **Implement one item:** `uv run python -m src.grocery_wizard dev work-on-enhancement <issue-number>`
   - Same as `dev show-enhancement <issue-number>` — prints the full implementation + ship checklist.
   - Use the GitHub issue number (`96` / `#96`).
-- **Add backlog item:** `uv run python -m src.grocery_wizard dev add-enhancement --title "…" --expected-behavior "…"` (GitHub template **Grocery Wizard enhancement**; requires `gh`).
+- **Add backlog item:** `uv run python -m src.grocery_wizard dev add-enhancement --title "…" --expected-behavior "…"` (applies **`grocery-wizard`** label; requires `gh`).
+- **Backfill labels (once):** `uv run python -m src.grocery_wizard dev backfill-enhancement-labels` (optional `--strip-title-prefix`).
 - **Report a bug:** `uv run python -m src.grocery_wizard dev report-bug …` (template **Bug report**; not the backlog).
 - **Issue forms:** `.github/ISSUE_TEMPLATE/grocery_wizard_enhancement.yml`, `bug_report.yml`.
 

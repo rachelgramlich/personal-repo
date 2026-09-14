@@ -24,7 +24,7 @@ When unsure, ask once: “Is this a backlog feature or a bug?”
 
 ### Enhancement backlog
 
-- Title gets **`[Grocery Wizard]`** if missing.
+- Issue gets the **`grocery-wizard`** label (clean title; no required prefix).
 - **Expected behavior & manual test hints** are required (same as the GitHub form).
 
 ```bash

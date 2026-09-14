@@ -15,7 +15,7 @@ Orchestrate **one worker per open backlog item**. Do not implement the enhanceme
 
 ## Context
 
-- Backlog: GitHub Issues with **Grocery Wizard** in the title.
+- Backlog: GitHub Issues with the **`grocery-wizard`** label.
 - Spawn specs: `uv run python -m src.grocery_wizard dev spawn-enhancement-workers --json`
 
 ## Your task
