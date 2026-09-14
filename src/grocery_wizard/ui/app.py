@@ -48,6 +48,7 @@ from src.grocery_wizard.recipes.classify import classify_recipe
 from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text, scrape_recipe
 from src.grocery_wizard.recipes.weeknight import DEFAULT_WEEKNIGHT_COLUMN
 from src.grocery_wizard.shopping.grocery_list import (
+    align_item_provenance_with_items,
     build_grocery_list,
     format_item_provenance,
     format_meals_and_grocery_list,
@@ -1373,7 +1374,6 @@ def _render_grocery_result() -> None:
     excluded: list[str] = result["excluded"]
     missing_ingredients: list[str] = result.get("missing_ingredients", [])
     name_link_mismatches = result.get("name_link_mismatches", [])
-    item_provenance: dict[str, list[str]] = result.get("item_provenance", {})
     meal_names = list(result.get("week_plan") or result.get("source_recipes") or [])
 
     if name_link_mismatches:
@@ -1390,10 +1390,6 @@ def _render_grocery_result() -> None:
             f"{', '.join(missing_ingredients)}. "
             "Run `dev backfill-ingredients` to populate them from their links."
         )
-
-    if item_provenance:
-        with st.expander("Item sources (which recipe each item came from)"):
-            st.text(format_item_provenance(item_provenance))
 
     _render_added_and_removed_summary(result)
     items = result["items"]
@@ -1429,6 +1425,14 @@ def _render_grocery_result() -> None:
         additional_text,
         run_removals=run_removals,
     )
+
+    aligned_provenance = align_item_provenance_with_items(
+        result.get("item_provenance", {}),
+        final_items,
+    )
+    if aligned_provenance:
+        with st.expander("Item sources (which recipe each item came from)"):
+            st.text(format_item_provenance(aligned_provenance))
 
     if final_items or meal_names:
         db = get_db()

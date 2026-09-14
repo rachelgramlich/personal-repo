@@ -1,9 +1,21 @@
-"""Flow 2: Build a merged grocery list from planned recipes."""
+"""Flow 2: Build a merged grocery list from planned recipes.
+
+Grocery list pipeline (dev/debug failure points):
+
+1. **Per-recipe Notion lines** → ``expand_ingredient_line`` / normalize → ``collected``
+2. **Aggregate + format** → base ``grocery_items`` (amount merge, pantry exclusion)
+3. **Session merges** → re-add pantry, recurring template, extras, run removals, user edits
+4. **Sort** → ``sort_grocery_items`` → final export list
+
+``item_provenance`` is captured during step 1. After step 3-4, call
+``align_item_provenance_with_items`` so dev "item sources" matches what ships.
+"""
 
 from __future__ import annotations
 
 __all__ = [
     "NameLinkMismatch",
+    "align_item_provenance_with_items",
     "build_grocery_list",
     "detect_name_link_mismatch",
     "format_grocery_item",
@@ -132,6 +144,26 @@ def format_item_provenance(item_provenance: dict[str, list[str]]) -> str:
     return "\n".join(lines)
 
 
+def align_item_provenance_with_items(
+    item_provenance: dict[str, list[str]],
+    grocery_items: list[str],
+) -> dict[str, list[str]]:
+    """Map provenance onto the final grocery list lines (post-merge / post-edit)."""
+    if not item_provenance or not grocery_items:
+        return {}
+
+    by_key: dict[str, list[str]] = {}
+    for item, recipes in item_provenance.items():
+        by_key[_normalized_item_key(item)] = recipes
+
+    aligned: dict[str, list[str]] = {}
+    for line in grocery_items:
+        recipes = by_key.get(_normalized_item_key(line))
+        if recipes:
+            aligned[line] = recipes
+    return aligned
+
+
 def run_grocery_list(
     db: NotionRecipesDB,
     *,
@@ -244,9 +276,10 @@ def run_grocery_list(
         _print_grocery_list(grocery_items, heading="Grocery list")
         grocery_items = _prompt_accept_or_edit(grocery_items)
         _print_grocery_list(grocery_items, heading="Final grocery list")
-        if item_provenance:
+        aligned_provenance = align_item_provenance_with_items(item_provenance, grocery_items)
+        if aligned_provenance:
             print()
-            print(format_item_provenance(item_provenance))
+            print(format_item_provenance(aligned_provenance))
     else:
         recurring = _resolve_recurring_weekly_items(
             recurring_weekly_items=recurring_weekly_items,
