@@ -1297,6 +1297,7 @@ def _render_grocery_result() -> None:
             height=320,
             label_visibility="collapsed",
             key="grocery_final_list",
+            help="Edit this consolidated list directly before copy or download.",
         )
         grocery_for_copy = st.session_state.get("grocery_final_list", grocery_copy_text)
         download_text = f"{meals_for_copy}\n\n{grocery_for_copy}"
