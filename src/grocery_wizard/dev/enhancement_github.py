@@ -136,13 +136,18 @@ def _issue_to_entry(issue: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _repo_slug() -> str:
+    return _run_gh(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).strip()
+
+
 def _search_backlog_issues(*, state: str) -> list[dict[str, Any]]:
     """state: ``open`` or ``closed`` (gh search issues)."""
+    repo = _repo_slug()
     raw = _run_gh(
         [
             "search",
             "issues",
-            "Grocery Wizard in:title",
+            f'repo:{repo} "Grocery Wizard" in:title',
             "--state",
             state,
             "--limit",

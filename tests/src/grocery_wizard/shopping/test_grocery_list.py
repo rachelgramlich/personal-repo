@@ -653,6 +653,53 @@ def test_build_grocery_list_splits_grilled_veggies_over_orzo_bleed(tmp_path: Pat
     assert not any("chimichurri zucchini orzo lemon" in item for item in lowered)
 
 
+def test_build_grocery_list_keeps_fresh_red_pepper_when_pantry_has_pepper(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("pepper\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe(
+            "Grilled Veggies over Orzo",
+            "chimichurri zucchini orzo lemon red pepper red onions",
+        ),
+    ]
+
+    items, excluded, _, _, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Grilled Veggies over Orzo"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    lowered = [item.lower() for item in items]
+    assert any("red pepper" in item for item in lowered)
+    assert not any("red pepper" in item for item in (x.lower() for x in excluded))
+
+
+def test_build_grocery_list_merges_color_onion_lines(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("A", "2 red or yellow onions"),
+        _recipe("B", "red onions"),
+    ]
+
+    items, _, _, _, _, _ = build_grocery_list(
+        db,
+        recipe_names=["A", "B"],
+        pantry_path=pantry_path,
+        exclude_pantry=False,
+    )
+
+    onion_lines = [item for item in items if "onion" in item.lower()]
+    assert len(onion_lines) == 1
+    assert "2" in onion_lines[0]
+    assert "red or yellow" in onion_lines[0].lower()
+
+
 def test_build_grocery_list_splits_merged_chermoula_lines(tmp_path: Path) -> None:
     """Regression: merged Notion lines must not become one grocery item."""
     pantry_path = tmp_path / "pantry.txt"
