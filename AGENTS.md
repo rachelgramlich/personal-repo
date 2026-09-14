@@ -12,11 +12,10 @@
 When shipping an enhancement, the agent must:
 
 1. Set the PR title via `dev enhancement-pr-title <issue-number>`.
-2. Fill the PR template **Manual verification** section and include `Closes #<issue-number>` in the PR body (issue closes on **merge**, not when the PR opens).
-3. Run `dev complete-enhancement <issue-number>` to link the PR on the issue **without closing it**.
-4. Ask the user to run manual verification (echo the PR section); when they confirm, run `dev record-manual-verification <issue-number>`.
+2. Fill the PR template **Manual verification** section and include `Closes #<issue-number>` in the PR body (GitHub closes the issue when the PR merges).
+3. Ask the user to run manual verification (echo the PR section); when they confirm, run `dev record-manual-verification <issue-number>`.
 
-Do not close backlog issues early with `gh issue close` or ask the user to close issues by hand.
+Do not close backlog issues with `gh issue close` or ask the user to close issues by hand — merge the PR with `Closes #N`.
 
 Legacy JSONL (if any) can be imported once: `dev migrate-enhancements-to-github`.
 

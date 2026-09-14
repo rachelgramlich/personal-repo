@@ -6,7 +6,6 @@ __all__ = [
     "AREA_FILES",
     "add_enhancement",
     "close_enhancement",
-    "complete_enhancement",
     "format_pr_title",
     "format_worker_spawn_message",
     "get_enhancement",
@@ -195,30 +194,6 @@ def format_pr_title(entry: dict, *, max_len: int = 256) -> str:
     return prefix + title
 
 
-def complete_enhancement(
-    eid: str,
-    *,
-    pr_url: str | None = None,
-    path: Path | None = None,
-) -> bool:
-    """Link a PR on the backlog item; GitHub issue stays open until merge (Closes #N)."""
-    if path is not None:
-        entries = _load_all_file(path)
-        found = False
-        for entry in entries:
-            if entry.get("id") == eid:
-                if pr_url:
-                    entry["pr_url"] = pr_url.strip()
-                found = True
-                break
-        if found:
-            _save_all_file(entries, path)
-        return found
-    if not pr_url or not pr_url.strip():
-        return False
-    return gh.link_issue_pr(eid, pr_url=pr_url)
-
-
 def record_manual_verification(
     *,
     pr_url: str,
@@ -316,11 +291,7 @@ def format_agent_prompt(entry: dict) -> str:
         "**Ship (you must do this — user does not manage the backlog):**",
         f"- PR title: `uv run python -m src.grocery_wizard dev enhancement-pr-title {eid}`",
         "- Push; create or update the PR using the repo PR template (**Manual verification**).",
-        f"- PR body must include `Closes #{eid}` (issue closes on merge, not when PR opens).",
-        (
-            f"- Link PR on the open issue: "
-            f"`uv run python -m src.grocery_wizard dev complete-enhancement {eid}`"
-        ),
+        f"- PR body must include `Closes #{eid}` (GitHub closes the issue on merge).",
         "- Tell the user to run **Manual verification** from the PR; echo that section.",
         (
             "- When the user confirms manual passed, post sign-off on the PR: "

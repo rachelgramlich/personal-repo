@@ -35,7 +35,7 @@ uv run python -m src.grocery_wizard dev spawn-enhancement-workers --json
 
 4. After launching, summarize for the user: enhancement ID, GitHub issue #, title, branch, and how each worker was started (URL if known).
 
-5. Do **not** run `dev complete-enhancement` from this orchestrator chat — each worker links its PR and handles manual verification when shipped.
+5. Do **not** close backlog issues from the orchestrator chat — each worker opens a PR with `Closes #N` and handles manual verification when shipped.
 
 Optional: reinstall slash commands after pulling:
 

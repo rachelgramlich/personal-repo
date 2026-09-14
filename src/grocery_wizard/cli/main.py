@@ -326,22 +326,10 @@ def main(argv: list[str] | None = None) -> int:
 
     close_enh_parser = dev_subparsers.add_parser(
         "close-enhancement",
-        help="Mark an enhancement as done (no PR link; prefer complete-enhancement)",
+        help="Manually close a backlog issue (escape hatch; prefer Closes #N on PR merge)",
     )
     close_enh_parser.add_argument("id", help="GitHub issue number (e.g. 96)")
     close_enh_parser.set_defaults(func=cmd_dev_close_enhancement)
-
-    complete_enh_parser = dev_subparsers.add_parser(
-        "complete-enhancement",
-        help="Link the GitHub PR on the issue (issue stays open until PR merge)",
-    )
-    complete_enh_parser.add_argument("id", help="GitHub issue number (e.g. 96)")
-    complete_enh_parser.add_argument(
-        "--pr-url",
-        default="",
-        help="PR URL (default: current branch via gh pr view)",
-    )
-    complete_enh_parser.set_defaults(func=cmd_dev_complete_enhancement)
 
     manual_ver_parser = dev_subparsers.add_parser(
         "record-manual-verification",
@@ -1140,7 +1128,7 @@ def cmd_dev_close_enhancement(args: argparse.Namespace) -> int:
     if not found:
         print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
         return 1
-    print(f"Marked {args.id} as done (no PR linked). Prefer: dev complete-enhancement {args.id}")
+    print(f"Marked {args.id} as done (no PR linked).")
     return 0
 
 
@@ -1170,34 +1158,6 @@ def cmd_dev_enhancement_pr_title(args: argparse.Namespace) -> int:
         print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
         return 1
     print(format_pr_title(entry))
-    return 0
-
-
-def cmd_dev_complete_enhancement(args: argparse.Namespace) -> int:
-    from src.grocery_wizard.dev.enhancement_log import complete_enhancement, get_enhancement
-
-    entry = get_enhancement(args.id)
-    if entry is None:
-        print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
-        return 1
-
-    pr_url = (args.pr_url or "").strip()
-    if not pr_url:
-        pr_url = _gh_pr_url_for_current_branch() or ""
-    if not pr_url:
-        print(
-            "Could not resolve PR URL. Pass --pr-url, or open a PR on this branch (gh).",
-            file=sys.stderr,
-        )
-        return 1
-
-    if not complete_enhancement(args.id, pr_url=pr_url):
-        print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
-        return 1
-    print(
-        f"Linked PR on issue #{args.id} (issue stays open until merge). PR: {pr_url}\n"
-        f"Ensure the PR body includes `Closes #{args.id}`."
-    )
     return 0
 
 

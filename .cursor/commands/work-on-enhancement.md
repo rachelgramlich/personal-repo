@@ -1,6 +1,6 @@
 # Work on enhancement
 
-Pick up one backlog item and implement it end-to-end. **You** handle PR linking and UAT handoff — the user should not close issues or edit backlog metadata by hand.
+Pick up one backlog item and implement it end-to-end. **You** handle the PR and UAT handoff — GitHub closes linked issues on merge; the user should not edit backlog metadata by hand.
 
 ## Context
 
@@ -48,23 +48,7 @@ PR_TITLE="$(uv run python -m src.grocery_wizard dev enhancement-pr-title <issue-
   - **Body:** use the repo PR template (`.github/pull_request_template.md`). Fill **Manual verification** (surface, where, steps, expected behavior, regression). Include `Closes #<issue-number>` — the issue closes when the PR **merges**, not when the PR is opened.
 - If the PR already exists but the title is wrong, update it to `$PR_TITLE`.
 
-### 5. Link PR on the issue (do not close early)
-
-After the PR exists for this branch, record the PR on the GitHub issue **without closing it**:
-
-```bash
-uv run python -m src.grocery_wizard dev complete-enhancement <issue-number>
-```
-
-This reads the PR URL from `gh pr view` on the current branch. If that fails, pass `--pr-url <url>` explicitly.
-
-Confirm the issue is still **open** and shows the PR link:
-
-```bash
-uv run python -m src.grocery_wizard dev list-enhancements --all
-```
-
-### 6. Manual verification handoff
+### 5. Manual verification handoff
 
 - Tell the user **concisely** to run the **Manual verification** section from the PR description (echo the steps — do not make them hunt in the diff).
 - Wait for them to confirm manual passed in chat (or report failures and fix).
