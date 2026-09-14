@@ -14,6 +14,7 @@ from src.grocery_wizard.shopping.grocery_list import (
     _normalized_item_key,
     _print_excluded_summary,
     _recipes_needing_backfill,
+    align_item_provenance_with_items,
     build_grocery_list,
     detect_name_link_mismatch,
     format_grocery_item,
@@ -1080,6 +1081,19 @@ def test_format_name_link_mismatch_warning() -> None:
     assert "Crispy Potato Tacos" in warning
     assert "Crispy Potato Quesadillas" in warning
     assert "stale" in warning.lower()
+
+
+def test_align_item_provenance_with_items_matches_final_list() -> None:
+    provenance = {
+        "onions": ["Salad"],
+        "peas": ["Soup"],
+        "milk": ["Extras"],
+    }
+    final_items = ["onions", "peas"]
+
+    aligned = align_item_provenance_with_items(provenance, final_items)
+
+    assert aligned == {"onions": ["Salad"], "peas": ["Soup"]}
 
 
 def test_format_item_provenance_lists_source_recipes() -> None:
