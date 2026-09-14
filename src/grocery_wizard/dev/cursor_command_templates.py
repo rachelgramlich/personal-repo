@@ -7,14 +7,14 @@ from __future__ import annotations
 CURSOR_COMMAND_FILES: dict[str, str] = {
     "add-enhancement.md": """# Add enhancement (local backlog)
 
-Capture a feature idea or improvement in `.local/grocery_wizard/enhancements.jsonl` for later implementation.
+Capture a feature idea or improvement in `src/grocery_wizard/dev/enhancements.jsonl` (committed) for later implementation.
 
 ## How this relates to other dev logs
 
 | Workflow | Storage | How you pick it up |
 |----------|---------|-------------------|
 | Ingredient parser fixes | `.local/grocery_wizard/ingredient_edits.jsonl` (UI edits) | `uv run python -m src.grocery_wizard dev suggest-fixes` aggregates patterns for parser work |
-| **Enhancement backlog** | `.local/grocery_wizard/enhancements.jsonl` | **Use Cursor:** `/list-enhancements` then `/work-on-enhancement <id>` |
+| **Enhancement backlog** | `src/grocery_wizard/dev/enhancements.jsonl` (committed) | **Use Cursor:** `/list-enhancements` then `/work-on-enhancement <id>` |
 
 Prefer **`/add-enhancement`** in Cursor over typing `dev add-enhancement` in a terminal; the CLI remains for scripts and non-Cursor environments.
 
@@ -47,7 +47,7 @@ Show open items from the local enhancement backlog.
 
 ## Context
 
-- Backlog file: `.local/grocery_wizard/enhancements.jsonl` (gitignored; local only).
+- Backlog file: `src/grocery_wizard/dev/enhancements.jsonl` (committed to the repo).
 - Ingredient edit logs (`.local/grocery_wizard/ingredient_edits.jsonl`) feed **`dev suggest-fixes`** for automatic parser suggestions; enhancements are **manual feature/fix ideas** you implement when you have time via **`/work-on-enhancement`**.
 
 ## Your task
@@ -76,7 +76,7 @@ Pick up one backlog item and implement it end-to-end.
 
 ## Context
 
-- Backlog: `.local/grocery_wizard/enhancements.jsonl`.
+- Backlog: `src/grocery_wizard/dev/enhancements.jsonl` (committed).
 - **`dev suggest-fixes`** + `ingredient_edits.jsonl` = data-driven parser fix hints from UI edits.
 - **Enhancements** = intentional backlog; primary UX is this command (not ad-hoc CLI).
 
@@ -125,7 +125,7 @@ Orchestrate **one worker per open backlog item**. Do not implement the enhanceme
 
 ## Context
 
-- Backlog: `.local/grocery_wizard/enhancements.jsonl` (gitignored; local only).
+- Backlog: `src/grocery_wizard/dev/enhancements.jsonl` (committed).
 - Spawn specs: `uv run python -m src.grocery_wizard dev spawn-enhancement-workers --json`
 
 ## Your task
