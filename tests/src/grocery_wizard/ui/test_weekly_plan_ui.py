@@ -23,13 +23,11 @@ def test_weekly_plan_regenerate_preserves_rejected_names() -> None:
     assert "st.session_state.plan_rejected_names = []" in source
 
 
-def test_weekly_plan_edit_manually_expander_has_text_area_only() -> None:
+def test_weekly_plan_has_no_bulk_edit_manually_expander() -> None:
     source = APP_PATH.read_text(encoding="utf-8")
-    assert 'st.expander("Edit manually"' in source
-    assert "Swap or edit meals" not in source
-    assert "plan_meals_to_swap" not in source
-    assert 'key="swap_meals"' not in source
-    assert "Swap selected" not in source
+    assert 'st.expander("Edit manually"' not in source
+    assert 'key="plan_meals_text"' not in source
+    assert "_write_plan_names" in source
 
 
 def test_scratch_plan_slot_first_manual_picker() -> None:
@@ -37,13 +35,14 @@ def test_scratch_plan_slot_first_manual_picker() -> None:
     assert "Choose recipe manually" in source
     assert "_render_slot_manual_picker" in source
     assert "plan_week_filter" in source
+    assert "_week_level_plan_filter_columns" in source
     assert "Keep these recipes" not in source
     assert 'st.expander("More options"' not in source
     assert "Fill remaining slots" in source
 
 
-def test_weekly_plan_build_shows_per_meal_swap_and_edit_manually() -> None:
-    """AppTest smoke test: Build my plan renders per-meal ↺ buttons and simplified expander."""
+def test_weekly_plan_build_shows_per_meal_swap() -> None:
+    """AppTest smoke test: Build my plan renders per-meal ↺ buttons."""
     from streamlit.testing.v1 import AppTest
 
     at = AppTest.from_file(APP_FILE, default_timeout=60)
@@ -64,7 +63,7 @@ def test_weekly_plan_build_shows_per_meal_swap_and_edit_manually() -> None:
     assert regen, "↺ Re-generate everything button missing"
 
     expander_labels = [e.label for e in at.expander]
-    assert "Edit manually" in expander_labels
+    assert "Edit manually" not in expander_labels
     assert "Swap or edit meals" not in expander_labels
 
     multiselect_labels = [m.label for m in at.multiselect]
@@ -75,13 +74,13 @@ def test_weekly_plan_build_shows_per_meal_swap_and_edit_manually() -> None:
 
 
 def test_grocery_list_extra_items_before_create_button() -> None:
-    """Issue #33: Extra items must render above Create grocery list (outside collapsed expander)."""
+    """Issue #121: Extra items live in Grocery list options before Create grocery list."""
     source = APP_PATH.read_text(encoding="utf-8")
     section = source.split("### 2. Grocery list", 1)[1].split("def _render_grocery_result", 1)[0]
 
-    extra_idx = section.index('key="grocery_pre_extra_items"')
     create_idx = section.index('if st.button("Create grocery list"')
-    assert extra_idx < create_idx
-
-    assert '\n    extra_items_text = st.text_area(\n        "Extra items (one per line)"' in section
-    assert '\n        extra_items_text = st.text_area(' not in section
+    options_block = section.split('with st.expander("Grocery list options"', 1)[1].split(
+        'if st.button("Create grocery list"', 1
+    )[0]
+    assert 'key="grocery_pre_extra_items"' in options_block
+    assert section.index('key="grocery_pre_extra_items"') < create_idx
