@@ -17,6 +17,10 @@ setup:
 setup-upgrade:
     uv sync --upgrade
 
+# Install Python dependencies only (no Streamlit skills symlink)
+sync:
+    uv sync --all-extras
+
 # Run linting checks
 lint:
     uv run ruff check --fix
@@ -46,8 +50,11 @@ clean:
     rm -rf .coverage htmlcov/
     rm -rf dist/ build/ *.egg-info
 
-# Run all checks (lint, format check, tests)
+# Local pre-push: auto-fix lint + tests
 check: lint test
+
+# GitHub Actions entry point (deps + pytest; lint via pre-commit locally)
+ci: sync test
 
 # Run pre-commit checks
 pre-commit:
