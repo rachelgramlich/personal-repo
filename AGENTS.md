@@ -5,14 +5,15 @@
 | You type | Purpose |
 | --- | --- |
 | **`/create-issues`** | One or more notes → auto **bug vs backlog**, merge by **code area**, create GitHub issue(s) |
+| **`/architecture-review`** | **Phase A:** standards audit report + Ruff/CI gap analysis; **Phase B:** file **`audit`**-labeled issues (`dev create-issues --audit`) |
 | **`/list-enhancements`** | Open backlog (grocery-wizard label) |
 | **`/work-on-issue N`** | Full implementation brief for backlog **or** bug #N |
 
-Slash files: `.cursor/commands/create-issues.md`, `list-enhancements.md`, `work-on-issue.md`.
+Slash files: `.cursor/commands/create-issues.md`, `architecture-review.md`, `list-enhancements.md`, `work-on-issue.md`.
 
 Agents run the matching CLI when structured output or `gh` is needed:
 
-- `dev create-issues` — `--dry-run` to preview; `--item` (repeat) or stdin; `--plan-file` for edited JSON
+- `dev create-issues` — `--dry-run` to preview; `--item` (repeat) or stdin; `--plan-file` for edited JSON; `--audit` for architecture-review follow-ups
 - `dev list-enhancements`
 - `dev work-on-issue <issue-number>`
 

@@ -38,11 +38,14 @@ printf '%s\n\n%s\n' "first note" "second note" | \
 3. **Explain the plan** to the user in plain language:
    - How many issues and why (merge notes that share **kind** + **code area** so they can ship in one PR; split when area or bug vs feature differs).
    - Which become **enhancement backlog** (`grocery-wizard` label) vs **bug** (`bug` label).
+   - For findings from **`/architecture-review` Phase B**, include **`--audit`** on every create/dry-run (adds the `audit` label).
 
 4. If the user agrees (or gave a clear “create them”), create:
 
 ```bash
 uv run python -m src.grocery_wizard dev create-issues --item "…" --item "…"
+# Architecture audit follow-ups:
+uv run python -m src.grocery_wizard dev create-issues --audit --item "…" --item "…"
 ```
 
    For a reviewed JSON plan from `--dry-run --json`:

@@ -336,6 +336,11 @@ def main(argv: list[str] | None = None) -> int:
         dest="output_json",
         help="With --dry-run: emit planned issues as JSON for --plan-file",
     )
+    create_issues_parser.add_argument(
+        "--audit",
+        action="store_true",
+        help="Label created issues with audit (architecture / standards follow-ups)",
+    )
     create_issues_parser.set_defaults(func=cmd_dev_create_issues)
 
     list_enh_parser = dev_subparsers.add_parser(
@@ -1132,6 +1137,10 @@ def cmd_dev_create_issues(args: argparse.Namespace) -> int:
             return 1
         planned = plan_from_items(notes)
 
+    if args.audit:
+        for issue in planned:
+            issue.audit = True
+
     if not planned:
         print("Nothing to create.", file=sys.stderr)
         return 1
@@ -1147,7 +1156,8 @@ def cmd_dev_create_issues(args: argparse.Namespace) -> int:
                 if len(issue.source_items) > 1
                 else ""
             )
-            print(f"{index}. [{issue.kind}] area={issue.area}{items_note}")
+            audit_note = " audit=yes" if issue.audit else ""
+            print(f"{index}. [{issue.kind}] area={issue.area}{audit_note}{items_note}")
             print(f"   title: {issue.title}")
         return 0
 

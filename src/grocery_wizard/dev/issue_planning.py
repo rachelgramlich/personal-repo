@@ -104,6 +104,7 @@ class PlannedIssue:
     actual: str = ""
     expected: str = ""
     context: str = ""
+    audit: bool = False
 
 
 def _normalize_area(area: str) -> str:
@@ -238,6 +239,7 @@ def planned_issue_to_dict(issue: PlannedIssue) -> dict:
         "actual": issue.actual,
         "expected": issue.expected,
         "context": issue.context,
+        "audit": issue.audit,
     }
 
 
@@ -253,4 +255,5 @@ def planned_issue_from_dict(data: dict) -> PlannedIssue:
         actual=data.get("actual") or "",
         expected=data.get("expected") or "",
         context=data.get("context") or "",
+        audit=bool(data.get("audit")),
     )

@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 BACKLOG_LABEL = "grocery-wizard"
+AUDIT_LABEL = "audit"
 BACKLOG_TITLE_PREFIX = "[Grocery Wizard] "
 AREA_LABEL_PREFIX = "gw-area-"
 _BACKLOG_SEARCH_QUERY = f'label:{BACKLOG_LABEL} OR "Grocery Wizard" in:title'
@@ -92,27 +93,47 @@ def is_backlog_issue(issue: dict[str, Any]) -> bool:
     return _legacy_title_backlog(issue.get("title") or "")
 
 
-def ensure_backlog_label() -> None:
-    """Create the ``grocery-wizard`` label on the repo if it is missing."""
+def _ensure_repo_label(name: str, *, description: str, color: str) -> None:
     raw = _run_gh(["label", "list", "--json", "name"])
     names = {entry.get("name") for entry in json.loads(raw or "[]") if isinstance(entry, dict)}
-    if BACKLOG_LABEL in names:
+    if name in names:
         return
     _run_gh(
         [
             "label",
             "create",
-            BACKLOG_LABEL,
+            name,
             "--description",
-            "Grocery Wizard enhancement backlog",
+            description,
             "--color",
-            "1D76DB",
+            color,
         ]
     )
 
 
-def _backlog_labels_for_area(area: str) -> list[str]:
-    return [BACKLOG_LABEL, area_to_label(area)]
+def ensure_backlog_label() -> None:
+    """Create the ``grocery-wizard`` label on the repo if it is missing."""
+    _ensure_repo_label(
+        BACKLOG_LABEL,
+        description="Grocery Wizard enhancement backlog",
+        color="1D76DB",
+    )
+
+
+def ensure_audit_label() -> None:
+    """Create the ``audit`` label on the repo if it is missing."""
+    _ensure_repo_label(
+        AUDIT_LABEL,
+        description="Architecture / standards audit follow-up (from /architecture-review)",
+        color="FBCA04",
+    )
+
+
+def _backlog_labels_for_area(area: str, *, audit: bool = False) -> list[str]:
+    labels = [BACKLOG_LABEL, area_to_label(area)]
+    if audit:
+        labels.append(AUDIT_LABEL)
+    return labels
 
 
 def _form_section(body: str, heading_prefix: str) -> str:
@@ -389,6 +410,7 @@ def create_issue(
     closed: bool = False,
     pr_url: str = "",
     completed_at: str = "",
+    audit: bool = False,
 ) -> dict[str, Any]:
     body = format_feature_issue_body(
         area=area,
@@ -398,6 +420,8 @@ def create_issue(
         completed_at=completed_at,
     )
     ensure_backlog_label()
+    if audit:
+        ensure_audit_label()
     issue_title = normalize_backlog_title(title)
     create_args = [
         "issue",
@@ -407,7 +431,7 @@ def create_issue(
         "--body",
         body,
     ]
-    for label in _backlog_labels_for_area(area):
+    for label in _backlog_labels_for_area(area, audit=audit):
         create_args.extend(["--label", label])
     url = _run_gh(create_args)
     entry = _issue_to_entry(_view_issue(_issue_number_from_url(url)))
@@ -429,6 +453,7 @@ def create_bug_issue(
     actual: str,
     expected: str,
     context: str = "",
+    audit: bool = False,
 ) -> dict[str, Any]:
     body = format_bug_issue_body(
         description=description,
@@ -438,18 +463,21 @@ def create_bug_issue(
         context=context,
     )
     issue_title = title.strip()
-    url = _run_gh(
-        [
-            "issue",
-            "create",
-            "--title",
-            issue_title,
-            "--body",
-            body,
-            "--label",
-            "bug",
-        ]
-    )
+    if audit:
+        ensure_audit_label()
+    create_args = [
+        "issue",
+        "create",
+        "--title",
+        issue_title,
+        "--body",
+        body,
+        "--label",
+        "bug",
+    ]
+    if audit:
+        create_args.extend(["--label", AUDIT_LABEL])
+    url = _run_gh(create_args)
     return json.loads(
         _run_gh(
             [
