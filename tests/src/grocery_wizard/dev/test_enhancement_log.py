@@ -50,3 +50,23 @@ def test_format_agent_prompt_includes_uat_and_merge_close() -> None:
     assert "Closes #42" in prompt
     assert "record-manual-verification 42" in prompt
     assert "complete-enhancement" not in prompt
+    assert "work-on-issue.md" in prompt
+
+
+def test_format_bug_work_prompt() -> None:
+    from src.grocery_wizard.dev.enhancement_log import format_work_prompt
+
+    prompt = format_work_prompt(
+        {
+            "kind": "bug",
+            "id": "99",
+            "issue_number": 99,
+            "title": "List empty",
+            "description": "No items",
+            "repro": "1. Plan meals",
+            "actual": "Empty",
+            "expected": "Items show",
+        }
+    )
+    assert "Fix the following bug" in prompt
+    assert "Closes #99" in prompt
