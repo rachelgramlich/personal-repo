@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ui_source import ui_source
+
 APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui" / "app.py"
 APP_FILE = str(APP_PATH)
 
 
 def test_weekly_plan_has_per_meal_swap_buttons() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     assert 'st.button("↺", key=f"swap_meal_{index}"' in source
     assert "meal_col, swap_col = st.columns([8, 1])" in source
     assert "_apply_plan_swap" in source
@@ -17,25 +19,25 @@ def test_weekly_plan_has_per_meal_swap_buttons() -> None:
 
 
 def test_weekly_plan_regenerate_preserves_rejected_names() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     assert 'st.button("↺ Re-generate everything"' in source
     assert "plan_rejected_names" in source
     assert "st.session_state.plan_rejected_names = []" in source
 
 
 def test_weekly_plan_has_no_bulk_edit_manually_expander() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     assert 'st.expander("Edit manually"' not in source
     assert 'key="plan_meals_text"' not in source
     assert "_write_plan_names" in source
 
 
 def test_scratch_plan_slot_first_manual_picker() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     assert "Choose recipe manually" in source
     assert "_render_slot_manual_picker" in source
     assert "plan_week_filter" in source
-    assert "_week_level_plan_filter_columns" in source
+    assert "week_level_plan_filter_columns" in source
     assert "Keep these recipes" not in source
     assert 'st.expander("More options"' not in source
     assert "Fill remaining slots" in source
@@ -74,7 +76,7 @@ def test_weekly_plan_build_shows_per_meal_swap() -> None:
 
 
 def test_dev_mode_exposes_collapsed_dev_tools_expander() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     assert '_render_dev_jump_tools(db)' in source
     assert 'st.expander("Dev tools", expanded=False)' in source
     assert '_weekly_plan_mode() != "dev"' in source
@@ -99,7 +101,7 @@ def test_dev_mode_exposes_collapsed_dev_tools_expander() -> None:
 
 
 def test_dev_mode_auto_continues_without_continue_button() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     entry = source.split("def _render_weekly_plan_entry", 1)[1].split(
         "def _invalidate_stale_grocery_result", 1
     )[0]
@@ -109,13 +111,13 @@ def test_dev_mode_auto_continues_without_continue_button() -> None:
 
 
 def test_dev_mode_default_meal_count() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     assert '_weekly_plan_mode() == "dev"' in source
     assert 'key="plan_meal_count"' in source
 
 
 def test_prebuild_recipe_picker_before_build_my_plan() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     assert "_render_prebuild_recipe_picker" in source
     assert 'key="plan_prebuild_pinned_recipes"' in source
     build_idx = source.index('if st.button("Build my plan"')
@@ -126,7 +128,7 @@ def test_prebuild_recipe_picker_before_build_my_plan() -> None:
 
 def test_grocery_list_extra_items_before_create_button() -> None:
     """Issue #121 / #131: Extra items in their own expander before Create grocery list."""
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     section = source.split("### 2. Grocery list", 1)[1].split("def _render_grocery_result", 1)[0]
 
     create_idx = section.index('if st.button("Create grocery list"')

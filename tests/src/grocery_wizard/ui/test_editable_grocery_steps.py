@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui" / "app.py"
+from ui_source import ui_source
+
+UI_ROOT = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui"
 
 
 def test_start_recipe_review_formats_notion_storage_lines() -> None:
-    flow_path = APP_PATH.parent / "grocery_flow.py"
-    source = flow_path.read_text(encoding="utf-8")
-    assert "format_ingredients_for_review" in source
-    app_source = APP_PATH.read_text(encoding="utf-8")
+    flow_source = (UI_ROOT / "grocery_flow.py").read_text(encoding="utf-8")
+    assert "format_ingredients_for_review" in flow_source
+    app_source = ui_source()
     start_block = app_source.split("def _start_recipe_review", 1)[1].split(
         "def _render_per_recipe_review", 1
     )[0]
@@ -19,7 +20,7 @@ def test_start_recipe_review_formats_notion_storage_lines() -> None:
 
 
 def test_per_recipe_review_initializes_widget_keys_without_value_param() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     review_block = source.split("def _render_per_recipe_review", 1)[1].split(
         "def render_create_weekly_plan", 1
     )[0]
@@ -29,7 +30,7 @@ def test_per_recipe_review_initializes_widget_keys_without_value_param() -> None
 
 
 def test_final_step_meals_and_grocery_use_separate_fingerprints() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     result_block = source.split("def _render_grocery_result", 1)[1].split(
         'if __name__ == "__main__"', 1
     )[0]
@@ -43,7 +44,7 @@ def test_final_step_meals_and_grocery_use_separate_fingerprints() -> None:
 
 
 def test_copy_buttons_read_session_state_after_text_areas() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     result_block = source.split("def _render_grocery_result", 1)[1].split(
         'if __name__ == "__main__"', 1
     )[0]
@@ -53,12 +54,13 @@ def test_copy_buttons_read_session_state_after_text_areas() -> None:
     grocery_idx = result_block.index('key="grocery_final_list"')
     grocery_copy_idx = result_block.index("grocery_for_copy")
     assert grocery_idx < grocery_copy_idx
-    assert "_render_copy_button(meals_for_copy" in result_block
-    assert "_render_copy_button(grocery_for_copy" in result_block
+    assert "render_copy_download(" in result_block
+    assert "meals_for_copy" in result_block
+    assert "grocery_for_copy" in result_block
 
 
 def test_clear_grocery_result_clears_meals_and_grocery_fingerprints() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     clear_block = source.split("def _clear_grocery_result", 1)[1].split(
         "def _invalidate_stale_grocery_result", 1
     )[0]
@@ -68,7 +70,7 @@ def test_clear_grocery_result_clears_meals_and_grocery_fingerprints() -> None:
 
 
 def test_grocery_pre_extra_items_cleared_with_session_overrides() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     overrides_block = source.split("def _clear_grocery_session_overrides", 1)[1].split(
         "def _effective_recurring_items", 1
     )[0]
