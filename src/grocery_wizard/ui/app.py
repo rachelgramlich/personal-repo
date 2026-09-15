@@ -1297,13 +1297,6 @@ def render_create_weekly_plan() -> None:
             _clear_grocery_result()
             st.rerun()
 
-        with st.expander("Edit manually", expanded=False):
-            st.text_area(
-                "One recipe per line",
-                height=160,
-                key="plan_meals_text",
-            )
-
         _render_save_plan_controls(_current_plan_names())
 
     st.divider()

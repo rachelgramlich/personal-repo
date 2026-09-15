@@ -23,13 +23,11 @@ def test_weekly_plan_regenerate_preserves_rejected_names() -> None:
     assert "st.session_state.plan_rejected_names = []" in source
 
 
-def test_weekly_plan_edit_manually_expander_has_text_area_only() -> None:
+def test_weekly_plan_has_no_bulk_edit_manually_expander() -> None:
     source = APP_PATH.read_text(encoding="utf-8")
-    assert 'st.expander("Edit manually"' in source
-    assert "Swap or edit meals" not in source
-    assert "plan_meals_to_swap" not in source
-    assert 'key="swap_meals"' not in source
-    assert "Swap selected" not in source
+    assert 'st.expander("Edit manually"' not in source
+    assert 'key="plan_meals_text"' not in source
+    assert "_write_plan_names" in source
 
 
 def test_scratch_plan_slot_first_manual_picker() -> None:
@@ -43,8 +41,8 @@ def test_scratch_plan_slot_first_manual_picker() -> None:
     assert "Fill remaining slots" in source
 
 
-def test_weekly_plan_build_shows_per_meal_swap_and_edit_manually() -> None:
-    """AppTest smoke test: Build my plan renders per-meal ↺ buttons and simplified expander."""
+def test_weekly_plan_build_shows_per_meal_swap() -> None:
+    """AppTest smoke test: Build my plan renders per-meal ↺ buttons."""
     from streamlit.testing.v1 import AppTest
 
     at = AppTest.from_file(APP_FILE, default_timeout=60)
@@ -65,7 +63,7 @@ def test_weekly_plan_build_shows_per_meal_swap_and_edit_manually() -> None:
     assert regen, "↺ Re-generate everything button missing"
 
     expander_labels = [e.label for e in at.expander]
-    assert "Edit manually" in expander_labels
+    assert "Edit manually" not in expander_labels
     assert "Swap or edit meals" not in expander_labels
 
     multiselect_labels = [m.label for m in at.multiselect]
