@@ -10,6 +10,7 @@ _REQUIRED_CSS_FRAGMENTS = (
     "stTextAreaRootElement",
     'stTextAreaRootElement"] textarea::placeholder',
     "stMultiSelectTagsContainer",
+    '[data-testid="stMultiSelectTagsContainer"] [data-tag]',
     'div:has(button[aria-label="Open"])',
     "stNumberInputContainer",
     "stNumberInputStepDown",

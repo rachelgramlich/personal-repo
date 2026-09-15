@@ -288,6 +288,8 @@ just grocery-ui
 
 Tabs: Add Recipe, Plan Meals, Grocery List.
 
+**Phone / remote access:** see [docs/remote-access.md](docs/remote-access.md) (local Wi‑Fi + CLI by default; always-on host only if we implement #138).
+
 UI performance research (Streamlit rerun model, Notion caching, phased roadmap): [`docs/ui-performance-research.md`](../../docs/ui-performance-research.md).
 
 ## Supported recipe sources

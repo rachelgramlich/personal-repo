@@ -74,6 +74,15 @@ from src.grocery_wizard.shopping.store_aisles import (
     classify_aisle,
     load_store_aisles,
 )
+from src.grocery_wizard.ui.dev_jumps import (
+    DEFAULT_DEV_MEAL_COUNT,
+    DEV_JUMP_CAPTIONS,
+    DEV_JUMP_FLOW_ORDER,
+    DevJumpTarget,
+    commit_dev_jump,
+    dev_jump_display_title,
+    pick_default_recipe_names,
+)
 from src.grocery_wizard.ui.notion_cache import (
     cached_pantry_entries,
     cached_query_recipes,
@@ -794,13 +803,41 @@ def _write_plan_names(names: list[str]) -> None:
 
 
 def _locked_recipes_for_plan_build(*, meal_count: int) -> list[str]:
-    """Pinned meals for auto-fill; saved plans keep loaded recipes by default (#105)."""
-    if _weekly_plan_mode() != "saved":
-        return []
+    """Pinned meals for auto-fill: pre-build picks plus saved-plan loaded meals (#105)."""
+    locked: list[str] = []
+    for name in st.session_state.get("plan_prebuild_pinned_recipes") or []:
+        if name and name not in locked:
+            locked.append(name)
+    if _weekly_plan_mode() == "saved":
+        for name in _current_plan_names():
+            if name not in locked:
+                locked.append(name)
+    return locked[: int(meal_count)]
+
+
+def _render_prebuild_recipe_picker(all_recipes: list, *, meal_count: int) -> None:
+    """Searchable multiselect to pin recipes before **Build my plan**."""
+    all_names = sorted({recipe.name for recipe in all_recipes}, key=str.lower)
+    if not all_names:
+        st.caption("No recipes in Notion yet — add recipes to pin meals before building.")
+        return
+
     current = _current_plan_names()
-    if not current:
-        return []
-    return current[: int(meal_count)]
+    if "plan_prebuild_pinned_recipes" not in st.session_state and current:
+        st.session_state.plan_prebuild_pinned_recipes = list(current)
+
+    max_pins = max(1, int(meal_count))
+    st.multiselect(
+        "Pin recipes before building",
+        options=all_names,
+        max_selections=max_pins,
+        key="plan_prebuild_pinned_recipes",
+        placeholder="Search and pick recipes to keep when building…",
+        help=(
+            f"Optional — pin up to {max_pins} meals. Auto-fill keeps these and suggests "
+            "the rest from your filters below."
+        ),
+    )
 
 
 def _set_plan_slot_recipe(plan: list[str], slot_index: int, recipe_name: str) -> list[str]:
@@ -952,10 +989,12 @@ def _reset_weekly_plan_workflow(*, clear_mode: bool = False) -> None:
         "weekly_plan_loaded_name",
         "weekly_plan_last_saved_name",
         "weekly_plan_saved_fingerprint",
+        "plan_prebuild_pinned_recipes",
     ):
         st.session_state.pop(key, None)
     if clear_mode:
         st.session_state.pop("weekly_plan_mode", None)
+        st.session_state.pop("plan_meal_count", None)
     _clear_grocery_result()
 
 
@@ -1029,6 +1068,95 @@ def _render_save_plan_controls(recipe_names: list[str]) -> None:
         st.rerun()
 
 
+def _render_dev_jump_tools(db: NotionRecipesDB) -> None:
+    """Collapsed dev-only shortcuts to wizard steps for manual UAT."""
+    if _weekly_plan_mode() != "dev":
+        return
+
+    with st.expander("Dev tools", expanded=False):
+        st.caption(
+            "Jump to a wizard step using a small default meal set from Notion "
+            "(recipes with ingredients). Use when manually testing UI without "
+            "clicking through meal generation each time."
+        )
+        def _dev_jump_bullet(target: DevJumpTarget) -> None:
+            title = dev_jump_display_title(target)
+            st.markdown(f"- **{title}** — {DEV_JUMP_CAPTIONS[target]}")
+
+        def _dev_jump_button(
+            target: DevJumpTarget,
+            *,
+            label: str,
+            key_suffix: str,
+            manual_recipes: list[str] | None,
+        ) -> None:
+            if not st.button(label, key=f"dev_jump_{target.value}_{key_suffix}"):
+                return
+            if manual_recipes is not None and not manual_recipes:
+                st.warning("Pick at least one recipe for the manual meals jump.")
+                return
+            meal_count = int(
+                st.session_state.get("plan_meal_count", DEFAULT_DEV_MEAL_COUNT)
+            )
+            if manual_recipes is not None:
+                names = list(manual_recipes)
+            else:
+                names = pick_default_recipe_names(
+                    db.query_recipes(),
+                    meal_count=meal_count,
+                )
+            names = commit_dev_jump(st.session_state, db, target, names)
+            if not names:
+                st.error(
+                    "No recipes in Notion to use for dev jump. Add recipes with "
+                    "ingredients first."
+                )
+                return
+            st.session_state.plan_prebuild_pinned_recipes = list(names)
+            st.rerun()
+
+        for step in DEV_JUMP_FLOW_ORDER:
+            _dev_jump_bullet(step)
+
+        all_names = sorted({recipe.name for recipe in db.query_recipes()}, key=str.lower)
+        _dev_jump_button(
+            DevJumpTarget.MEALS_FILLED,
+            label="Meals filled: auto",
+            key_suffix="auto",
+            manual_recipes=None,
+        )
+        manual_pick = st.multiselect(
+            "Choose recipes manually",
+            options=all_names,
+            key="dev_jump_manual_recipes",
+            placeholder="Pick one or more recipes…",
+        )
+        _dev_jump_button(
+            DevJumpTarget.MEALS_FILLED,
+            label="Meals filled: manual",
+            key_suffix="manual",
+            manual_recipes=manual_pick,
+        )
+        _dev_jump_button(
+            DevJumpTarget.PRE_BUILD_GROCERY,
+            label="Pre-build grocery",
+            key_suffix="btn_pre_build",
+            manual_recipes=None,
+        )
+        _dev_jump_button(
+            DevJumpTarget.PER_RECIPE_REVIEW,
+            label="Per-recipe review",
+            key_suffix="btn_review",
+            manual_recipes=None,
+        )
+        _dev_jump_button(
+            DevJumpTarget.GROCERY_RESULT,
+            label="Final list",
+            key_suffix="btn_final_list",
+            manual_recipes=None,
+        )
+
+
 def _render_weekly_plan_entry() -> bool:
     """Prompt for new / saved / dev mode. Returns True when the user may continue planning."""
     mode = _weekly_plan_mode()
@@ -1043,6 +1171,7 @@ def _render_weekly_plan_entry() -> bool:
         st.info(f"**{labels[mode]}**{detail}")
         if st.button("Change how I started", key="weekly_plan_change_mode"):
             _reset_weekly_plan_workflow(clear_mode=True)
+            st.session_state.weekly_plan_mode_choice = "new"
             st.rerun()
         return True
 
@@ -1089,6 +1218,13 @@ def _render_weekly_plan_entry() -> bool:
                 key="weekly_plan_saved_name_pick",
             )
 
+    if choice == "dev":
+        st.session_state.weekly_plan_mode = "dev"
+        _reset_weekly_plan_workflow(clear_mode=False)
+        st.session_state.plan_meals_text = ""
+        st.session_state.plan_meal_count = 1
+        st.rerun()
+
     if st.button("Continue", type="primary", key="weekly_plan_mode_continue"):
         if choice == "saved" and not saved_plans:
             return False
@@ -1099,8 +1235,9 @@ def _render_weekly_plan_entry() -> bool:
                 load_plan_recipes(selected_plan_name, recipes_db=get_db())
             )
             st.session_state.weekly_plan_loaded_name = selected_plan_name
-        elif choice in ("new", "dev"):
+        elif choice == "new":
             st.session_state.plan_meals_text = ""
+            st.session_state.plan_meal_count = load_config().default_meals
         st.rerun()
 
     return False
@@ -1255,14 +1392,29 @@ def render_create_weekly_plan() -> None:
     if "plan_meals_text" not in st.session_state:
         st.session_state.plan_meals_text = ""
 
+    if _weekly_plan_mode() == "dev" and "plan_meal_count" not in st.session_state:
+        st.session_state.plan_meal_count = 1
+
     st.markdown("### 1. Meals")
-    meal_count = st.number_input(
-        "How many meals this week?",
-        min_value=1,
-        max_value=21,
-        value=config.default_meals,
-        step=1,
-    )
+    if _weekly_plan_mode() == "dev":
+        meal_count = st.number_input(
+            "How many meals this week?",
+            min_value=1,
+            max_value=21,
+            step=1,
+            key="plan_meal_count",
+        )
+    else:
+        meal_count = st.number_input(
+            "How many meals this week?",
+            min_value=1,
+            max_value=21,
+            value=int(st.session_state.get("plan_meal_count", config.default_meals)),
+            step=1,
+            key="plan_meal_count",
+        )
+
+    _render_dev_jump_tools(db)
 
     filter_defaults = default_filters(schema.all_columns)
     filter_columns = [*schema.filter_columns, *schema.checkbox_columns]
@@ -1276,8 +1428,8 @@ def render_create_weekly_plan() -> None:
 
     st.markdown("#### Generate your plan")
     st.caption(
-        "Auto-fill the week using Meal and weeknight-friendly below. Other filters are "
-        "available per meal when you choose a recipe manually."
+        "Pin specific recipes below, then auto-fill the rest using Meal and weeknight-friendly "
+        "filters. Per-meal filters are still available after you build."
     )
     week_filter_columns = _week_level_plan_filter_columns(schema)
     week_filters = _render_meal_plan_filters(
@@ -1290,6 +1442,8 @@ def render_create_weekly_plan() -> None:
     suggestion_pool = filter_recipes(
         all_recipes, week_filters, schema.all_columns, ingredient_index=ingredient_index
     )
+
+    _render_prebuild_recipe_picker(all_recipes, meal_count=int(meal_count))
 
     if st.button("Build my plan", type="primary", key="build_plan"):
         locked_for_build = _locked_recipes_for_plan_build(meal_count=int(meal_count))

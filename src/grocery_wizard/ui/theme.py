@@ -133,7 +133,7 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
         }}
 
         /* Avoid painting all spans (breaks primary buttons and tag chips). */
-        .stApp span:not(.stButton span):not([data-baseweb="tag"] span) {{
+        .stApp span:not(.stButton span):not([data-baseweb="tag"] span):not([data-tag] span) {{
             color: inherit;
         }}
 
@@ -145,7 +145,6 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
         [data-testid="stTextInputRootElement"],
         [data-testid="stTextAreaRootElement"],
         [data-testid="stNumberInputContainer"],
-        [data-testid="stMultiSelectTagsContainer"],
         /* React Aria select/multiselect closed triggers (emotion styled, not baseweb) */
         [data-testid="stMultiSelect"] div:has([data-testid="stMultiSelectTagsContainer"]),
         [data-testid="stSelectbox"] div:has(button[aria-label="Open"]),
@@ -155,6 +154,11 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
             background-color: var(--gw-input-bg) !important;
             border-color: {border} !important;
             color: var(--gw-text) !important;
+        }}
+
+        /* Multiselect trigger: do not force body text on tag chips (Streamlit 1.6x [data-tag]). */
+        [data-testid="stMultiSelect"] div:has([data-testid="stMultiSelectTagsContainer"]) {{
+            color: unset !important;
         }}
 
         [data-testid="stMultiSelect"] input,
@@ -230,8 +234,8 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
         }}
 
         [data-baseweb="input"] span,
-        [data-baseweb="select"] span,
-        [data-baseweb="select"] div[value] {{
+        [data-baseweb="select"] span:not([data-baseweb="tag"] *),
+        [data-baseweb="select"] div[value]:not([data-baseweb="tag"] *) {{
             color: var(--gw-text) !important;
         }}
 
@@ -333,10 +337,18 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
             border-color: var(--gw-blue-strong) !important;
         }}
 
-        [data-baseweb="tag"] {{
+        [data-baseweb="tag"],
+        [data-testid="stMultiSelectTagsContainer"] [data-tag] {{
             background-color: var(--gw-blue) !important;
             color: var(--gw-blue-text) !important;
             border-color: var(--gw-blue-strong) !important;
+        }}
+
+        [data-baseweb="tag"] svg,
+        [data-testid="stMultiSelectTagsContainer"] [data-tag] span,
+        [data-testid="stMultiSelectTagsContainer"] [data-tag] button {{
+            color: var(--gw-blue-text) !important;
+            -webkit-text-fill-color: var(--gw-blue-text) !important;
         }}
 
         [data-baseweb="tag"] svg {{
