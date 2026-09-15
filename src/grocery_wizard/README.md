@@ -288,6 +288,8 @@ just grocery-ui
 
 Tabs: Add Recipe, Plan Meals, Grocery List.
 
+UI performance research (Streamlit rerun model, Notion caching, phased roadmap): [`docs/ui-performance-research.md`](../../docs/ui-performance-research.md).
+
 ## Supported recipe sources
 
 Most recipe blogs with structured HTML or JSON-LD work well. When available, **total cook time** is read from JSON-LD (`totalTime`, or `prepTime` + `cookTime`) for weeknight-friendly classification. TikTok and Instagram are **partially supported** — ingredients must appear in the caption text. When scraping fails, paste ingredients manually into Notion or use a blog link.
