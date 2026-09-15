@@ -455,8 +455,13 @@ def _first_alternative(name: str) -> str:
     parts = [part.strip() for part in _OR_ALTERNATIVE_RE.split(name.strip()) if part.strip()]
     if not parts:
         return name.strip()
+    for part in parts:
+        if _match_preserved_product(part):
+            return part
     if len(parts) == 2:
         first_words, second_words = parts[0].split(), parts[1].split()
+        if first_words and all(word.lower() in _DESCRIPTOR_WORDS for word in first_words):
+            return parts[1]
         if (
             len(second_words) >= 2
             and second_words[-1].lower() not in parts[0].lower()
@@ -480,6 +485,9 @@ def _match_preserved_product(name: str) -> str | None:
     frozen_match = re.search(r"\bfrozen\s+([a-z]+(?:\s+[a-z]+)?)", lowered)
     if frozen_match:
         return f"frozen {frozen_match.group(1)}"
+    canned_match = re.search(r"\bcanned\s+([a-z]+(?:\s+[a-z]+)?)", lowered)
+    if canned_match:
+        return f"canned {canned_match.group(1)}"
     for form in ("diced", "crushed", "stewed", "fire-roasted", "whole peeled", "whole"):
         if re.search(rf"\b{re.escape(form)}\s+tomatoes?\b", lowered):
             if form == "whole peeled":
@@ -567,6 +575,8 @@ def _simplify_parsed_name(name: str) -> str:
         cleaned = cleaned[6:].strip()
     words = cleaned.split()
     while words and words[0].lower() in _DESCRIPTOR_WORDS:
+        words.pop(0)
+    while words and words[0].lower() == "or":
         words.pop(0)
     cleaned = " ".join(words)
     return _prefer_plural_form(cleaned)
@@ -845,6 +855,13 @@ def _build_storage_line(
     context = source_line or original
     if _is_lemon_zest_ingredient(context, name):
         return _format_lemon_zest_storage(_lemon_zest_quantity(context, parsed))
+
+    if selected is None and not amounts:
+        bare = original.strip().lower()
+        if bare in {"lemon", "lemons"}:
+            return "lemon"
+        if bare in {"lime", "limes"}:
+            return "lime"
 
     if _LEMON_LINE_RE.match(original.strip()) or name == "lemons":
         if re.search(r"\bzest\b", original, re.IGNORECASE):

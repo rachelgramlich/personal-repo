@@ -1,0 +1,4 @@
+{
+  "name": "Grocery Wizard",
+  "install": "bash -lc 'set -euo pipefail; if ! command -v uv >/dev/null 2>&1; then curl -LsSf https://astral.sh/uv/install.sh | sh; fi; export PATH=\"${HOME}/.local/bin:${PATH}\"; uv sync --all-extras; uv run streamlit skills --yes; mkdir -p .cursor/skills; ln -sfn \"$(readlink .agents/skills/developing-with-streamlit)\" .cursor/skills/developing-with-streamlit 2>/dev/null || true'"
+}

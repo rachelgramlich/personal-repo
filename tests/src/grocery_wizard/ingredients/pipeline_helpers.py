@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from src.grocery_wizard.ingredients.normalize import (
@@ -31,7 +32,11 @@ def process_ingredient_line(raw: str, *, nyt: bool = False) -> ProcessedIngredie
     show_amount = should_show_amount(amount, raw)
     keeps_amount = amount and not str(amount).startswith(("head:", "clove:", "zest:"))
     if name == "garlic":
-        grocery_amount = aggregate_amounts([amount], name=name)
+        agg = aggregate_amounts([amount], name=name)
+        if agg is not None and not re.search(r"\bcloves?\b", agg, re.IGNORECASE):
+            grocery_amount = agg
+        else:
+            grocery_amount = None
     else:
         grocery_amount = amount if show_amount and keeps_amount else None
     grocery_line = format_grocery_item(name, grocery_amount)
