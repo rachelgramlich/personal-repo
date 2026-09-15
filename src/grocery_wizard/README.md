@@ -193,7 +193,7 @@ just grocery-ui
 ```
 
 ```
-personal-repo/
+grocery-wizard/
 ├── src/grocery_wizard/          # package (table above)
 ├── tests/src/grocery_wizard/    # tests (mirrors package folders)
 └── .local/grocery_wizard/       # your week plan (not committed)

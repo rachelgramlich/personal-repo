@@ -1,4 +1,4 @@
-# Justfile for personal-repo
+# Justfile for grocery-wizard
 
 set dotenv-load
 
