@@ -46,7 +46,10 @@ from src.grocery_wizard.ingredients.normalize import (
     parse_amount,
     should_show_amount,
 )
-from src.grocery_wizard.ingredients.parsed import format_garlic_grocery_amount
+from src.grocery_wizard.ingredients.parsed import (
+    format_garlic_grocery_amount,
+    format_lemon_zest_grocery_line,
+)
 from src.grocery_wizard.ingredients.sync import (
     SyncSummary,
     format_sync_summary,
@@ -469,6 +472,8 @@ def _amount_for_grocery_display(name: str, amount: str | None) -> str | None:
 
 def format_grocery_item(name: str, amount: str | None) -> str:
     """Format a grocery item for display: ``"amount name"`` or just ``name``."""
+    if name.lower() == "lemons" and amount and amount.startswith("zest:"):
+        return format_lemon_zest_grocery_line(amount)
     amount = _amount_for_grocery_display(name, amount)
     if amount is None:
         return name
