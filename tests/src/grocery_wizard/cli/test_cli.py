@@ -23,6 +23,8 @@ from src.grocery_wizard.cli.main import main
         (["dev", "refresh-all"], "refresh-all-ingredients"),
         (["dev", "audit"], "audit-recipes"),
         (["dev", "schema"], "show-schema"),
+        (["dev", "show-enhancement"], "work-on-enhancement"),
+        (["dev", "spawn-enhancement-workers"], "list-enhancements"),
     ],
 )
 def test_deprecated_commands_print_replacement(argv: list[str], replacement: str) -> None:

@@ -26,6 +26,16 @@ _DEPRECATED_DEV_COMMANDS: dict[str, str] = {
     "refresh-all": "Use `dev refresh-all-ingredients` instead.",
     "audit": "Use `dev audit-recipes` instead.",
     "schema": "Use `dev show-schema` instead.",
+    "show-enhancement": "Use `dev work-on-enhancement` instead.",
+    "close-enhancement": (
+        "Merge a PR whose body includes `Closes #N` (do not close backlog issues by hand)."
+    ),
+    "spawn-enhancement-workers": (
+        "Use `dev list-enhancements` and start one agent per issue."
+    ),
+    "install-cursor-commands": (
+        "Slash commands live in `.cursor/commands/` (committed); no install step."
+    ),
 }
 
 
@@ -325,37 +335,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     list_enh_parser.set_defaults(func=cmd_dev_list_enhancements)
 
-    show_enh_parser = dev_subparsers.add_parser(
-        "show-enhancement",
-        help="Show a ready-to-paste agent prompt for an enhancement",
-    )
-    show_enh_parser.add_argument(
-        "id",
-        help="GitHub issue number (#74 or 74)",
-    )
-    show_enh_parser.add_argument(
-        "--close",
-        action="store_true",
-        help="Mark the enhancement as done after showing it",
-    )
-    show_enh_parser.set_defaults(func=cmd_dev_show_enhancement)
-
     work_enh_parser = dev_subparsers.add_parser(
         "work-on-enhancement",
-        help="Full agent brief to implement an enhancement (alias of show-enhancement)",
+        help="Full agent brief to implement an enhancement",
     )
     work_enh_parser.add_argument(
         "id",
         help="GitHub issue number (#74 or 74)",
     )
     work_enh_parser.set_defaults(func=cmd_dev_work_on_enhancement)
-
-    close_enh_parser = dev_subparsers.add_parser(
-        "close-enhancement",
-        help="Manually close a backlog issue (escape hatch; prefer Closes #N on PR merge)",
-    )
-    close_enh_parser.add_argument("id", help="GitHub issue number (e.g. 96)")
-    close_enh_parser.set_defaults(func=cmd_dev_close_enhancement)
 
     manual_ver_parser = dev_subparsers.add_parser(
         "record-manual-verification",
@@ -380,24 +368,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     pr_title_parser.add_argument("id", help="GitHub issue number (e.g. 96)")
     pr_title_parser.set_defaults(func=cmd_dev_enhancement_pr_title)
-
-    spawn_workers_parser = dev_subparsers.add_parser(
-        "spawn-enhancement-workers",
-        help="List spawn specs for parallel workers (one per open enhancement)",
-    )
-    spawn_workers_parser.add_argument(
-        "--json",
-        action="store_true",
-        dest="output_json",
-        help="Output JSON array of spawn specs (agent_message + full prompt)",
-    )
-    spawn_workers_parser.set_defaults(func=cmd_dev_spawn_enhancement_workers)
-
-    install_cursor_parser = dev_subparsers.add_parser(
-        "install-cursor-commands",
-        help="Write enhancement slash commands to .cursor/commands/",
-    )
-    install_cursor_parser.set_defaults(func=cmd_dev_install_cursor_commands)
 
     migrate_enh_parser = dev_subparsers.add_parser(
         "migrate-enhancements-to-github",
@@ -1199,45 +1169,15 @@ def cmd_dev_list_enhancements(args: argparse.Namespace) -> int:
     return 0
 
 
-def _print_enhancement_brief(eid: str, *, close_after: bool = False) -> int:
-    from src.grocery_wizard.dev.enhancement_log import (
-        close_enhancement,
-        format_agent_prompt,
-        get_enhancement,
-    )
+def cmd_dev_work_on_enhancement(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.dev.enhancement_log import format_agent_prompt, get_enhancement
 
-    entry = get_enhancement(eid)
+    entry = get_enhancement(args.id)
     if entry is None:
-        print(f"Enhancement '{eid}' not found.", file=sys.stderr)
+        print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
         return 1
 
     print(format_agent_prompt(entry))
-
-    if close_after:
-        close_enhancement(eid)
-        print(f"\nMarked {eid} as done.")
-    return 0
-
-
-def cmd_dev_show_enhancement(args: argparse.Namespace) -> int:
-    return _print_enhancement_brief(args.id, close_after=args.close)
-
-
-def cmd_dev_work_on_enhancement(args: argparse.Namespace) -> int:
-    return _print_enhancement_brief(args.id, close_after=False)
-
-
-def cmd_dev_close_enhancement(args: argparse.Namespace) -> int:
-    from src.grocery_wizard.dev.enhancement_log import close_enhancement
-
-    found = close_enhancement(args.id)
-    if not found:
-        print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
-        return 1
-    print(
-        f"Closed enhancement #{args.id} on GitHub. "
-        "Normal ship path: merge a PR whose body includes `Closes #N`."
-    )
     return 0
 
 
@@ -1294,44 +1234,6 @@ def cmd_dev_record_manual_verification(args: argparse.Namespace) -> int:
         note=(args.note or "").strip(),
     )
     print(f"Posted manual verification sign-off on PR: {pr_url}")
-    return 0
-
-
-def cmd_dev_spawn_enhancement_workers(args: argparse.Namespace) -> int:
-    import json as _json
-
-    from src.grocery_wizard.dev.enhancement_log import list_worker_spawns
-
-    specs = list_worker_spawns()
-    if args.output_json:
-        print(_json.dumps(specs, indent=2))
-        return 0
-
-    if not specs:
-        print("No open enhancements — nothing to spawn.")
-        return 0
-
-    print(f"Spawn {len(specs)} worker(s) (one per open enhancement):\n")
-    for spec in specs:
-        eid = spec.get("id", "?")
-        title = spec.get("title", "")
-        branch = spec.get("branch", "")
-        message = spec.get("agent_message", "")
-        print(f"{eid} [{spec.get('area', 'other')}] {title}")
-        print(f"  branch: {branch}")
-        print(f"  Cloud Agent first message: {message}")
-        print()
-    return 0
-
-
-def cmd_dev_install_cursor_commands(_args: argparse.Namespace) -> int:
-    from src.grocery_wizard.dev.install_cursor_commands import install_cursor_commands
-
-    repo_root = install_cursor_commands()
-    print(
-        f"Installed to {repo_root}/.cursor/commands/ — "
-        "use /add-enhancement, /list-enhancements, /work-on-enhancement"
-    )
     return 0
 
 

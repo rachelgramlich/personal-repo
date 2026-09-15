@@ -16,7 +16,7 @@
 In this turn you must **not**:
 
 - Search, grep, or read the codebase (no `src/`, `tests/`, configs, or other repo files).
-- Run `dev work-on-enhancement`, `dev show-enhancement`, `dev list-enhancements`, or any command except the issue CLI below.
+- Run `dev work-on-enhancement`, `dev list-enhancements`, or any command except the issue CLI below.
 - Create branches, commits, pull requests, or todos for implementation work.
 - Start coding, planning implementation, or summarizing how the feature would be built.
 

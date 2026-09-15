@@ -5,12 +5,9 @@ from __future__ import annotations
 __all__ = [
     "AREA_FILES",
     "add_enhancement",
-    "close_enhancement",
     "format_pr_title",
-    "format_worker_spawn_message",
     "get_enhancement",
     "list_enhancements",
-    "list_worker_spawns",
     "migrate_jsonl_to_github",
     "record_manual_verification",
     "report_bug",
@@ -189,22 +186,6 @@ def get_enhancement(eid: str, *, path: Path | None = None) -> dict | None:
     return gh.get_issue(eid)
 
 
-def close_enhancement(eid: str, *, path: Path | None = None) -> bool:
-    if path is not None:
-        entries = _load_all_file(path)
-        found = False
-        for entry in entries:
-            if entry.get("id") == eid:
-                entry["status"] = "done"
-                entry["completed_at"] = datetime.now(UTC).isoformat()
-                found = True
-                break
-        if found:
-            _save_all_file(entries, path)
-        return found
-    return gh.close_issue(eid, pr_url=None)
-
-
 def format_pr_title(entry: dict, *, max_len: int = 256) -> str:
     num = entry.get("issue_number")
     eid = (entry.get("id") or "").strip()
@@ -247,35 +228,6 @@ def title_to_branch_slug(title: str, *, max_len: int = 40) -> str:
     if len(slug) > max_len:
         slug = slug[:max_len].rstrip("-")
     return slug
-
-
-def format_worker_spawn_message(entry: dict) -> str:
-    ref = entry.get("issue_number") or entry.get("id") or ""
-    title = entry.get("title", "").strip()
-    if title and ref:
-        return f"/work-on-enhancement {ref} — {title}"
-    if ref:
-        return f"/work-on-enhancement {ref}"
-    return "/work-on-enhancement"
-
-
-def list_worker_spawns(*, path: Path | None = None) -> list[dict]:
-    specs: list[dict] = []
-    for entry in list_enhancements(path=path):
-        title = entry.get("title", "")
-        slug = title_to_branch_slug(title)
-        eid = entry.get("id") or entry.get("issue_number")
-        specs.append(
-            {
-                "id": eid,
-                "title": title,
-                "area": entry.get("area", "other"),
-                "branch": f"cursor/{slug}-21af",
-                "agent_message": format_worker_spawn_message(entry),
-                "prompt": format_agent_prompt(entry),
-            }
-        )
-    return specs
 
 
 def format_agent_prompt(entry: dict) -> str:

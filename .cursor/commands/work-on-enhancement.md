@@ -24,11 +24,9 @@ Run and **follow** the printed prompt (includes title, description, area, files,
 uv run python -m src.grocery_wizard dev work-on-enhancement <issue-number>
 ```
 
-(`dev show-enhancement <issue-number>` is equivalent; do **not** pass `--close`.)
-
 ### 3. Implement
 
-- `git fetch origin main` and create the branch named in the show-enhancement output (pattern `cursor/<slug>-21af` off `main`).
+- `git fetch origin main` and create the branch named in the `work-on-enhancement` output (pattern `cursor/<slug>-21af` off `main`).
 - Read the listed files and any other code needed for the area.
 - Keep scope aligned with the enhancement description; match existing project style.
 - If you change Python: `uv run ruff check` on touched paths; run relevant tests when they exist.
