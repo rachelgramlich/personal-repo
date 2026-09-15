@@ -53,7 +53,7 @@ def test_clear_grocery_result_clears_meals_and_grocery_fingerprints() -> None:
     )[0]
     assert "meals_final_list_fingerprint" in clear_block
     assert "grocery_final_list_fingerprint" in clear_block
-    assert "grocery_pre_extra_items" in clear_block
+    assert "_clear_grocery_pre_extra_items" in clear_block
 
 
 def test_grocery_pre_extra_items_cleared_with_session_overrides() -> None:
@@ -61,4 +61,4 @@ def test_grocery_pre_extra_items_cleared_with_session_overrides() -> None:
     overrides_block = source.split("def _clear_grocery_session_overrides", 1)[1].split(
         "def _effective_recurring_items", 1
     )[0]
-    assert "grocery_pre_extra_items" in overrides_block
+    assert "_bump_grocery_pre_extra_items_widget" in overrides_block
