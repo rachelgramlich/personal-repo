@@ -1,0 +1,35 @@
+"""Tests for pantry/recurring tab layout and helpers."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from src.grocery_wizard.ui.app import _section_display_title
+
+APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui" / "app.py"
+
+
+def test_weekly_recipe_tab_is_first_and_default() -> None:
+    source = APP_PATH.read_text(encoding="utf-8")
+    tabs_block = source.split("tab_weekly, tab_add, tab_pantry = st.tabs(", 1)[1].split(")", 1)[0]
+    assert tabs_block.index("Weekly recipe generation") < tabs_block.index("Add Recipe")
+    assert "render_create_weekly_plan()" in source
+    block = source.split("with tab_weekly:", 1)[1]
+    assert block.lstrip().startswith("render_create_weekly_plan()")
+
+
+def test_pantry_and_recurring_share_one_tab() -> None:
+    source = APP_PATH.read_text(encoding="utf-8")
+    assert "def render_pantry_and_recurring()" in source
+    assert "with tab_pantry:" in source
+    assert source.count('st.tabs(') == 1
+    pantry_fn = source.split("def render_pantry_and_recurring()", 1)[1].split(
+        "def _recipes_ingredient_cache_key", 1
+    )[0]
+    assert "### Pantry" in pantry_fn
+    assert "### Recurring weekly items" in pantry_fn
+
+
+def test_section_display_title() -> None:
+    assert _section_display_title("# --- Spices ---") == "Spices"
+    assert _section_display_title(None) == "Uncategorized"
