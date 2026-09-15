@@ -9,14 +9,15 @@ This document codifies the coding standards enforced in this repository. All cha
 Run everything locally before pushing:
 
 ```bash
-just check        # lint + tests
+just check        # lint --fix + tests (local)
+just ci           # sync + pytest (same as GitHub Actions)
 just format       # auto-format with ruff
 just lint         # ruff check --fix
 just test         # pytest
 just pre-commit   # all pre-commit hooks
 ```
 
-The CI equivalent is the pre-commit hook suite (ruff + ruff-format + trailing-whitespace + end-of-file-fixer + yaml/merge-conflict checks).
+**GitHub Actions** runs `just ci` on push to `main` and on pull requests. Style checks stay in pre-commit (local or [pre-commit.ci](https://pre-commit.ci) if enabled).
 
 ---
 
