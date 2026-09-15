@@ -79,6 +79,19 @@ def test_dev_mode_exposes_collapsed_dev_tools_expander() -> None:
     assert 'st.expander("Dev tools", expanded=False)' in source
     assert '_weekly_plan_mode() != "dev"' in source
     assert "apply_dev_jump" in source
+    assert "Meals filled: auto" in source
+    assert "Meals filled: manual" in source
+    assert 'key="dev_jump_manual_recipes"' in source
+
+
+def test_prebuild_recipe_picker_before_build_my_plan() -> None:
+    source = APP_PATH.read_text(encoding="utf-8")
+    assert "_render_prebuild_recipe_picker" in source
+    assert 'key="plan_prebuild_pinned_recipes"' in source
+    build_idx = source.index('if st.button("Build my plan"')
+    picker_idx = source.index("_render_prebuild_recipe_picker(")
+    assert picker_idx < build_idx
+    assert "plan_prebuild_pinned_recipes" in source.split("def _locked_recipes_for_plan_build", 1)[1]
 
 
 def test_grocery_list_extra_items_before_create_button() -> None:

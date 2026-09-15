@@ -23,7 +23,8 @@ class DevJumpTarget(StrEnum):
 
 DEV_JUMP_CAPTIONS: dict[DevJumpTarget, str] = {
     DevJumpTarget.MEALS_FILLED: (
-        "Meal plan list (section **1. Meals**) — swap buttons, filters, save controls."
+        "Meal plan list (section **1. Meals**) — use **auto** for a default sample or "
+        "**manual** to pick specific Notion recipes."
     ),
     DevJumpTarget.PRE_BUILD_GROCERY: (
         "Grocery setup (section **2. Grocery list**) — options expander and "
@@ -158,10 +159,14 @@ def apply_dev_jump(
     target: DevJumpTarget,
     *,
     meal_count: int = DEFAULT_DEV_MEAL_COUNT,
+    recipe_names: list[str] | None = None,
 ) -> list[str]:
     """Set session state for ``target``; returns recipe names used (empty if none available)."""
-    all_recipes = db.query_recipes()
-    names = pick_default_recipe_names(all_recipes, meal_count=meal_count)
+    if recipe_names is not None:
+        names = [name for name in recipe_names if name.strip()]
+    else:
+        all_recipes = db.query_recipes()
+        names = pick_default_recipe_names(all_recipes, meal_count=meal_count)
     if not names:
         return []
 

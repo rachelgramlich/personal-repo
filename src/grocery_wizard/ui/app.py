@@ -755,13 +755,41 @@ def _write_plan_names(names: list[str]) -> None:
 
 
 def _locked_recipes_for_plan_build(*, meal_count: int) -> list[str]:
-    """Pinned meals for auto-fill; saved plans keep loaded recipes by default (#105)."""
-    if _weekly_plan_mode() != "saved":
-        return []
+    """Pinned meals for auto-fill: pre-build picks plus saved-plan loaded meals (#105)."""
+    locked: list[str] = []
+    for name in st.session_state.get("plan_prebuild_pinned_recipes") or []:
+        if name and name not in locked:
+            locked.append(name)
+    if _weekly_plan_mode() == "saved":
+        for name in _current_plan_names():
+            if name not in locked:
+                locked.append(name)
+    return locked[: int(meal_count)]
+
+
+def _render_prebuild_recipe_picker(all_recipes: list, *, meal_count: int) -> None:
+    """Searchable multiselect to pin recipes before **Build my plan**."""
+    all_names = sorted({recipe.name for recipe in all_recipes}, key=str.lower)
+    if not all_names:
+        st.caption("No recipes in Notion yet — add recipes to pin meals before building.")
+        return
+
     current = _current_plan_names()
-    if not current:
-        return []
-    return current[: int(meal_count)]
+    if "plan_prebuild_pinned_recipes" not in st.session_state and current:
+        st.session_state.plan_prebuild_pinned_recipes = list(current)
+
+    max_pins = max(1, int(meal_count))
+    st.multiselect(
+        "Pin recipes before building",
+        options=all_names,
+        max_selections=max_pins,
+        key="plan_prebuild_pinned_recipes",
+        placeholder="Search and pick recipes to keep when building…",
+        help=(
+            f"Optional — pin up to {max_pins} meals. Auto-fill keeps these and suggests "
+            "the rest from your filters below."
+        ),
+    )
 
 
 def _set_plan_slot_recipe(plan: list[str], slot_index: int, recipe_name: str) -> list[str]:
@@ -912,6 +940,7 @@ def _reset_weekly_plan_workflow(*, clear_mode: bool = False) -> None:
         "weekly_plan_loaded_name",
         "weekly_plan_last_saved_name",
         "weekly_plan_saved_fingerprint",
+        "plan_prebuild_pinned_recipes",
     ):
         st.session_state.pop(key, None)
     if clear_mode:
@@ -999,24 +1028,43 @@ def _render_dev_jump_tools(db: NotionRecipesDB) -> None:
         for target, hint in DEV_JUMP_CAPTIONS.items():
             st.markdown(f"- **{target.value.replace('_', ' ').title()}** — {hint}")
 
+        all_names = sorted({recipe.name for recipe in db.query_recipes()}, key=str.lower)
+        manual_pick = st.multiselect(
+            "Recipes for manual meals jump",
+            options=all_names,
+            key="dev_jump_manual_recipes",
+            placeholder="Pick one or more recipes…",
+        )
+
         col_a, col_b = st.columns(2)
-        jumps: list[tuple[Any, DevJumpTarget, str]] = [
-            (col_a, DevJumpTarget.MEALS_FILLED, "Meals filled"),
-            (col_b, DevJumpTarget.PRE_BUILD_GROCERY, "Pre-build grocery"),
-            (col_a, DevJumpTarget.PER_RECIPE_REVIEW, "Per-recipe review"),
-            (col_b, DevJumpTarget.GROCERY_RESULT, "Final grocery list"),
+        jumps: list[tuple[Any, DevJumpTarget, str, bool]] = [
+            (col_a, DevJumpTarget.MEALS_FILLED, "Meals filled: auto", False),
+            (col_b, DevJumpTarget.MEALS_FILLED, "Meals filled: manual", True),
+            (col_a, DevJumpTarget.PRE_BUILD_GROCERY, "Pre-build grocery", False),
+            (col_b, DevJumpTarget.PER_RECIPE_REVIEW, "Per-recipe review", False),
+            (col_a, DevJumpTarget.GROCERY_RESULT, "Final grocery list", False),
         ]
-        for column, target, label in jumps:
+        for column, target, label, requires_manual in jumps:
             with column:
-                if st.button(label, key=f"dev_jump_{target.value}"):
-                    names = apply_dev_jump(st.session_state, db, target)
-                    if not names:
-                        st.error(
-                            "No recipes in Notion to use for dev jump. Add recipes with "
-                            "ingredients first."
-                        )
+                key_suffix = "manual" if requires_manual else "auto"
+                if st.button(label, key=f"dev_jump_{target.value}_{key_suffix}"):
+                    if requires_manual and not manual_pick:
+                        st.warning("Pick at least one recipe for the manual meals jump.")
                     else:
-                        st.rerun()
+                        names = apply_dev_jump(
+                            st.session_state,
+                            db,
+                            target,
+                            recipe_names=manual_pick if requires_manual else None,
+                        )
+                        if not names:
+                            st.error(
+                                "No recipes in Notion to use for dev jump. Add recipes with "
+                                "ingredients first."
+                            )
+                        else:
+                            st.session_state.plan_prebuild_pinned_recipes = list(names)
+                            st.rerun()
 
 
 def _render_weekly_plan_entry() -> bool:
@@ -1256,8 +1304,8 @@ def render_create_weekly_plan() -> None:
 
     st.markdown("#### Generate your plan")
     st.caption(
-        "Auto-fill the week using Meal and weeknight-friendly below. Other filters are "
-        "available per meal when you choose a recipe manually."
+        "Pin specific recipes below, then auto-fill the rest using Meal and weeknight-friendly "
+        "filters. Per-meal filters are still available after you build."
     )
     week_filter_columns = _week_level_plan_filter_columns(schema)
     week_filters = _render_meal_plan_filters(
@@ -1270,6 +1318,8 @@ def render_create_weekly_plan() -> None:
     suggestion_pool = filter_recipes(
         all_recipes, week_filters, schema.all_columns, ingredient_index=ingredient_index
     )
+
+    _render_prebuild_recipe_picker(all_recipes, meal_count=int(meal_count))
 
     if st.button("Build my plan", type="primary", key="build_plan"):
         locked_for_build = _locked_recipes_for_plan_build(meal_count=int(meal_count))

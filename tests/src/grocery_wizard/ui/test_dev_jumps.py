@@ -79,6 +79,22 @@ def test_apply_dev_jump_grocery_result_builds_result(monkeypatch: pytest.MonkeyP
     assert session["grocery_result"]["week_plan"] == ("Soup",)
 
 
+def test_apply_dev_jump_accepts_explicit_recipe_names() -> None:
+    session = {}
+    db = MagicMock()
+    db.query_recipes.return_value = []
+
+    used = apply_dev_jump(
+        session,
+        db,
+        DevJumpTarget.MEALS_FILLED,
+        recipe_names=["Custom A", "Custom B"],
+    )
+
+    assert used == ["Custom A", "Custom B"]
+    assert session["plan_meals_text"] == "Custom A\nCustom B"
+
+
 def test_clear_grocery_flow_state_removes_review_widgets() -> None:
     session = {
         "grocery_result": {},
