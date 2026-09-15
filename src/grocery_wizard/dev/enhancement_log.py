@@ -5,12 +5,9 @@ from __future__ import annotations
 __all__ = [
     "AREA_FILES",
     "add_enhancement",
-    "close_enhancement",
     "format_pr_title",
-    "format_worker_spawn_message",
     "get_enhancement",
     "list_enhancements",
-    "list_worker_spawns",
     "migrate_jsonl_to_github",
     "record_manual_verification",
     "report_bug",
@@ -189,20 +186,71 @@ def get_enhancement(eid: str, *, path: Path | None = None) -> dict | None:
     return gh.get_issue(eid)
 
 
-def close_enhancement(eid: str, *, path: Path | None = None) -> bool:
+def get_work_item(eid: str, *, path: Path | None = None) -> dict | None:
     if path is not None:
-        entries = _load_all_file(path)
-        found = False
-        for entry in entries:
-            if entry.get("id") == eid:
-                entry["status"] = "done"
-                entry["completed_at"] = datetime.now(UTC).isoformat()
-                found = True
-                break
-        if found:
-            _save_all_file(entries, path)
-        return found
-    return gh.close_issue(eid, pr_url=None)
+        entry = get_enhancement(eid, path=path)
+        if entry is not None:
+            entry.setdefault("kind", "enhancement")
+        return entry
+    return gh.get_work_item(eid)
+
+
+def create_planned_issues(
+    planned: list,
+    *,
+    dry_run: bool = False,
+) -> list[dict]:
+    """Create GitHub issues from :func:`issue_planning.PlannedIssue` or dict plans."""
+    from src.grocery_wizard.dev.issue_planning import PlannedIssue, planned_issue_from_dict
+
+    created: list[dict] = []
+    for raw in planned:
+        issue = raw if isinstance(raw, PlannedIssue) else planned_issue_from_dict(raw)
+        if dry_run:
+            created.append(
+                {
+                    "dry_run": True,
+                    "kind": issue.kind,
+                    "area": issue.area,
+                    "title": issue.title,
+                    "source_items": issue.source_items,
+                }
+            )
+            continue
+        if issue.kind == "bug":
+            row = report_bug(
+                issue.title,
+                description=issue.description,
+                repro=issue.repro,
+                actual=issue.actual,
+                expected=issue.expected,
+                context=issue.context,
+            )
+            created.append(
+                {
+                    "kind": "bug",
+                    "issue_number": row.get("number"),
+                    "issue_url": row.get("url"),
+                    "title": issue.title,
+                }
+            )
+        else:
+            row = create_enhancement(
+                issue.title,
+                issue.description,
+                issue.area,
+                expected_behavior=issue.expected_behavior,
+            )
+            created.append(
+                {
+                    "kind": "enhancement",
+                    "issue_number": row.get("issue_number"),
+                    "issue_url": row.get("issue_url"),
+                    "title": issue.title,
+                    "area": issue.area,
+                }
+            )
+    return created
 
 
 def format_pr_title(entry: dict, *, max_len: int = 256) -> str:
@@ -249,36 +297,50 @@ def title_to_branch_slug(title: str, *, max_len: int = 40) -> str:
     return slug
 
 
-def format_worker_spawn_message(entry: dict) -> str:
-    ref = entry.get("issue_number") or entry.get("id") or ""
-    title = entry.get("title", "").strip()
-    if title and ref:
-        return f"/work-on-enhancement {ref} — {title}"
-    if ref:
-        return f"/work-on-enhancement {ref}"
-    return "/work-on-enhancement"
+def format_bug_work_prompt(entry: dict) -> str:
+    title = entry.get("title", "")
+    issue_num = entry.get("issue_number")
+    eid = str(issue_num) if issue_num is not None else (entry.get("id") or "")
+    issue_ref = entry.get("issue_url") or ""
+    slug = title_to_branch_slug(title)
+    branch = f"cursor/{slug}-21af"
 
-
-def list_worker_spawns(*, path: Path | None = None) -> list[dict]:
-    specs: list[dict] = []
-    for entry in list_enhancements(path=path):
-        title = entry.get("title", "")
-        slug = title_to_branch_slug(title)
-        eid = entry.get("id") or entry.get("issue_number")
-        specs.append(
-            {
-                "id": eid,
-                "title": title,
-                "area": entry.get("area", "other"),
-                "branch": f"cursor/{slug}-21af",
-                "agent_message": format_worker_spawn_message(entry),
-                "prompt": format_agent_prompt(entry),
-            }
-        )
-    return specs
+    lines = [
+        "You are working in the grocery_wizard repo. Fix the following bug:",
+        "",
+        f"**Issue:** #{eid}" if eid.isdigit() else f"**ID:** {eid}",
+        f"**Title:** {title}",
+    ]
+    if issue_ref:
+        lines.append(f"**GitHub issue:** {issue_ref}")
+    for label, key in (
+        ("**Description:**", "description"),
+        ("**Steps to reproduce:**", "repro"),
+        ("**Actual behavior:**", "actual"),
+        ("**Expected behavior:**", "expected"),
+    ):
+        val = (entry.get(key) or "").strip()
+        if val:
+            lines += ["", label, val]
+    lines += [
+        "",
+        "**Git workflow:**",
+        f"- Fetch `origin/main`, then create branch `{branch}` off `main`.",
+        "- Implement with focused commits; run `uv run ruff check` on touched Python.",
+        "",
+        "**Ship:**",
+        f"- PR title should reference the bug (e.g. `fix: … (#{eid})`).",
+        f"- PR body must include `Closes #{eid}`.",
+        "- Fill **Manual verification** in the PR template; echo steps for the user.",
+        "",
+        "More: .cursor/commands/work-on-issue.md",
+    ]
+    return "\n".join(lines)
 
 
 def format_agent_prompt(entry: dict) -> str:
+    if entry.get("kind") == "bug":
+        return format_bug_work_prompt(entry)
     area = entry.get("area", "other")
     files = AREA_FILES.get(area, [])
     if files:
@@ -329,9 +391,14 @@ def format_agent_prompt(entry: dict) -> str:
             f"`uv run python -m src.grocery_wizard dev record-manual-verification {eid}`"
         ),
         "",
-        "More: .cursor/commands/work-on-enhancement.md",
+        "More: .cursor/commands/work-on-issue.md",
     ]
     return "\n".join(lines)
+
+
+def format_work_prompt(entry: dict) -> str:
+    """Agent brief for backlog enhancements or bug issues."""
+    return format_agent_prompt(entry)
 
 
 def _jsonl_migration_paths() -> list[Path]:
