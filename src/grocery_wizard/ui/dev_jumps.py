@@ -88,6 +88,7 @@ def clear_grocery_flow_state(session_state: Any) -> None:
         "meals_final_list_fingerprint",
         "grocery_per_recipe_review",
         "grocery_review_options",
+        "grocery_review_recipes",
     ):
         session_state.pop(key, None)
     for key in list(session_state.keys()):
@@ -117,13 +118,14 @@ def commit_dev_jump(
         return cleaned
 
     grocery_options = default_pre_build_grocery_options(session_state)
+    recipes = db.query_recipes()
 
     if target == DevJumpTarget.PER_RECIPE_REVIEW:
-        stash_recipe_review(session_state, db, cleaned, grocery_options)
+        stash_recipe_review(session_state, cleaned, recipes, grocery_options)
         return cleaned
 
     if target == DevJumpTarget.GROCERY_RESULT:
-        stash_grocery_result(session_state, db, cleaned, grocery_options)
+        stash_grocery_result(session_state, db, cleaned, grocery_options, recipes=recipes)
         return cleaned
 
     return cleaned

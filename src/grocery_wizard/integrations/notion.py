@@ -169,8 +169,35 @@ class NotionRecipesDB:
         return [self._page_to_recipe(page) for page in pages]
 
     def find_by_link(self, url: str) -> Recipe | None:
-        for recipe in self.query_recipes():
+        stripped = url.strip()
+        if not stripped:
+            return None
+        normalized = stripped.rstrip("/")
+        for candidate in (normalized, stripped):
+            recipe = self._find_recipe_by_link_equals(candidate)
+            if recipe is not None:
+                return recipe
+        return None
+
+    def _find_recipe_by_link_equals(self, url: str) -> Recipe | None:
+        link_column = self.schema.link_column
+        column = self.schema.all_columns.get(link_column)
+        if column is None or column.type != "url":
+            return self._find_by_link_scan(url)
+        response = self._client.data_sources.query(
+            data_source_id=self._data_source_id,
+            filter={"property": link_column, "url": {"equals": url}},
+        )
+        for page in response.get("results", []):
+            recipe = self._page_to_recipe(page)
             if recipe.link and recipe.link.rstrip("/") == url.rstrip("/"):
+                return recipe
+        return None
+
+    def _find_by_link_scan(self, url: str) -> Recipe | None:
+        target = url.rstrip("/")
+        for recipe in self.query_recipes():
+            if recipe.link and recipe.link.rstrip("/") == target:
                 return recipe
         return None
 

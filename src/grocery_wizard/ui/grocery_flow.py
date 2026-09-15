@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from src.grocery_wizard.ingredients.sync import format_ingredients_for_review
-from src.grocery_wizard.integrations.notion import NotionRecipesDB
+from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
 from src.grocery_wizard.shopping.grocery_list import build_grocery_list
 from src.grocery_wizard.shopping.line_items import parse_line_items
 from src.grocery_wizard.shopping.recurring_weekly_items import (
@@ -81,8 +81,8 @@ def default_pre_build_grocery_options(session_state: Any) -> GroceryPreBuildOpti
     )
 
 
-def fetch_recipe_review_text(db: NotionRecipesDB, selected: list[str]) -> dict[str, str]:
-    recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
+def fetch_recipe_review_text(selected: list[str], recipes: list[Recipe]) -> dict[str, str]:
+    recipes_by_name = {recipe.name.lower(): recipe for recipe in recipes}
     review: dict[str, str] = {}
     for name in selected:
         recipe = recipes_by_name.get(name.lower())
@@ -93,11 +93,12 @@ def fetch_recipe_review_text(db: NotionRecipesDB, selected: list[str]) -> dict[s
 
 def stash_recipe_review(
     session_state: Any,
-    db: NotionRecipesDB,
     selected: list[str],
+    recipes: list[Recipe],
     options: GroceryPreBuildOptions,
 ) -> None:
-    session_state["grocery_per_recipe_review"] = fetch_recipe_review_text(db, selected)
+    session_state["grocery_per_recipe_review"] = fetch_recipe_review_text(selected, recipes)
+    session_state["grocery_review_recipes"] = recipes
     session_state["grocery_review_options"] = {
         "exclude_pantry": options.exclude_pantry,
         "recurring_text": options.recurring_text,
@@ -120,12 +121,14 @@ def build_grocery_result_payload(
     pantry_extra: set[str],
     ingredient_overrides: dict[str, str] | None,
     edit_count: int = 0,
+    recipes: list[Recipe] | None = None,
 ) -> dict[str, Any]:
     recurring_weekly_items = parse_line_items(recurring_text)
     items, excluded, _sync_summary, missing_ingredients, item_provenance, mismatches = (
         build_grocery_list(
             db,
             recipe_names=selected,
+            recipes=recipes,
             exclude_pantry=exclude_pantry,
             pantry_extra=pantry_extra,
             recurring_weekly_items=recurring_weekly_items,
@@ -155,11 +158,12 @@ def stash_grocery_result(
     selected: list[str],
     options: GroceryPreBuildOptions,
     *,
+    recipes: list[Recipe],
     review: dict[str, str] | None = None,
     edit_count: int = 0,
 ) -> None:
     """Build final list as if the user confirmed review (defaults: formatted Notion lines)."""
-    review_text = review if review is not None else fetch_recipe_review_text(db, selected)
+    review_text = review if review is not None else fetch_recipe_review_text(selected, recipes)
     session_state["grocery_result"] = build_grocery_result_payload(
         db,
         selected,
@@ -169,4 +173,5 @@ def stash_grocery_result(
         pantry_extra=session_pantry_extra(session_state),
         ingredient_overrides=ingredient_overrides_from_review(review_text),
         edit_count=edit_count,
+        recipes=recipes,
     )

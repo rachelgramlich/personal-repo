@@ -9,22 +9,25 @@ APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui"
 
 def test_weekly_recipe_tab_is_first_and_default() -> None:
     source = APP_PATH.read_text(encoding="utf-8")
-    tabs_block = source.split("tab_weekly, tab_add, tab_pantry = st.tabs(", 1)[1].split(")", 1)[0]
-    assert tabs_block.index("Weekly recipe generation") < tabs_block.index("Add Recipe")
+    assert "_TAB_WEEKLY = \"Weekly recipe generation\"" in source
+    assert "_UI_TABS = (_TAB_WEEKLY, _TAB_ADD, _TAB_PANTRY)" in source
+    assert "st.segmented_control(" in source
+    assert "default=_TAB_WEEKLY" in source
+    assert "if active_tab == _TAB_WEEKLY:" in source
     assert "render_create_weekly_plan()" in source
-    block = source.split("with tab_weekly:", 1)[1]
-    assert block.lstrip().startswith("render_create_weekly_plan()")
 
 
 def test_pantry_and_recurring_share_one_tab() -> None:
     source = APP_PATH.read_text(encoding="utf-8")
     assert "def render_pantry_and_recurring()" in source
-    assert "with tab_pantry:" in source
-    assert source.count('st.tabs(') == 1
+    assert "elif active_tab == _TAB_ADD:" in source
+    assert "render_pantry_and_recurring()" in source
     pantry_fn = source.split("def render_pantry_and_recurring()", 1)[1].split(
         "def _recipes_ingredient_cache_key", 1
     )[0]
     assert "### Pantry" in pantry_fn
     assert "### Recurring weekly items" in pantry_fn
+    assert pantry_fn.index("### Recurring weekly items") < pantry_fn.index("### Pantry")
+    assert "Save recurring template" not in pantry_fn
     assert "load_store_aisles" in pantry_fn
     assert 'st.selectbox(\n            "Store aisle"' in pantry_fn or '"Store aisle"' in pantry_fn
