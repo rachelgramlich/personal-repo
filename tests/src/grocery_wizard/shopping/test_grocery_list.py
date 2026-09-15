@@ -232,6 +232,26 @@ def test_build_grocery_list_white_beans_not_split(tmp_path: Path) -> None:
     assert "beans" not in items
 
 
+def test_build_grocery_list_keeps_butter_beans_when_pantry_has_butter(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("butter\nsalt\n", encoding="utf-8")
+
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("French Onion Butter Beans", "2 cans butter beans"),
+    ]
+
+    items, excluded, _sync, _missing, _, _ = build_grocery_list(
+        db,
+        recipe_names=["French Onion Butter Beans"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert items == ["2 cans butter beans"]
+    assert "butter beans" not in excluded
+
+
 def test_run_grocery_list_interactive_flow_order(
     pantry_file: Path,
     capsys: pytest.CaptureFixture[str],

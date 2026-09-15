@@ -98,6 +98,21 @@ _STOCK_PREFIXES = frozenset(
 
 _CREAM_PREFIXES = frozenset({"heavy", "sour", "whipped", "whole-milk"})
 
+_BEANS_PREFIXES = frozenset(
+    {
+        "black",
+        "butter",
+        "cannellini",
+        "garbanzo",
+        "great",
+        "kidney",
+        "navy",
+        "northern",
+        "pinto",
+        "white",
+    }
+)
+
 _COUNT_UNITS = frozenset(
     {
         "bag",
@@ -229,6 +244,23 @@ def _find_grocery_noun_positions(words: list[str]) -> list[int]:
                 positions.pop()
             positions.append(index)
             continue
+        if word in {"bean", "beans"} and index > 0:
+            prev = words[index - 1]
+            if prev in _BEANS_PREFIXES or (
+                prev == "northern" and index > 1 and words[index - 2] == "great"
+            ):
+                if positions and positions[-1] == index - 1:
+                    positions.pop()
+                if (
+                    prev == "northern"
+                    and index > 1
+                    and words[index - 2] == "great"
+                    and positions
+                    and positions[-1] == index - 2
+                ):
+                    positions.pop()
+                positions.append(index)
+                continue
         if word == "cloves" and index + 1 < len(words) and words[index + 1] == "garlic":
             continue
         if word in _GROCERY_NOUNS:

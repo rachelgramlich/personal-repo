@@ -120,6 +120,19 @@ def test_fresh_red_pepper_not_matched_by_generic_pepper_pantry() -> None:
     assert is_pantry_item("red pepper flakes", pantry)
 
 
+def test_butter_beans_not_matched_by_dairy_butter_or_generic_beans() -> None:
+    assert not is_pantry_item("butter beans", {"butter"})
+    assert not is_pantry_item("butter beans", {"beans"})
+    assert not is_pantry_item("butter beans", {"butter", "beans"})
+    assert is_pantry_item("butter beans", {"butter beans"})
+    assert is_pantry_item("butter", {"butter"})
+
+
+def test_peanut_butter_not_matched_by_dairy_butter_pantry() -> None:
+    assert not is_pantry_item("peanut butter", {"butter"})
+    assert is_pantry_item("peanut butter", {"peanut butter"})
+
+
 def test_append_and_remove_pantry_item(tmp_path: Path) -> None:
     path = tmp_path / "pantry.txt"
     path.write_text("# --- Spices ---\nsalt\n", encoding="utf-8")

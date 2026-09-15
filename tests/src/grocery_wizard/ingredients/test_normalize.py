@@ -157,6 +157,10 @@ def test_expand_ingredient_line_does_not_split_white_beans() -> None:
     assert expand_ingredient_line("–2 cans white beans") == ["-2 cans white beans"]  # noqa: RUF001
 
 
+def test_expand_ingredient_line_does_not_split_butter_beans() -> None:
+    assert expand_ingredient_line("2 cans butter beans") == ["2 cans butter beans"]
+
+
 def test_normalize_ingredient_white_beans() -> None:
     assert normalize_ingredient("2 cans white beans") == "white beans"
     assert normalize_ingredient("– 2 cans white beans") == "white beans"  # noqa: RUF001
