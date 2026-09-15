@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ui_source import ui_source
+
 from src.grocery_wizard.shopping.grocery_list import (
     format_grocery_items_copy_text,
     format_meals_and_grocery_list,
     format_meals_copy_text,
 )
 from src.grocery_wizard.ui.grocery_helpers import compute_grocery_drafts
-
-from ui_source import ui_source
 
 APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui" / "app.py"
 

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.grocery_wizard.ui.grocery_helpers import apply_run_removals
-
 from ui_source import ui_source
+
+from src.grocery_wizard.ui.grocery_helpers import apply_run_removals
 
 APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui" / "app.py"
 
