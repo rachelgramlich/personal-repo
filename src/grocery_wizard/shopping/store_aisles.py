@@ -242,9 +242,9 @@ def pantry_aisle_for_item(
 ) -> str:
     """Aisle id for grouping a pantry item (stored section, else classify by name)."""
     cfg = config or load_store_aisles()
-    resolved = resolve_pantry_aisle_id(section, config=cfg)
-    if resolved is not None:
-        return resolved
+    stored = str(section).strip() if section is not None else ""
+    if stored:
+        return resolve_pantry_aisle_id(stored, config=cfg) or "other"
     return classify_aisle(item_name, config=cfg)
 
 

@@ -242,6 +242,12 @@ def test_pantry_aisle_for_item_uses_section_or_classifies_name() -> None:
     assert pantry_aisle_for_item("bananas", None, config=config) == "fruit"
 
 
+def test_pantry_aisle_for_item_prefers_notion_aisle_over_name_guess() -> None:
+    config = load_store_aisles()
+    # Classifier would put bananas in fruit, but Notion says baking — UI must follow Notion.
+    assert pantry_aisle_for_item("bananas", "Baking", config=config) == "baking"
+
+
 def test_canonical_pantry_section_label_from_aisle_id() -> None:
     config = load_store_aisles()
     assert canonical_pantry_section_label(None, aisle_id="fruit", config=config) == aisle_label(

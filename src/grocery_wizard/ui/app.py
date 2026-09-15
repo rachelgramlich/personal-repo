@@ -10,6 +10,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+import html
 import json
 from datetime import UTC, date, datetime
 from typing import Any
@@ -168,12 +169,27 @@ def _save_recurring_template(text: str) -> None:
     write_recurring_weekly_items(None, _parse_line_items(text))
 
 
+def _load_pantry_entries_from_notion() -> list:
+    """Load pantry rows from Notion (no caching — always live query)."""
+    from src.grocery_wizard.integrations.notion_household import NotionPantryDB
+
+    return NotionPantryDB().list_entries()
+
+
+def _sync_recurring_template_text_area(template: list[str]) -> None:
+    """Keep bulk-edit text area aligned with Notion after add/remove elsewhere in the tab."""
+    fingerprint = tuple(template)
+    if st.session_state.get("_pantry_tab_recurring_fp") != fingerprint:
+        st.session_state["_pantry_tab_recurring_fp"] = fingerprint
+        st.session_state["pantry_tab_recurring_template_editor"] = "\n".join(template)
+
+
 def _group_pantry_items_by_store_aisle(
     entries: list,
     *,
     config: StoreAisleConfig,
 ) -> list[tuple[str, list[tuple[int, str]]]]:
-    """Group pantry rows by store walk order (aisle id, sorted item names)."""
+    """Group pantry rows by Notion store aisle (fallback: classify name if unset)."""
     by_aisle: dict[str, list[str]] = {aisle: [] for aisle in config.aisle_order}
     for entry in entries:
         aisle = pantry_aisle_for_item(entry.name, entry.section, config=config)
@@ -198,11 +214,13 @@ def render_pantry_and_recurring() -> None:
 
     st.markdown("### Pantry")
     st.caption("Grouped by the same store aisles as your grocery list (`config/store_aisles.txt`).")
+    refresh_col, _spacer = st.columns([1, 3])
+    with refresh_col:
+        if st.button("Refresh from Notion", key="pantry_refresh_notion"):
+            st.rerun()
     aisle_config = load_store_aisles()
     try:
-        from src.grocery_wizard.integrations.notion_household import NotionPantryDB
-
-        pantry_entries = NotionPantryDB().list_entries()
+        pantry_entries = _load_pantry_entries_from_notion()
     except ValueError as exc:
         st.error(str(exc))
         pantry_entries = []
@@ -210,11 +228,19 @@ def render_pantry_and_recurring() -> None:
     grouped_aisles = _group_pantry_items_by_store_aisle(pantry_entries, config=aisle_config)
     if grouped_aisles:
         for aisle_id, items in grouped_aisles:
-            st.markdown(f"**{aisle_label(aisle_id, config=aisle_config)}**")
+            label = aisle_label(aisle_id, config=aisle_config)
+            st.markdown(
+                f'<p class="gw-pantry-aisle-heading">{label}</p>',
+                unsafe_allow_html=True,
+            )
             for item_key, item in items:
                 item_col, remove_col = st.columns([6, 1])
                 with item_col:
-                    st.write(item)
+                    safe_item = html.escape(item)
+                    st.markdown(
+                        f'<p class="gw-pantry-item">• {safe_item}</p>',
+                        unsafe_allow_html=True,
+                    )
                 with remove_col:
                     if st.button(
                         "Remove",
@@ -288,9 +314,9 @@ def render_pantry_and_recurring() -> None:
                 st.warning("Could not add — empty name or already on the list.")
 
     st.caption("Bulk edit the saved recurring template (one item per line).")
+    _sync_recurring_template_text_area(template)
     edited_template = st.text_area(
         "Default recurring items",
-        value="\n".join(template),
         height=140,
         key="pantry_tab_recurring_template_editor",
         label_visibility="collapsed",
@@ -563,6 +589,31 @@ def _inject_app_styles() -> None:
         }
         [data-testid="stToolbar"] {
             height: 0;
+        }
+
+        .gw-pantry-aisle-heading {
+            color: var(--gw-text);
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin: 1.1rem 0 0.2rem 0;
+            padding-bottom: 0.15rem;
+            border-bottom: 1px solid #d48aad;
+        }
+
+        .gw-pantry-aisle-heading:first-of-type {
+            margin-top: 0.35rem;
+        }
+
+        p.gw-pantry-item {
+            color: var(--gw-text);
+            font-size: 0.95rem;
+            line-height: 1.25;
+            margin: 0.05rem 0 0.05rem 0.85rem;
+            padding: 0;
+        }
+
+        [data-testid="column"] p.gw-pantry-item {
+            margin-bottom: 0.05rem;
         }
         </style>
         """,
