@@ -77,8 +77,10 @@ from src.grocery_wizard.shopping.store_aisles import (
 from src.grocery_wizard.ui.dev_jumps import (
     DEFAULT_DEV_MEAL_COUNT,
     DEV_JUMP_CAPTIONS,
+    DEV_JUMP_FLOW_ORDER,
     DevJumpTarget,
     commit_dev_jump,
+    dev_jump_display_title,
     pick_default_recipe_names,
 )
 from src.grocery_wizard.ui.theme import app_theme_css
@@ -1028,10 +1030,8 @@ def _render_dev_jump_tools(db: NotionRecipesDB) -> None:
             "(recipes with ingredients). Use when manually testing UI without "
             "clicking through meal generation each time."
         )
-        for target in DevJumpTarget:
-            title = target.value.replace("_", " ").title()
-            if target == DevJumpTarget.GROCERY_RESULT:
-                title = "Final list"
+        def _dev_jump_bullet(target: DevJumpTarget) -> None:
+            title = dev_jump_display_title(target)
             st.markdown(f"- **{title}** — {DEV_JUMP_CAPTIONS[target]}")
 
         def _dev_jump_button(
@@ -1066,13 +1066,16 @@ def _render_dev_jump_tools(db: NotionRecipesDB) -> None:
             st.session_state.plan_prebuild_pinned_recipes = list(names)
             st.rerun()
 
+        for step in DEV_JUMP_FLOW_ORDER:
+            _dev_jump_bullet(step)
+
+        all_names = sorted({recipe.name for recipe in db.query_recipes()}, key=str.lower)
         _dev_jump_button(
             DevJumpTarget.MEALS_FILLED,
             label="Meals filled: auto",
             key_suffix="auto",
             manual_recipes=None,
         )
-        all_names = sorted({recipe.name for recipe in db.query_recipes()}, key=str.lower)
         manual_pick = st.multiselect(
             "Choose recipes manually",
             options=all_names,
@@ -1085,7 +1088,6 @@ def _render_dev_jump_tools(db: NotionRecipesDB) -> None:
             key_suffix="manual",
             manual_recipes=manual_pick,
         )
-
         _dev_jump_button(
             DevJumpTarget.PRE_BUILD_GROCERY,
             label="Pre-build grocery",

@@ -21,6 +21,23 @@ class DevJumpTarget(StrEnum):
     GROCERY_RESULT = "grocery_result"
 
 
+DEV_JUMP_FLOW_ORDER: tuple[DevJumpTarget, ...] = (
+    DevJumpTarget.MEALS_FILLED,
+    DevJumpTarget.PRE_BUILD_GROCERY,
+    DevJumpTarget.PER_RECIPE_REVIEW,
+    DevJumpTarget.GROCERY_RESULT,
+)
+
+
+def dev_jump_display_title(target: DevJumpTarget) -> str:
+    return {
+        DevJumpTarget.MEALS_FILLED: "Meals filled",
+        DevJumpTarget.PRE_BUILD_GROCERY: "Pre-build grocery",
+        DevJumpTarget.PER_RECIPE_REVIEW: "Per-recipe review",
+        DevJumpTarget.GROCERY_RESULT: "Final list",
+    }[target]
+
+
 DEV_JUMP_CAPTIONS: dict[DevJumpTarget, str] = {
     DevJumpTarget.MEALS_FILLED: (
         "Meal plan list (section **1. Meals**) — use **auto** for a default sample or "
@@ -31,7 +48,7 @@ DEV_JUMP_CAPTIONS: dict[DevJumpTarget, str] = {
         "**Create grocery list**."
     ),
     DevJumpTarget.PER_RECIPE_REVIEW: (
-        "Per-recipe ingredient review — expanders and **Build final list**."
+        "Per-recipe ingredient review — edit lines in expanders before the list is built."
     ),
     DevJumpTarget.GROCERY_RESULT: (
         "Final list — built grocery list with re-add/remove, copy, and meals."
