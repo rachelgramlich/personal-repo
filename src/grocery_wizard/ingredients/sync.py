@@ -19,6 +19,7 @@ from src.grocery_wizard.ingredients.normalize import (
 )
 from src.grocery_wizard.ingredients.parsed import (
     format_ingredient_for_storage,
+    format_stored_line_for_display,
     ingredient_name,
     is_nyt_cooking_url,
     minimal_clean_for_storage,
@@ -238,6 +239,23 @@ def prepare_ingredients_for_notion(
         if cleaned:
             kept.append(cleaned)
     return ingredients_to_text(kept)
+
+
+def format_ingredients_for_review(text: str) -> str:
+    """Convert Notion storage lines to readable text for the grocery review step."""
+    if not text.strip():
+        return text
+    formatted: list[str] = []
+    for raw_line in text.splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            formatted.append(raw_line)
+            continue
+        if is_directive(stripped):
+            formatted.append(raw_line)
+            continue
+        formatted.append(format_stored_line_for_display(raw_line))
+    return "\n".join(formatted)
 
 
 def refresh_ingredients_for_recipe(

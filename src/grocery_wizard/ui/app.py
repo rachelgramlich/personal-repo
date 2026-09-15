@@ -20,7 +20,10 @@ import streamlit as st
 
 from src.grocery_wizard.config import WEEK_PLAN_PATH, load_config
 from src.grocery_wizard.dev.edit_log import log_ingredient_edits
-from src.grocery_wizard.ingredients.sync import prepare_ingredients_for_notion
+from src.grocery_wizard.ingredients.sync import (
+    format_ingredients_for_review,
+    prepare_ingredients_for_notion,
+)
 from src.grocery_wizard.integrations.notion import (
     ColumnInfo,
     DatabaseSchema,
@@ -214,9 +217,7 @@ def _group_pantry_items_by_store_aisle(
         sorted(by_label.keys(), key=lambda text: (rank.get(text.lower(), 999), text.lower()))
     ):
         names = sorted(set(by_label[label]), key=str.lower)
-        grouped.append(
-            (label, [(section_index * 1000 + i, name) for i, name in enumerate(names)])
-        )
+        grouped.append((label, [(section_index * 1000 + i, name) for i, name in enumerate(names)]))
     return grouped
 
 
@@ -1077,7 +1078,8 @@ def _start_recipe_review(
     review: dict[str, str] = {}
     for name in selected:
         recipe = recipes_by_name.get(name.lower())
-        review[name] = recipe.ingredients or "" if recipe else ""
+        raw = recipe.ingredients or "" if recipe else ""
+        review[name] = format_ingredients_for_review(raw)
     st.session_state.grocery_per_recipe_review = review
     st.session_state.grocery_review_options = {
         "exclude_pantry": exclude_pantry,

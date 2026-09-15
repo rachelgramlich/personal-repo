@@ -1025,6 +1025,30 @@ def format_garlic_grocery_amount(amount: str) -> str:
     return amount
 
 
+def format_stored_line_for_display(line: str) -> str:
+    """Render a Notion storage line as human-readable text (review UI, exports)."""
+    text = _normalize_unicode(line.strip())
+    if not text:
+        return line
+    name, amount = parse_stored_ingredient(text)
+    if not name:
+        return line
+    if amount is None:
+        return line
+    if amount.startswith(("clove:", "head:")) and name.lower() == "garlic":
+        return f"{format_garlic_grocery_amount(amount)} {name}"
+    if amount.startswith("zest:") and name.lower() == "lemons":
+        qty_str = amount[5:] or "1"
+        qty = _parse_qty(qty_str)
+        noun = "lemon" if qty == 1 else "lemons"
+        return f"zest of {_format_qty(qty)} {noun}"
+    if amount.startswith(("clove:", "head:", "zest:")):
+        return line
+    if looks_like_stored_ingredient_line(text):
+        return f"{amount} {name}".strip()
+    return line
+
+
 _GARLIC_CLOVE_LINE_RE = re.compile(
     r"^((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+"
     r"(?:(?:cloves?|clove)\s+(?:of\s+)?garlic|garlic\s+cloves?)\b",
