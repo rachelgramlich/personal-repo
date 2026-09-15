@@ -29,6 +29,7 @@ from src.grocery_wizard.integrations.notion import (
     DatabaseSchema,
     NotionFieldValues,
     NotionRecipesDB,
+    Recipe,
 )
 from src.grocery_wizard.planning.meal_planner import (
     MealPlanFilters,
@@ -43,7 +44,6 @@ from src.grocery_wizard.planning.saved_weekly_plans import (
     SavedWeeklyPlan,
     ensure_saved_weekly_plan,
     find_matching_plan,
-    list_saved_plans,
     load_plan_recipes,
     normalize_recipe_names,
     week_start_sunday,
@@ -74,14 +74,26 @@ from src.grocery_wizard.shopping.store_aisles import (
     classify_aisle,
     load_store_aisles,
 )
+from src.grocery_wizard.ui.notion_cache import (
+    cached_pantry_entries,
+    cached_query_recipes,
+    cached_saved_plans,
+    invalidate_notion_cache,
+    last_recipe_cache_load_seconds,
+)
 from src.grocery_wizard.ui.theme import app_theme_css
+
+_TAB_WEEKLY = "Weekly recipe generation"
+_TAB_ADD = "Add Recipe"
+_TAB_PANTRY = "Pantry & recurring"
+_UI_TABS = (_TAB_WEEKLY, _TAB_ADD, _TAB_PANTRY)
 
 
 def _meal_entries_with_links(
-    db: NotionRecipesDB,
     meal_names: list[str],
+    recipes: list[Recipe],
 ) -> list[tuple[str, str | None]]:
-    recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
+    recipes_by_name = {recipe.name.lower(): recipe for recipe in recipes}
     entries: list[tuple[str, str | None]] = []
     for name in meal_names:
         recipe = recipes_by_name.get(name.lower())
@@ -175,10 +187,16 @@ def _save_recurring_template(text: str) -> None:
 
 
 def _load_pantry_entries_from_notion() -> list:
-    """Load pantry rows from Notion (no caching — always live query)."""
-    from src.grocery_wizard.integrations.notion_household import NotionPantryDB
+    """Load pantry rows from Notion (cached until a write or refresh)."""
+    config = load_config()
+    return cached_pantry_entries(pantry_database_id=config.notion_pantry_database_id)
 
-    return NotionPantryDB().list_entries()
+
+def _remove_pantry_item_and_invalidate(name: str) -> bool:
+    if remove_pantry_item_by_name(name):
+        invalidate_notion_cache()
+        return True
+    return False
 
 
 def _sync_recurring_template_text_area(template: list[str]) -> None:
@@ -280,7 +298,7 @@ def render_pantry_and_recurring() -> None:
                     item_class="gw-pantry-item",
                     button_key=f"pantry_tab_remove_{item_key}",
                     remove_help=f"Remove {item} from pantry",
-                    on_remove=lambda name=item: remove_pantry_item_by_name(name),
+                    on_remove=lambda name=item: _remove_pantry_item_and_invalidate(name),
                 )
     elif pantry_entries:
         st.caption("No pantry items matched a store aisle.")
@@ -304,6 +322,7 @@ def render_pantry_and_recurring() -> None:
             else:
                 section_label = aisle_label(new_pantry_aisle, config=aisle_config)
                 if append_pantry_item(name, section=section_label):
+                    invalidate_notion_cache()
                     st.success(f"Added “{name}” to pantry ({section_label}).")
                     st.rerun()
                 else:
@@ -457,6 +476,17 @@ def get_db() -> NotionRecipesDB:
     return NotionRecipesDB(config)
 
 
+def _render_notion_cache_sidebar() -> None:
+    with st.sidebar:
+        st.caption("Notion data")
+        if st.button("Refresh from Notion", key="notion_cache_refresh"):
+            invalidate_notion_cache()
+            st.rerun()
+        load_seconds = last_recipe_cache_load_seconds()
+        if load_seconds is not None:
+            st.caption(f"Last recipe fetch: {load_seconds:.2f}s")
+
+
 def main() -> None:
     st.set_page_config(
         page_title="Grocery Wizard",
@@ -464,17 +494,22 @@ def main() -> None:
         layout="centered",
     )
     _inject_app_styles()
+    _render_notion_cache_sidebar()
     st.title("Grocery Wizard")
 
-    tab_weekly, tab_add, tab_pantry = st.tabs(
-        ["Weekly recipe generation", "Add Recipe", "Pantry & recurring"]
+    active_tab = st.segmented_control(
+        "Section",
+        _UI_TABS,
+        default=_TAB_WEEKLY,
+        key="gw_active_tab",
+        label_visibility="collapsed",
     )
 
-    with tab_weekly:
+    if active_tab == _TAB_WEEKLY:
         render_create_weekly_plan()
-    with tab_add:
+    elif active_tab == _TAB_ADD:
         render_add_recipe()
-    with tab_pantry:
+    else:
         render_pantry_and_recurring()
 
 
@@ -604,6 +639,7 @@ def _render_recipe_review(
                     return
 
             recipe = db.create_recipe(cleaned)
+            invalidate_notion_cache()
             preview["status"] = "saved"
             preview["saved_name"] = recipe.name
             st.rerun()
@@ -887,6 +923,7 @@ def _clear_grocery_result(*, clear_pre_extra_items: bool = True) -> None:
         "meals_final_list_fingerprint",
         "grocery_per_recipe_review",
         "grocery_review_options",
+        "grocery_review_recipes",
     ):
         st.session_state.pop(key, None)
     for key in list(st.session_state.keys()):
@@ -948,9 +985,11 @@ def _sync_weekly_plan_save_state(recipe_names: list[str], plan: SavedWeeklyPlan)
 
 def _commit_weekly_plan_to_notion(recipe_names: list[str]) -> SavedWeeklyPlan:
     """Ensure plan exists in Notion and refresh local week_plan.json for diversity hints."""
-    plan, _created = ensure_saved_weekly_plan(recipe_names, recipes_db=get_db())
+    plan, created = ensure_saved_weekly_plan(recipe_names, recipes_db=get_db())
     save_week_plan(recipe_names, WEEK_PLAN_PATH)
     _sync_weekly_plan_save_state(recipe_names, plan)
+    if created:
+        invalidate_notion_cache()
     return plan
 
 
@@ -958,9 +997,11 @@ def _ensure_weekly_plan_saved_before_grocery(recipe_names: list[str]) -> None:
     """Auto-save meal plan when entering grocery flow if not already stored for this week."""
     if _weekly_plan_mode() == "dev" or not recipe_names:
         return
-    plan, _created = ensure_saved_weekly_plan(recipe_names, recipes_db=get_db())
+    plan, created = ensure_saved_weekly_plan(recipe_names, recipes_db=get_db())
     save_week_plan(recipe_names, WEEK_PLAN_PATH)
     _sync_weekly_plan_save_state(recipe_names, plan)
+    if created:
+        invalidate_notion_cache()
 
 
 def _render_save_plan_controls(recipe_names: list[str]) -> None:
@@ -1014,7 +1055,12 @@ def _render_weekly_plan_entry() -> bool:
         label_visibility="collapsed",
     )
 
-    saved_plans = list_saved_plans(recipes_db=get_db())
+    config = load_config()
+    db = get_db()
+    saved_plans = cached_saved_plans(
+        db,
+        weekly_plans_database_id=config.notion_weekly_meal_plans_database_id,
+    )
     selected_plan_name: str | None = None
     if choice == "saved":
         if not saved_plans:
@@ -1065,8 +1111,8 @@ def _invalidate_stale_grocery_result() -> None:
 
 
 def _start_recipe_review(
-    db: NotionRecipesDB,
     selected: list[str],
+    recipes: list[Recipe],
     *,
     exclude_pantry: bool,
     recurring_text: str,
@@ -1074,13 +1120,14 @@ def _start_recipe_review(
     extra_items_text: str,
 ) -> None:
     """Fetch per-recipe ingredients from Notion and stash them for the review UI."""
-    recipes_by_name = {r.name.lower(): r for r in db.query_recipes()}
+    recipes_by_name = {r.name.lower(): r for r in recipes}
     review: dict[str, str] = {}
     for name in selected:
         recipe = recipes_by_name.get(name.lower())
         raw = recipe.ingredients or "" if recipe else ""
         review[name] = format_ingredients_for_review(raw)
     st.session_state.grocery_per_recipe_review = review
+    st.session_state.grocery_review_recipes = recipes
     st.session_state.grocery_review_options = {
         "exclude_pantry": exclude_pantry,
         "recurring_text": recurring_text,
@@ -1127,11 +1174,15 @@ def _render_per_recipe_review(db: NotionRecipesDB, selected: list[str]) -> None:
 
             recurring_weekly_items = _parse_line_items(opts["recurring_text"])
 
+            review_recipes = st.session_state.get("grocery_review_recipes")
+            if review_recipes is None:
+                review_recipes = cached_query_recipes(db)
             with st.spinner("Building grocery list..."):
                 items, excluded, _sync_summary, missing_ingredients, item_provenance, mismatches = (
                     build_grocery_list(
                         db,
                         recipe_names=selected,
+                        recipes=review_recipes,
                         exclude_pantry=opts["exclude_pantry"],
                         pantry_extra=_session_pantry_extra(),
                         recurring_weekly_items=recurring_weekly_items,
@@ -1167,6 +1218,7 @@ def _render_per_recipe_review(db: NotionRecipesDB, selected: list[str]) -> None:
             }
             st.session_state.pop("grocery_per_recipe_review", None)
             st.session_state.pop("grocery_review_options", None)
+            st.session_state.pop("grocery_review_recipes", None)
             for key in list(st.session_state.keys()):
                 if key.startswith("review_ing_"):
                     st.session_state.pop(key, None)
@@ -1190,7 +1242,7 @@ def render_create_weekly_plan() -> None:
     db = get_db()
     schema = db.schema
     config = load_config()
-    all_recipes = db.query_recipes()
+    all_recipes = cached_query_recipes(db)
 
     if "plan_meals_text" not in st.session_state:
         st.session_state.plan_meals_text = ""
@@ -1370,8 +1422,8 @@ def render_create_weekly_plan() -> None:
         _ensure_weekly_plan_saved_before_grocery(current_plan)
         _clear_grocery_result(clear_pre_extra_items=False)
         _start_recipe_review(
-            db,
             current_plan,
+            all_recipes,
             exclude_pantry=exclude_pantry,
             recurring_text=recurring_text,
             default_recurring=default_recurring,
@@ -1527,7 +1579,7 @@ def _render_grocery_result() -> None:
 
     if final_items or meal_names:
         db = get_db()
-        meals = _meal_entries_with_links(db, meal_names)
+        meals = _meal_entries_with_links(meal_names, cached_query_recipes(db))
         meals_copy_text = format_meals_copy_text(meals)
         grocery_copy_text = format_grocery_items_copy_text(final_items)
 
