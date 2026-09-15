@@ -74,13 +74,19 @@ def test_weekly_plan_build_shows_per_meal_swap() -> None:
 
 
 def test_grocery_list_extra_items_before_create_button() -> None:
-    """Issue #121: Extra items live in Grocery list options before Create grocery list."""
+    """Issue #121 / #131: Extra items in their own expander before Create grocery list."""
     source = APP_PATH.read_text(encoding="utf-8")
     section = source.split("### 2. Grocery list", 1)[1].split("def _render_grocery_result", 1)[0]
 
     create_idx = section.index('if st.button("Create grocery list"')
-    options_block = section.split('with st.expander("Grocery list options"', 1)[1].split(
+    assert 'with st.expander("Pantry & Recurring Items"' in section
+    assert 'with st.expander("Add extra items"' in section
+    extras_block = section.split('with st.expander("Add extra items"', 1)[1].split(
         'if st.button("Create grocery list"', 1
     )[0]
-    assert 'key="grocery_pre_extra_items"' in options_block
-    assert section.index('key="grocery_pre_extra_items"') < create_idx
+    assert "_grocery_pre_extra_items_widget_key()" in extras_block
+    assert section.index('with st.expander("Add extra items"') < create_idx
+    pantry_block = section.split('with st.expander("Pantry & Recurring Items"', 1)[1].split(
+        'with st.expander("Add extra items"', 1
+    )[0]
+    assert "_grocery_pre_extra_items_widget_key()" not in pantry_block

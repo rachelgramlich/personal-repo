@@ -828,10 +828,27 @@ def _session_recurring_additions() -> list[str]:
     return st.session_state.grocery_session_recurring_additions
 
 
+def _grocery_pre_extra_items_widget_key() -> str:
+    epoch = int(st.session_state.get("grocery_pre_extra_items_epoch", 0))
+    return f"grocery_pre_extra_items_{epoch}"
+
+
+def _bump_grocery_pre_extra_items_widget() -> None:
+    """New widget key so Streamlit does not replay prior extra-item text."""
+    st.session_state.grocery_pre_extra_items_epoch = (
+        int(st.session_state.get("grocery_pre_extra_items_epoch", 0)) + 1
+    )
+
+
 def _clear_grocery_session_overrides() -> None:
     st.session_state.pop("grocery_session_pantry", None)
     st.session_state.pop("grocery_session_recurring_removals", None)
     st.session_state.pop("grocery_session_recurring_additions", None)
+    _bump_grocery_pre_extra_items_widget()
+
+
+def _clear_grocery_pre_extra_items() -> None:
+    _bump_grocery_pre_extra_items_widget()
 
 
 def _effective_recurring_items(template: list[str]) -> list[str]:
@@ -857,7 +874,7 @@ def _render_persistence_scope_radio(*, key: str) -> str:
     )
 
 
-def _clear_grocery_result() -> None:
+def _clear_grocery_result(*, clear_pre_extra_items: bool = True) -> None:
     """Remove the cached grocery result, review state, and associated widget state."""
     for key in (
         "grocery_result",
@@ -874,6 +891,8 @@ def _clear_grocery_result() -> None:
     for key in list(st.session_state.keys()):
         if key.startswith("review_ing_"):
             st.session_state.pop(key, None)
+    if clear_pre_extra_items:
+        _clear_grocery_pre_extra_items()
 
 
 _WEEKLY_PLAN_MODES = ("new", "saved", "dev")
@@ -1149,10 +1168,11 @@ def _render_per_recipe_review(db: NotionRecipesDB, selected: list[str]) -> None:
             for key in list(st.session_state.keys()):
                 if key.startswith("review_ing_"):
                     st.session_state.pop(key, None)
+            _clear_grocery_pre_extra_items()
             st.rerun()
     with col_cancel:
         if st.button("Cancel", key="review_cancel"):
-            _clear_grocery_result()
+            _clear_grocery_result(clear_pre_extra_items=False)
             st.rerun()
 
 
@@ -1319,7 +1339,7 @@ def render_create_weekly_plan() -> None:
     exclude_pantry = True
     recurring_text = "\n".join(default_recurring)
 
-    with st.expander("Grocery list options", expanded=False):
+    with st.expander("Pantry & Recurring Items", expanded=False):
         exclude_pantry = st.checkbox("Exclude pantry items", value=True)
         st.caption(
             "Edit saved pantry staples and recurring defaults in the **Pantry & recurring** tab."
@@ -1330,17 +1350,23 @@ def render_create_weekly_plan() -> None:
             height=100,
             help="Edits here apply to this run only; change saved defaults in Pantry & recurring.",
         )
+
+    with st.expander("Add extra items", expanded=False):
+        st.caption(
+            "One-off items for this grocery run (not saved as recurring). "
+            "Enter one item per line — checklist lines like `- [ ] Flowers` are OK."
+        )
         extra_items_text = st.text_area(
             "Extra items (one per line)",
-            value="",
-            placeholder="milk\neggs\n- [ ] Flowers",
+            placeholder="Start typing — one item per line",
             height=80,
-            key="grocery_pre_extra_items",
+            key=_grocery_pre_extra_items_widget_key(),
+            label_visibility="collapsed",
         )
 
     if st.button("Create grocery list", type="primary", key="create_grocery"):
         _ensure_weekly_plan_saved_before_grocery(current_plan)
-        _clear_grocery_result()
+        _clear_grocery_result(clear_pre_extra_items=False)
         _start_recipe_review(
             db,
             current_plan,
