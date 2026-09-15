@@ -4,17 +4,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ui_source import ui_source
+
 APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui" / "app.py"
 
 
 def test_saved_plan_build_keeps_loaded_recipes_by_default() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     assert "_locked_recipes_for_plan_build" in source
     assert "locked_for_build = _locked_recipes_for_plan_build" in source
 
 
 def test_weekly_plan_entry_modes_in_app() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     assert "_render_weekly_plan_entry" in source
     assert "weekly_plan_mode" in source
     assert "ensure_saved_weekly_plan" in source
@@ -25,13 +27,13 @@ def test_weekly_plan_entry_modes_in_app() -> None:
 
 
 def test_create_grocery_auto_saves_plan_if_missing() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     section = source.split('if st.button("Create grocery list"', 1)[1].split("_start_recipe_review", 1)[0]
     assert "_ensure_weekly_plan_saved_before_grocery" in section
 
 
 def test_explicit_save_plan_button_after_meals() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     assert 'key="save_weekly_plan"' in source
     assert "_render_save_plan_controls(_current_plan_names())" in source
 

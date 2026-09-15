@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from src.grocery_wizard.shopping.line_items import parse_line_items, strip_line_item
 
 

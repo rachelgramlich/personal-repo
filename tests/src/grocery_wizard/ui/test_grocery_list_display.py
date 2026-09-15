@@ -9,14 +9,16 @@ from src.grocery_wizard.shopping.grocery_list import (
     format_meals_and_grocery_list,
     format_meals_copy_text,
 )
-from src.grocery_wizard.ui.app import _compute_grocery_drafts
+from src.grocery_wizard.ui.grocery_helpers import compute_grocery_drafts
+
+from ui_source import ui_source
 
 APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui" / "app.py"
 
 
 def test_grocery_final_list_syncs_session_state_before_keyed_text_area() -> None:
     """Keyed text_area ignores value= on reruns; app must push fresh list_text into session state."""
-    source = APP_PATH.read_text(encoding="utf-8")
+    source = ui_source()
     assert 'st.session_state["grocery_final_list"] = grocery_copy_text' in source
     assert 'key="grocery_final_list"' in source
     assert "value=list_text" not in source
@@ -83,7 +85,7 @@ def test_user_flow_checklist_extras_strip_sort_dedupe() -> None:
     extra_items_text = "- [ ] Bananas\n- [ ] Flowers\n- [ ] Bananas"
     base_items = ["onions"]
 
-    _, final_items = _compute_grocery_drafts(base_items, [], extra_items_text)
+    _, final_items = compute_grocery_drafts(base_items, [], extra_items_text)
     list_text = format_meals_and_grocery_list([], final_items)
 
     assert "[ ]" not in list_text
