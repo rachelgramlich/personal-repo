@@ -153,6 +153,54 @@ def clear_grocery_flow_state(session_state: Any) -> None:
             session_state.pop(key, None)
 
 
+def commit_dev_jump(
+    session_state: Any,
+    db: NotionRecipesDB,
+    target: DevJumpTarget,
+    names: list[str],
+) -> list[str]:
+    """Apply a dev jump after recipe names are chosen; returns ``names`` used."""
+    cleaned = [name for name in names if name.strip()]
+    if not cleaned:
+        return []
+
+    clear_grocery_flow_state(session_state)
+    session_state["plan_meals_text"] = "\n".join(cleaned)
+    session_state.pop("plan_rejected_names", None)
+    session_state.pop("weekly_plan_last_saved_name", None)
+    session_state.pop("weekly_plan_saved_fingerprint", None)
+
+    if target in (DevJumpTarget.MEALS_FILLED, DevJumpTarget.PRE_BUILD_GROCERY):
+        return cleaned
+
+    exclude_pantry, recurring_text, default_recurring, extra_items_text = _default_grocery_options()
+
+    if target == DevJumpTarget.PER_RECIPE_REVIEW:
+        _stash_recipe_review(
+            session_state,
+            db,
+            cleaned,
+            exclude_pantry=exclude_pantry,
+            recurring_text=recurring_text,
+            default_recurring=default_recurring,
+            extra_items_text=extra_items_text,
+        )
+        return cleaned
+
+    if target == DevJumpTarget.GROCERY_RESULT:
+        _stash_grocery_result(
+            session_state,
+            db,
+            cleaned,
+            exclude_pantry=exclude_pantry,
+            recurring_text=recurring_text,
+            extra_items_text=extra_items_text,
+        )
+        return cleaned
+
+    return cleaned
+
+
 def apply_dev_jump(
     session_state: Any,
     db: NotionRecipesDB,
@@ -161,47 +209,9 @@ def apply_dev_jump(
     meal_count: int = DEFAULT_DEV_MEAL_COUNT,
     recipe_names: list[str] | None = None,
 ) -> list[str]:
-    """Set session state for ``target``; returns recipe names used (empty if none available)."""
+    """Resolve recipe names then commit the jump (CLI/tests helper)."""
     if recipe_names is not None:
-        names = [name for name in recipe_names if name.strip()]
+        names = list(recipe_names)
     else:
-        all_recipes = db.query_recipes()
-        names = pick_default_recipe_names(all_recipes, meal_count=meal_count)
-    if not names:
-        return []
-
-    clear_grocery_flow_state(session_state)
-    session_state["plan_meals_text"] = "\n".join(names)
-    session_state.pop("plan_rejected_names", None)
-    session_state.pop("weekly_plan_last_saved_name", None)
-    session_state.pop("weekly_plan_saved_fingerprint", None)
-
-    if target in (DevJumpTarget.MEALS_FILLED, DevJumpTarget.PRE_BUILD_GROCERY):
-        return names
-
-    exclude_pantry, recurring_text, default_recurring, extra_items_text = _default_grocery_options()
-
-    if target == DevJumpTarget.PER_RECIPE_REVIEW:
-        _stash_recipe_review(
-            session_state,
-            db,
-            names,
-            exclude_pantry=exclude_pantry,
-            recurring_text=recurring_text,
-            default_recurring=default_recurring,
-            extra_items_text=extra_items_text,
-        )
-        return names
-
-    if target == DevJumpTarget.GROCERY_RESULT:
-        _stash_grocery_result(
-            session_state,
-            db,
-            names,
-            exclude_pantry=exclude_pantry,
-            recurring_text=recurring_text,
-            extra_items_text=extra_items_text,
-        )
-        return names
-
-    return names
+        names = pick_default_recipe_names(db.query_recipes(), meal_count=meal_count)
+    return commit_dev_jump(session_state, db, target, names)

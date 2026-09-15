@@ -12,6 +12,7 @@ from src.grocery_wizard.ui.dev_jumps import (
     DevJumpTarget,
     apply_dev_jump,
     clear_grocery_flow_state,
+    commit_dev_jump,
     pick_default_recipe_names,
 )
 
@@ -82,6 +83,21 @@ def test_apply_dev_jump_grocery_result_builds_result(monkeypatch: pytest.MonkeyP
     assert used == ["Soup"]
     assert session["grocery_result"]["items"] == ["flour"]
     assert session["grocery_result"]["week_plan"] == ("Soup",)
+
+
+def test_commit_dev_jump_accepts_explicit_recipe_names() -> None:
+    session = {}
+    db = MagicMock()
+
+    used = commit_dev_jump(
+        session,
+        db,
+        DevJumpTarget.MEALS_FILLED,
+        ["Custom A", "Custom B"],
+    )
+
+    assert used == ["Custom A", "Custom B"]
+    assert session["plan_meals_text"] == "Custom A\nCustom B"
 
 
 def test_apply_dev_jump_accepts_explicit_recipe_names() -> None:

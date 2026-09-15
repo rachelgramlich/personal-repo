@@ -78,7 +78,8 @@ def test_dev_mode_exposes_collapsed_dev_tools_expander() -> None:
     assert '_render_dev_jump_tools(db)' in source
     assert 'st.expander("Dev tools", expanded=False)' in source
     assert '_weekly_plan_mode() != "dev"' in source
-    assert "apply_dev_jump" in source
+    assert "commit_dev_jump" in source
+    assert "pick_default_recipe_names" in source
     assert "Meals filled: auto" in source
     assert "Meals filled: manual" in source
     assert 'key="dev_jump_manual_recipes"' in source

@@ -78,7 +78,8 @@ from src.grocery_wizard.ui.dev_jumps import (
     DEFAULT_DEV_MEAL_COUNT,
     DEV_JUMP_CAPTIONS,
     DevJumpTarget,
-    apply_dev_jump,
+    commit_dev_jump,
+    pick_default_recipe_names,
 )
 from src.grocery_wizard.ui.theme import app_theme_css
 
@@ -1047,13 +1048,14 @@ def _render_dev_jump_tools(db: NotionRecipesDB) -> None:
             meal_count = int(
                 st.session_state.get("plan_meal_count", DEFAULT_DEV_MEAL_COUNT)
             )
-            names = apply_dev_jump(
-                st.session_state,
-                db,
-                target,
-                meal_count=meal_count,
-                recipe_names=manual_recipes,
-            )
+            if manual_recipes is not None:
+                names = list(manual_recipes)
+            else:
+                names = pick_default_recipe_names(
+                    db.query_recipes(),
+                    meal_count=meal_count,
+                )
+            names = commit_dev_jump(st.session_state, db, target, names)
             if not names:
                 st.error(
                     "No recipes in Notion to use for dev jump. Add recipes with "
