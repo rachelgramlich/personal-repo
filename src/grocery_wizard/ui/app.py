@@ -886,8 +886,9 @@ def _clear_grocery_result() -> None:
     """Remove the cached grocery result, review state, and associated widget state."""
     for key in (
         "grocery_result",
-        "grocery_additional_items",
         "grocery_readd",
+        "grocery_remove_once",
+        "grocery_permanent_remove_lines",
         "grocery_final_list",
         "grocery_final_list_fingerprint",
         "meals_final_list",
@@ -1363,14 +1364,13 @@ def render_create_weekly_plan() -> None:
                 "to change defaults."
             ),
         )
-
-    extra_items_text = st.text_area(
-        "Extra items (one per line)",
-        value="",
-        placeholder="milk\neggs\n- [ ] Flowers",
-        height=80,
-        key="grocery_pre_extra_items",
-    )
+        extra_items_text = st.text_area(
+            "Extra items (one per line)",
+            value="",
+            placeholder="milk\neggs\n- [ ] Flowers",
+            height=80,
+            key="grocery_pre_extra_items",
+        )
 
     if st.button("Create grocery list", type="primary", key="create_grocery"):
         _ensure_weekly_plan_saved_before_grocery(current_plan)
@@ -1386,7 +1386,7 @@ def render_create_weekly_plan() -> None:
         st.rerun()
 
 
-def _render_added_and_removed_summary(result: dict) -> None:
+def _build_result_added_items(result: dict) -> list[str]:
     recurring_items: list[str] = result.get("recurring_items") or []
     extra_items = _parse_line_items(result.get("additional_text", ""))
     added_items: list[str] = []
@@ -1397,66 +1397,126 @@ def _render_added_and_removed_summary(result: dict) -> None:
             continue
         seen.add(key)
         added_items.append(item)
+    return added_items
 
+
+def _buy_list_line_options(result: dict) -> list[str]:
+    """Lines on the buy list before one-time removals (for adjust multiselects)."""
+    readd: list[str] = result.get("readd") or []
+    _, lines = _compute_grocery_drafts(
+        result["items"],
+        readd,
+        result.get("additional_text", ""),
+        run_removals=None,
+    )
+    return lines
+
+
+def _run_removal_defaults(result: dict, buy_lines: list[str]) -> list[str]:
+    removal_keys = {name.strip().lower() for name in (result.get("run_removals") or [])}
+    if not removal_keys:
+        return []
+    defaults: list[str] = []
+    for line in buy_lines:
+        lowered = line.strip().lower()
+        if any(key in lowered or lowered in key for key in removal_keys):
+            defaults.append(line)
+    return defaults
+
+
+def _render_build_result_summary(result: dict) -> None:
+    added_items = _build_result_added_items(result)
     excluded: list[str] = list(result.get("excluded") or [])
 
-    st.markdown("### Added & removed this week")
+    st.markdown("### Summary (build result)")
     col_added, col_removed = st.columns(2)
     with col_added:
-        st.markdown("**Added items**")
-        st.caption("Recurring weekly items plus extras you entered.")
+        st.markdown("**Added: recurring items and pasted extras**")
         if added_items:
             for item in added_items:
                 st.write(f"- {item}")
         else:
             st.write("_None_")
     with col_removed:
-        st.markdown("**Removed items (pantry)**")
-        st.caption("Ingredients assumed on hand and left off the buy list.")
+        st.markdown("**Removed: items in the pantry**")
         if excluded:
             for item in excluded:
                 st.write(f"- {item}")
         else:
             st.write("_None_")
 
-    st.markdown("**Adjust before export**")
-    pantry_name = st.text_input(
-        "Add item to pantry",
-        placeholder="Item to treat as pantry staple",
-        key="output_add_pantry_name",
-    )
-    pantry_scope = _render_persistence_scope_radio(key="output_pantry_scope")
-    if st.button("Add to pantry", key="output_add_pantry_btn"):
-        name = pantry_name.strip()
-        if not name:
-            st.warning("Enter an item name.")
-        else:
-            if pantry_scope == "template":
-                append_pantry_item(name)
-            _session_pantry_extra().add(name.lower())
-            items: list[str] = list(result["items"])
-            result["items"] = [line for line in items if not _grocery_line_matches_name(line, name)]
-            excluded_set = {e.lower() for e in result.get("excluded", [])}
-            if name.lower() not in excluded_set:
-                result["excluded"] = sorted([*result.get("excluded", []), name], key=str.lower)
-            st.success(f"Moved “{name}” to pantry for this list.")
-            st.rerun()
 
-    remove_once = st.text_input(
-        "Remove from this list once",
-        placeholder="Item to skip on this run only",
-        key="output_remove_once_name",
-    )
-    if st.button("Remove for this run", key="output_remove_once_btn"):
-        name = remove_once.strip()
-        if not name:
-            st.warning("Enter an item name.")
+def _render_adjust_this_week_list(result: dict) -> None:
+    excluded: list[str] = list(result.get("excluded") or [])
+    buy_lines = _buy_list_line_options(result)
+
+    with st.expander("Adjust this week's list", expanded=False):
+        if excluded:
+            readd = st.multiselect(
+                "Add to grocery list from pantry (1x)",
+                options=excluded,
+                default=result.get("readd", []),
+                key="grocery_readd",
+                help="Add pantry-removed items back for this trip only.",
+            )
+            result["readd"] = readd
         else:
-            removals = set(result.get("run_removals") or [])
-            removals.add(name.lower())
-            result["run_removals"] = sorted(removals)
-            st.success(f"Removed “{name}” from this run only.")
-            st.rerun()
+            st.caption("No pantry-removed items to add back.")
+            result["readd"] = []
+
+        if buy_lines:
+            remove_once = st.multiselect(
+                "Remove from grocery list (1x)",
+                options=buy_lines,
+                default=_run_removal_defaults(result, buy_lines),
+                key="grocery_remove_once",
+                help="Skip these lines on this trip only; they are not added to the pantry.",
+            )
+            result["run_removals"] = sorted(
+                {line.strip().lower() for line in remove_once if line.strip()}
+            )
+        else:
+            st.caption("No buy-list lines to remove for this run.")
+
+        st.markdown("**Remove from grocery list (permanently) and add to pantry**")
+        permanent_lines = st.multiselect(
+            "Lines to move to pantry",
+            options=buy_lines,
+            default=[],
+            key="grocery_permanent_remove_lines",
+            help="Removes the line from this list and treats it as a pantry staple.",
+        )
+        pantry_scope = _render_persistence_scope_radio(key="output_pantry_scope")
+        if st.button("Remove and add to pantry", key="output_permanent_pantry_btn"):
+            if not permanent_lines:
+                st.warning("Select at least one line from the buy list.")
+            else:
+                items: list[str] = list(result["items"])
+                excluded_set = {e.lower() for e in result.get("excluded", [])}
+                for line in permanent_lines:
+                    name = line.strip()
+                    if not name:
+                        continue
+                    items = [item for item in items if not _grocery_line_matches_name(item, name)]
+                    if pantry_scope == "template":
+                        append_pantry_item(name)
+                    _session_pantry_extra().add(name.lower())
+                    if name.lower() not in excluded_set:
+                        excluded_set.add(name.lower())
+                        result.setdefault("excluded", []).append(name)
+                result["items"] = items
+                result["excluded"] = sorted(result.get("excluded", []), key=str.lower)
+                st.success(
+                    f"Moved {len(permanent_lines)} line(s) to pantry "
+                    f"({'template' if pantry_scope == 'template' else 'this run'})."
+                )
+                st.rerun()
+
+
+def _render_added_and_removed_summary(result: dict) -> None:
+    """Post-build summary plus week-only list adjustments."""
+    _render_build_result_summary(result)
+    _render_adjust_this_week_list(result)
 
 
 def _render_grocery_result() -> None:
@@ -1486,28 +1546,8 @@ def _render_grocery_result() -> None:
     items = result["items"]
     excluded = result["excluded"]
 
-    readd: list[str] = []
+    readd: list[str] = list(result.get("readd") or [])
     additional_text = result.get("additional_text", "")
-
-    with st.expander("Customize list", expanded=bool(excluded)):
-        if excluded:
-            st.caption("These pantry staples were left off your list.")
-            readd = st.multiselect(
-                "Add any back",
-                options=excluded,
-                default=result.get("readd", []),
-                key="grocery_readd",
-            )
-        additional_text = st.text_area(
-            "Extra items (one per line)",
-            value=result.get("additional_text", ""),
-            placeholder="milk\neggs",
-            height=80,
-            key="grocery_additional_items",
-        )
-
-    result["readd"] = readd
-    result["additional_text"] = additional_text
 
     run_removals = set(result.get("run_removals") or [])
     _, final_items = _compute_grocery_drafts(
@@ -1531,46 +1571,48 @@ def _render_grocery_result() -> None:
         meals_copy_text = format_meals_copy_text(meals)
         grocery_copy_text = format_grocery_items_copy_text(final_items)
 
-        st.markdown("**Meals**")
-        meals_fingerprint = tuple(meals)
-        if st.session_state.get("meals_final_list_fingerprint") != meals_fingerprint:
-            st.session_state["meals_final_list_fingerprint"] = meals_fingerprint
-            st.session_state["meals_final_list"] = meals_copy_text
-        st.text_area(
-            "Meals",
-            height=120,
-            label_visibility="collapsed",
-            key="meals_final_list",
-        )
-        meals_for_copy = st.session_state.get("meals_final_list", meals_copy_text)
-        _render_copy_button(meals_for_copy, label="Copy meals", key="meals_copy")
-
-        st.markdown("**Grocery List**")
-        st.caption("Edit the list below before copying or downloading.")
-        grocery_fingerprint = (tuple(final_items),)
-        if st.session_state.get("grocery_final_list_fingerprint") != grocery_fingerprint:
-            st.session_state["grocery_final_list_fingerprint"] = grocery_fingerprint
-            st.session_state["grocery_final_list"] = grocery_copy_text
-        st.text_area(
-            "Grocery list",
-            height=320,
-            label_visibility="collapsed",
-            key="grocery_final_list",
-            help="Edit this consolidated list directly before copy or download.",
-        )
-        grocery_for_copy = st.session_state.get("grocery_final_list", grocery_copy_text)
-        download_text = f"{meals_for_copy}\n\n{grocery_for_copy}"
-        col_copy, col_download = st.columns(2)
-        with col_copy:
-            _render_copy_button(grocery_for_copy, label="Copy list", key="grocery_copy")
-        with col_download:
-            st.download_button(
-                "Download",
-                data=download_text,
-                file_name="weekly_plan.txt",
-                mime="text/plain",
-                use_container_width=True,
+        with st.expander("Customize list", expanded=False):
+            st.caption("Edit meals and grocery copy/export text only.")
+            st.markdown("**Meals**")
+            meals_fingerprint = tuple(meals)
+            if st.session_state.get("meals_final_list_fingerprint") != meals_fingerprint:
+                st.session_state["meals_final_list_fingerprint"] = meals_fingerprint
+                st.session_state["meals_final_list"] = meals_copy_text
+            st.text_area(
+                "Meals",
+                height=120,
+                label_visibility="collapsed",
+                key="meals_final_list",
             )
+            meals_for_copy = st.session_state.get("meals_final_list", meals_copy_text)
+            _render_copy_button(meals_for_copy, label="Copy meals", key="meals_copy")
+
+            st.markdown("**Grocery List**")
+            st.caption("Edit the list below before copying or downloading.")
+            grocery_fingerprint = (tuple(final_items),)
+            if st.session_state.get("grocery_final_list_fingerprint") != grocery_fingerprint:
+                st.session_state["grocery_final_list_fingerprint"] = grocery_fingerprint
+                st.session_state["grocery_final_list"] = grocery_copy_text
+            st.text_area(
+                "Grocery list",
+                height=320,
+                label_visibility="collapsed",
+                key="grocery_final_list",
+                help="Edit this consolidated list directly before copy or download.",
+            )
+            grocery_for_copy = st.session_state.get("grocery_final_list", grocery_copy_text)
+            download_text = f"{meals_for_copy}\n\n{grocery_for_copy}"
+            col_copy, col_download = st.columns(2)
+            with col_copy:
+                _render_copy_button(grocery_for_copy, label="Copy list", key="grocery_copy")
+            with col_download:
+                st.download_button(
+                    "Download",
+                    data=download_text,
+                    file_name="weekly_plan.txt",
+                    mime="text/plain",
+                    use_container_width=True,
+                )
     elif not excluded and not meal_names:
         st.warning("No grocery items found.")
 

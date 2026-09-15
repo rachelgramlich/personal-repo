@@ -75,13 +75,13 @@ def test_weekly_plan_build_shows_per_meal_swap_and_edit_manually() -> None:
 
 
 def test_grocery_list_extra_items_before_create_button() -> None:
-    """Issue #33: Extra items must render above Create grocery list (outside collapsed expander)."""
+    """Issue #121: Extra items live in Grocery list options before Create grocery list."""
     source = APP_PATH.read_text(encoding="utf-8")
     section = source.split("### 2. Grocery list", 1)[1].split("def _render_grocery_result", 1)[0]
 
-    extra_idx = section.index('key="grocery_pre_extra_items"')
     create_idx = section.index('if st.button("Create grocery list"')
-    assert extra_idx < create_idx
-
-    assert '\n    extra_items_text = st.text_area(\n        "Extra items (one per line)"' in section
-    assert '\n        extra_items_text = st.text_area(' not in section
+    options_block = section.split('with st.expander("Grocery list options"', 1)[1].split(
+        'if st.button("Create grocery list"', 1
+    )[0]
+    assert 'key="grocery_pre_extra_items"' in options_block
+    assert section.index('key="grocery_pre_extra_items"') < create_idx
