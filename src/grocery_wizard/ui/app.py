@@ -66,7 +66,6 @@ from src.grocery_wizard.shopping.recurring_weekly_items import (
     apply_recurring_session_overrides,
     load_recurring_weekly_items,
     remove_recurring_weekly_item,
-    write_recurring_weekly_items,
 )
 from src.grocery_wizard.shopping.store_aisles import (
     StoreAisleConfig,
@@ -178,24 +177,11 @@ def _grocery_line_matches_name(line: str, name: str) -> bool:
     return lowered_name in lowered_line or lowered_line in lowered_name
 
 
-def _save_recurring_template(text: str) -> None:
-    """Persist the recurring weekly template (flow B — intentional default edits)."""
-    write_recurring_weekly_items(None, _parse_line_items(text))
-
-
 def _load_pantry_entries_from_notion() -> list:
     """Load pantry rows from Notion (no caching — always live query)."""
     from src.grocery_wizard.integrations.notion_household import NotionPantryDB
 
     return NotionPantryDB().list_entries()
-
-
-def _sync_recurring_template_text_area(template: list[str]) -> None:
-    """Keep bulk-edit text area aligned with Notion after add/remove elsewhere in the tab."""
-    fingerprint = tuple(template)
-    if st.session_state.get("_pantry_tab_recurring_fp") != fingerprint:
-        st.session_state["_pantry_tab_recurring_fp"] = fingerprint
-        st.session_state["pantry_tab_recurring_template_editor"] = "\n".join(template)
 
 
 def _pantry_display_aisle_label(entry: object, *, config: StoreAisleConfig) -> str:
@@ -291,19 +277,6 @@ def render_pantry_and_recurring() -> None:
                 st.rerun()
             else:
                 st.warning("Could not add — empty name or already on the list.")
-
-    st.caption("Bulk edit the saved recurring template (one item per line).")
-    _sync_recurring_template_text_area(template)
-    edited_template = st.text_area(
-        "Default recurring items",
-        height=140,
-        key="pantry_tab_recurring_template_editor",
-        label_visibility="collapsed",
-    )
-    if st.button("Save recurring template", type="primary", key="pantry_tab_save_recurring"):
-        _save_recurring_template(edited_template)
-        st.success("Saved recurring template for future weeks.")
-        st.rerun()
 
     st.divider()
     st.markdown("### Pantry")
