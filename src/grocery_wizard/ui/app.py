@@ -66,7 +66,6 @@ from src.grocery_wizard.shopping.recurring_weekly_items import (
     apply_recurring_session_overrides,
     load_recurring_weekly_items,
     remove_recurring_weekly_item,
-    write_recurring_weekly_items,
 )
 from src.grocery_wizard.shopping.store_aisles import (
     StoreAisleConfig,
@@ -190,11 +189,6 @@ def _grocery_line_matches_name(line: str, name: str) -> bool:
     return lowered_name in lowered_line or lowered_line in lowered_name
 
 
-def _save_recurring_template(text: str) -> None:
-    """Persist the recurring weekly template (flow B — intentional default edits)."""
-    write_recurring_weekly_items(None, _parse_line_items(text))
-
-
 def _load_pantry_entries_from_notion() -> list:
     """Load pantry rows from Notion (cached until a write or refresh)."""
     config = load_config()
@@ -206,14 +200,6 @@ def _remove_pantry_item_and_invalidate(name: str) -> bool:
         invalidate_notion_cache()
         return True
     return False
-
-
-def _sync_recurring_template_text_area(template: list[str]) -> None:
-    """Keep bulk-edit text area aligned with Notion after add/remove elsewhere in the tab."""
-    fingerprint = tuple(template)
-    if st.session_state.get("_pantry_tab_recurring_fp") != fingerprint:
-        st.session_state["_pantry_tab_recurring_fp"] = fingerprint
-        st.session_state["pantry_tab_recurring_template_editor"] = "\n".join(template)
 
 
 def _pantry_display_aisle_label(entry: object, *, config: StoreAisleConfig) -> str:
@@ -280,10 +266,37 @@ def render_pantry_and_recurring() -> None:
     """Dedicated tab for pantry staples and the recurring weekly grocery template."""
     st.subheader("Pantry & recurring items")
     st.caption(
-        "Pantry items are assumed on hand when building grocery lists. "
-        "Recurring items are added to every new weekly list."
+        "Recurring items are added to every new weekly list. "
+        "Pantry items are assumed on hand when building grocery lists."
     )
 
+    st.markdown("### Recurring weekly items")
+    template = load_recurring_weekly_items()
+    if template:
+        for index, item in enumerate(template):
+            _render_compact_removable_row(
+                item=item,
+                item_class="gw-recurring-item",
+                button_key=f"recurring_tab_remove_{index}",
+                remove_help=f"Remove {item} from recurring list",
+                on_remove=lambda name=item: remove_recurring_weekly_item(name),
+            )
+    else:
+        st.caption("_No recurring items yet._")
+
+    with st.form("recurring_add_form", clear_on_submit=True):
+        new_recurring = st.text_input("Add recurring item", placeholder="e.g. berries")
+        if st.form_submit_button("Add recurring item"):
+            name = new_recurring.strip()
+            if not name:
+                st.warning("Enter an item name.")
+            elif append_recurring_weekly_item(name):
+                st.success(f"Added “{name}” to recurring items.")
+                st.rerun()
+            else:
+                st.warning("Could not add — empty name or already on the list.")
+
+    st.divider()
     st.markdown("### Pantry")
     st.caption("Grouped by the same store aisles as your grocery list (`config/store_aisles.txt`).")
     aisle_config = load_store_aisles()
@@ -336,46 +349,6 @@ def render_pantry_and_recurring() -> None:
                     st.rerun()
                 else:
                     st.warning("Could not add — empty name or already in pantry.")
-
-    st.divider()
-    st.markdown("### Recurring weekly items")
-    template = load_recurring_weekly_items()
-    if template:
-        for index, item in enumerate(template):
-            _render_compact_removable_row(
-                item=item,
-                item_class="gw-recurring-item",
-                button_key=f"recurring_tab_remove_{index}",
-                remove_help=f"Remove {item} from recurring list",
-                on_remove=lambda name=item: remove_recurring_weekly_item(name),
-            )
-    else:
-        st.caption("_No recurring items yet._")
-
-    with st.form("recurring_add_form", clear_on_submit=True):
-        new_recurring = st.text_input("Add recurring item", placeholder="e.g. berries")
-        if st.form_submit_button("Add recurring item"):
-            name = new_recurring.strip()
-            if not name:
-                st.warning("Enter an item name.")
-            elif append_recurring_weekly_item(name):
-                st.success(f"Added “{name}” to recurring items.")
-                st.rerun()
-            else:
-                st.warning("Could not add — empty name or already on the list.")
-
-    st.caption("Bulk edit the saved recurring template (one item per line).")
-    _sync_recurring_template_text_area(template)
-    edited_template = st.text_area(
-        "Default recurring items",
-        height=140,
-        key="pantry_tab_recurring_template_editor",
-        label_visibility="collapsed",
-    )
-    if st.button("Save recurring template", type="primary", key="pantry_tab_save_recurring"):
-        _save_recurring_template(edited_template)
-        st.success("Saved recurring template for future weeks.")
-        st.rerun()
 
 
 def _recipes_ingredient_cache_key(recipes: list) -> tuple[tuple[str, str], ...]:
