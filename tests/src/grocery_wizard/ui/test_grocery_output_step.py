@@ -30,6 +30,9 @@ def test_output_step_shows_added_removed_and_editable_grocery_list() -> None:
     assert 'with st.expander("Customize list"' not in result_block
     assert "### Customize list" in result_block
     assert "Extra items (one per line)" not in result_block
-    assert "Edit the list below before copying or downloading." in result_block
+    assert "Edit the list below before copying." in result_block
+    assert "st.download_button" not in result_block
+    assert 'key="grocery_edit_meals"' not in result_block
+    assert 'key="grocery_update_list"' not in result_block
     assert 'key="grocery_final_list"' in result_block
     assert "disabled=True" not in result_block

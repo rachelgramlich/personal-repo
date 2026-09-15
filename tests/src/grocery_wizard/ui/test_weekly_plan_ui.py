@@ -37,6 +37,7 @@ def test_scratch_plan_slot_first_manual_picker() -> None:
     assert "Choose recipe manually" in source
     assert "_render_slot_manual_picker" in source
     assert "plan_week_filter" in source
+    assert "_week_level_plan_filter_columns" in source
     assert "Keep these recipes" not in source
     assert 'st.expander("More options"' not in source
     assert "Fill remaining slots" in source

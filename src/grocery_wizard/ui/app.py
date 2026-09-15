@@ -359,6 +359,18 @@ def _ingredient_options_from_index(ingredient_index: dict[str, set[str]]) -> lis
     return sorted({name for names in ingredient_index.values() for name in names})
 
 
+def _week_level_plan_filter_columns(schema: DatabaseSchema) -> list[ColumnInfo]:
+    """Filters for auto-fill week plan: Meal + weeknight-friendly only."""
+    columns: list[ColumnInfo] = []
+    meal = schema.all_columns.get("Meal")
+    if meal is not None:
+        columns.append(meal)
+    weeknight = schema.all_columns.get(DEFAULT_WEEKNIGHT_COLUMN)
+    if weeknight is not None:
+        columns.append(weeknight)
+    return columns
+
+
 def _render_meal_plan_filters(
     filter_columns: list[ColumnInfo],
     defaults: MealPlanFilters,
@@ -1182,11 +1194,12 @@ def render_create_weekly_plan() -> None:
 
     st.markdown("#### Generate your plan")
     st.caption(
-        "Auto-fill the week using recipe-type filters below. Ingredient filters are "
+        "Auto-fill the week using Meal and weeknight-friendly below. Other filters are "
         "available per meal when you choose a recipe manually."
     )
+    week_filter_columns = _week_level_plan_filter_columns(schema)
     week_filters = _render_meal_plan_filters(
-        filter_columns,
+        week_filter_columns,
         filter_defaults,
         key_prefix="plan_week_filter",
         ingredient_index=None,
@@ -1498,7 +1511,7 @@ def _render_grocery_result() -> None:
         grocery_copy_text = format_grocery_items_copy_text(final_items)
 
         st.markdown("### Customize list")
-        st.caption("Edit meals and grocery copy/export text before copying or downloading.")
+        st.caption("Edit meals and grocery copy before copying.")
         st.markdown("**Meals**")
         meals_fingerprint = tuple(meals)
         if st.session_state.get("meals_final_list_fingerprint") != meals_fingerprint:
@@ -1514,7 +1527,7 @@ def _render_grocery_result() -> None:
         _render_copy_button(meals_for_copy, label="Copy meals", key="meals_copy")
 
         st.markdown("**Grocery List**")
-        st.caption("Edit the list below before copying or downloading.")
+        st.caption("Edit the list below before copying.")
         grocery_fingerprint = (tuple(final_items),)
         if st.session_state.get("grocery_final_list_fingerprint") != grocery_fingerprint:
             st.session_state["grocery_final_list_fingerprint"] = grocery_fingerprint
@@ -1524,38 +1537,16 @@ def _render_grocery_result() -> None:
             height=320,
             label_visibility="collapsed",
             key="grocery_final_list",
-            help="Edit this consolidated list directly before copy or download.",
+            help="Edit this consolidated list directly before copy.",
         )
         grocery_for_copy = st.session_state.get("grocery_final_list", grocery_copy_text)
-        download_text = f"{meals_for_copy}\n\n{grocery_for_copy}"
-        col_copy, col_download = st.columns(2)
-        with col_copy:
-            _render_copy_button(grocery_for_copy, label="Copy list", key="grocery_copy")
-        with col_download:
-            st.download_button(
-                "Download",
-                data=download_text,
-                file_name="weekly_plan.txt",
-                mime="text/plain",
-                use_container_width=True,
-            )
+        _render_copy_button(grocery_for_copy, label="Copy list", key="grocery_copy")
     elif not excluded and not meal_names:
         st.warning("No grocery items found.")
 
     edit_count: int = result.get("edit_count", 0)
     if edit_count:
         st.caption(f"_{edit_count} ingredient edit(s) logged for later review._")
-
-    if st.button("Edit meals", key="grocery_edit_meals"):
-        _clear_grocery_session_overrides()
-        _clear_grocery_result()
-        st.rerun()
-
-    if st.button("Update list", key="grocery_update_list"):
-        # Force recompute of both text areas by clearing fingerprints, then rerun.
-        st.session_state.pop("grocery_final_list_fingerprint", None)
-        st.session_state.pop("meals_final_list_fingerprint", None)
-        st.rerun()
 
 
 if __name__ == "__main__":
