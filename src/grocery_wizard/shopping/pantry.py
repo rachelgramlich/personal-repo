@@ -177,12 +177,12 @@ def write_pantry_file(path: Path, lines: list[str]) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def append_pantry_item(name: str, path: Path | None = None) -> bool:
+def append_pantry_item(name: str, path: Path | None = None, *, section: str | None = None) -> bool:
     """Append an item to the pantry (last section). Returns False if invalid or duplicate."""
     if path is None:
         from src.grocery_wizard.integrations.notion_household import NotionPantryDB
 
-        return NotionPantryDB().append_item(name)
+        return NotionPantryDB().append_item(name, section=section)
 
     pantry_path = path
     cleaned = name.strip()
