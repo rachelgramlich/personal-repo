@@ -67,8 +67,8 @@ from src.grocery_wizard.shopping.recurring_weekly_items import (
 from src.grocery_wizard.shopping.store_aisles import (
     StoreAisleConfig,
     aisle_label,
+    classify_aisle,
     load_store_aisles,
-    pantry_aisle_for_item,
 )
 
 
@@ -184,23 +184,37 @@ def _sync_recurring_template_text_area(template: list[str]) -> None:
         st.session_state["pantry_tab_recurring_template_editor"] = "\n".join(template)
 
 
+def _pantry_display_aisle_label(entry: object, *, config: StoreAisleConfig) -> str:
+    """Heading label for a pantry row: exact Notion Store Aisle, else classify by name."""
+    stored = str(getattr(entry, "section", None) or "").strip()
+    if stored:
+        return stored
+    aisle_id = classify_aisle(str(getattr(entry, "name", "")), config=config)
+    return aisle_label(aisle_id, config=config)
+
+
 def _group_pantry_items_by_store_aisle(
     entries: list,
     *,
     config: StoreAisleConfig,
 ) -> list[tuple[str, list[tuple[int, str]]]]:
-    """Group pantry rows by Notion store aisle (fallback: classify name if unset)."""
-    by_aisle: dict[str, list[str]] = {aisle: [] for aisle in config.aisle_order}
+    """Group pantry rows by Notion Store Aisle label (store walk order for headings)."""
+    by_label: dict[str, list[str]] = {}
     for entry in entries:
-        aisle = pantry_aisle_for_item(entry.name, entry.section, config=config)
-        by_aisle.setdefault(aisle, []).append(entry.name)
+        label = _pantry_display_aisle_label(entry, config=config)
+        by_label.setdefault(label, []).append(str(getattr(entry, "name", "")))
+
+    walk_order = [aisle_label(aisle_id, config=config) for aisle_id in config.aisle_order]
+    rank = {label.lower(): index for index, label in enumerate(walk_order)}
 
     grouped: list[tuple[str, list[tuple[int, str]]]] = []
-    for aisle_index, aisle_id in enumerate(config.aisle_order):
-        names = sorted(set(by_aisle.get(aisle_id, [])), key=str.lower)
-        if not names:
-            continue
-        grouped.append((aisle_id, [(aisle_index * 1000 + i, name) for i, name in enumerate(names)]))
+    for section_index, label in enumerate(
+        sorted(by_label.keys(), key=lambda text: (rank.get(text.lower(), 999), text.lower()))
+    ):
+        names = sorted(set(by_label[label]), key=str.lower)
+        grouped.append(
+            (label, [(section_index * 1000 + i, name) for i, name in enumerate(names)])
+        )
     return grouped
 
 
@@ -214,10 +228,6 @@ def render_pantry_and_recurring() -> None:
 
     st.markdown("### Pantry")
     st.caption("Grouped by the same store aisles as your grocery list (`config/store_aisles.txt`).")
-    refresh_col, _spacer = st.columns([1, 3])
-    with refresh_col:
-        if st.button("Refresh from Notion", key="pantry_refresh_notion"):
-            st.rerun()
     aisle_config = load_store_aisles()
     try:
         pantry_entries = _load_pantry_entries_from_notion()
@@ -227,10 +237,10 @@ def render_pantry_and_recurring() -> None:
 
     grouped_aisles = _group_pantry_items_by_store_aisle(pantry_entries, config=aisle_config)
     if grouped_aisles:
-        for aisle_id, items in grouped_aisles:
-            label = aisle_label(aisle_id, config=aisle_config)
+        for aisle_heading, items in grouped_aisles:
+            safe_heading = html.escape(aisle_heading)
             st.markdown(
-                f'<p class="gw-pantry-aisle-heading">{label}</p>',
+                f'<p class="gw-pantry-aisle-heading">{safe_heading}</p>',
                 unsafe_allow_html=True,
             )
             for item_key, item in items:
