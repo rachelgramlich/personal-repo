@@ -4,9 +4,14 @@ from __future__ import annotations
 
 __all__ = [
     "StoreAisleConfig",
+    "aisle_label",
+    "canonical_pantry_section_label",
     "group_grocery_items_by_aisle",
+    "pantry_aisle_section_labels",
     "ingredient_name",
     "load_store_aisles",
+    "pantry_aisle_for_item",
+    "resolve_pantry_aisle_id",
     "sort_grocery_items",
     "strip_checklist_prefix",
 ]
@@ -207,6 +212,62 @@ def group_grocery_items_by_aisle(
 def aisle_label(aisle: str, *, config: StoreAisleConfig | None = None) -> str:
     cfg = config or load_store_aisles()
     return cfg.aisle_labels.get(aisle, aisle.title())
+
+
+def resolve_pantry_aisle_id(
+    section: str | None,
+    *,
+    config: StoreAisleConfig | None = None,
+) -> str | None:
+    """Map a pantry ``Section`` value to a store aisle id, or ``None`` if unset."""
+    cfg = config or load_store_aisles()
+    if section is None or not str(section).strip():
+        return None
+    raw = str(section).strip().lower()
+    if raw in cfg.aisle_labels:
+        return raw
+    for aisle_id, label in cfg.aisle_labels.items():
+        if label.strip().lower() == raw:
+            return aisle_id
+    if raw in ("uncategorized", "other"):
+        return "other"
+    return "other"
+
+
+def pantry_aisle_for_item(
+    item_name: str,
+    section: str | None,
+    *,
+    config: StoreAisleConfig | None = None,
+) -> str:
+    """Aisle id for grouping a pantry item (stored section, else classify by name)."""
+    cfg = config or load_store_aisles()
+    stored = str(section).strip() if section is not None else ""
+    if stored:
+        return resolve_pantry_aisle_id(stored, config=cfg) or "other"
+    return classify_aisle(item_name, config=cfg)
+
+
+def pantry_aisle_section_labels(*, config: StoreAisleConfig | None = None) -> list[str]:
+    """Display labels for pantry Notion ``Section`` select options (store walk order)."""
+    cfg = config or load_store_aisles()
+    return [aisle_label(aisle_id, config=cfg) for aisle_id in cfg.aisle_order]
+
+
+def canonical_pantry_section_label(
+    section: str | None,
+    *,
+    aisle_id: str | None = None,
+    config: StoreAisleConfig | None = None,
+) -> str:
+    """Notion select name for a pantry item's store aisle."""
+    cfg = config or load_store_aisles()
+    if aisle_id is not None:
+        return aisle_label(aisle_id, config=cfg)
+    resolved = resolve_pantry_aisle_id(section, config=cfg)
+    if resolved is None:
+        resolved = "other"
+    return aisle_label(resolved, config=cfg)
 
 
 def _contains_word_phrase(haystack_words: list[str], needle_words: list[str]) -> bool:
