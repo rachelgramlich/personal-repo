@@ -224,18 +224,15 @@ Justification threshold: Phase 1–3 fail metrics **and** UI is a primary daily 
 
 ---
 
-## Proposed follow-up implementation issues
+## Follow-up implementation issues (tracking)
 
-Create these (or equivalent) when starting implementation work:
+| Phase | GitHub | When to implement |
+| --- | --- | --- |
+| **1** — cache, lazy tabs, dedupe fetches | [#144](https://github.com/rachelgramlich/personal-repo/issues/144) | **Now** (first implementation after this research) |
+| **2** — modularize app, lighten DOM | [#145](https://github.com/rachelgramlich/personal-repo/issues/145) | Only if Phase 1 merged and UAT still too slow, or `app.py` blocks further work |
+| **3** — freshness policy, local snapshot | [#146](https://github.com/rachelgramlich/personal-repo/issues/146) | Only if Phase 1+2 done and latency still unacceptable with warm cache |
 
-| Title | Scope |
-| --- | --- |
-| **UI perf Phase 1: cache Notion reads with mutation invalidation** | `st.cache_data` wrappers for recipes, pantry, saved plans; audit write paths; manual refresh button |
-| **UI perf Phase 1: lazy tab / fragment isolation** | Stop running weekly + add-recipe + pantry on every widget event |
-| **UI perf Phase 1: dedupe query_recipes and filter find_by_link** | Single fetch per rerun; Notion API filter for URL lookup |
-| **UI perf Phase 2: split Streamlit app into modules** | `ui/sections/` without behavior change |
-| **UI perf Phase 2: lighten pantry/recurring list rendering** | Fewer buttons/iframes; form-based bulk remove |
-| **UI perf Phase 3: optional local recipe snapshot for UI** | CLI refresh + read path in UI with freshness indicator |
+Phase 1 combines the original micro-items: Notion `st.cache_data` + invalidation, lazy tabs, single fetch per rerun, filtered `find_by_link`. Details are in each issue body.
 
 ---
 
