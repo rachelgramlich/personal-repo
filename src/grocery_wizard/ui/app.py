@@ -476,15 +476,23 @@ def get_db() -> NotionRecipesDB:
     return NotionRecipesDB(config)
 
 
-def _render_notion_cache_sidebar() -> None:
-    with st.sidebar:
-        st.caption("Notion data")
-        if st.button("Refresh from Notion", key="notion_cache_refresh"):
-            invalidate_notion_cache()
-            st.rerun()
+def _render_notion_cache_controls() -> None:
+    """Main-column refresh (Streamlit hides the sidebar on narrow viewports)."""
+    hint_col, refresh_col = st.columns([3, 2])
+    with hint_col:
         load_seconds = last_recipe_cache_load_seconds()
         if load_seconds is not None:
-            st.caption(f"Last recipe fetch: {load_seconds:.2f}s")
+            st.caption(f"Last full recipe load from Notion: {load_seconds:.2f}s")
+    with refresh_col:
+        if st.button(
+            "Refresh from Notion",
+            key="notion_cache_refresh",
+            type="secondary",
+            use_container_width=True,
+            help="Reload recipes, pantry, and saved plans from Notion",
+        ):
+            invalidate_notion_cache()
+            st.rerun()
 
 
 def main() -> None:
@@ -494,8 +502,8 @@ def main() -> None:
         layout="centered",
     )
     _inject_app_styles()
-    _render_notion_cache_sidebar()
     st.title("Grocery Wizard")
+    _render_notion_cache_controls()
 
     active_tab = st.segmented_control(
         "Section",
