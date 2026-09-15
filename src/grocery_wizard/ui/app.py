@@ -74,6 +74,11 @@ from src.grocery_wizard.shopping.store_aisles import (
     classify_aisle,
     load_store_aisles,
 )
+from src.grocery_wizard.ui.dev_jumps import (
+    DEV_JUMP_CAPTIONS,
+    DevJumpTarget,
+    apply_dev_jump,
+)
 from src.grocery_wizard.ui.theme import app_theme_css
 
 
@@ -980,6 +985,40 @@ def _render_save_plan_controls(recipe_names: list[str]) -> None:
         st.rerun()
 
 
+def _render_dev_jump_tools(db: NotionRecipesDB) -> None:
+    """Collapsed dev-only shortcuts to wizard steps for manual UAT."""
+    if _weekly_plan_mode() != "dev":
+        return
+
+    with st.expander("Dev tools", expanded=False):
+        st.caption(
+            "Jump to a wizard step using a small default meal set from Notion "
+            "(recipes with ingredients). Use when manually testing UI without "
+            "clicking through meal generation each time."
+        )
+        for target, hint in DEV_JUMP_CAPTIONS.items():
+            st.markdown(f"- **{target.value.replace('_', ' ').title()}** — {hint}")
+
+        col_a, col_b = st.columns(2)
+        jumps: list[tuple[Any, DevJumpTarget, str]] = [
+            (col_a, DevJumpTarget.MEALS_FILLED, "Meals filled"),
+            (col_b, DevJumpTarget.PRE_BUILD_GROCERY, "Pre-build grocery"),
+            (col_a, DevJumpTarget.PER_RECIPE_REVIEW, "Per-recipe review"),
+            (col_b, DevJumpTarget.GROCERY_RESULT, "Final grocery list"),
+        ]
+        for column, target, label in jumps:
+            with column:
+                if st.button(label, key=f"dev_jump_{target.value}"):
+                    names = apply_dev_jump(st.session_state, db, target)
+                    if not names:
+                        st.error(
+                            "No recipes in Notion to use for dev jump. Add recipes with "
+                            "ingredients first."
+                        )
+                    else:
+                        st.rerun()
+
+
 def _render_weekly_plan_entry() -> bool:
     """Prompt for new / saved / dev mode. Returns True when the user may continue planning."""
     mode = _weekly_plan_mode()
@@ -1188,6 +1227,7 @@ def render_create_weekly_plan() -> None:
         return
 
     db = get_db()
+    _render_dev_jump_tools(db)
     schema = db.schema
     config = load_config()
     all_recipes = db.query_recipes()

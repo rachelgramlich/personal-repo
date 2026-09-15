@@ -73,6 +73,14 @@ def test_weekly_plan_build_shows_per_meal_swap() -> None:
     assert not swap_selected
 
 
+def test_dev_mode_exposes_collapsed_dev_tools_expander() -> None:
+    source = APP_PATH.read_text(encoding="utf-8")
+    assert '_render_dev_jump_tools(db)' in source
+    assert 'st.expander("Dev tools", expanded=False)' in source
+    assert '_weekly_plan_mode() != "dev"' in source
+    assert "apply_dev_jump" in source
+
+
 def test_grocery_list_extra_items_before_create_button() -> None:
     """Issue #121 / #131: Extra items in their own expander before Create grocery list."""
     source = APP_PATH.read_text(encoding="utf-8")
