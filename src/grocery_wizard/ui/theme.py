@@ -132,11 +132,21 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
             color: var(--gw-text-muted);
         }}
 
-        /* Text fields — target native controls, not only wrapper divs */
+        /* Streamlit 1.6x widget shells (textarea/input use transparent inner + colored root) */
+        [data-testid="stTextInputRootElement"],
+        [data-testid="stTextAreaRootElement"],
+        .stSelectbox div[data-baseweb="select"] > div,
+        .stMultiSelect div[data-baseweb="select"] > div {{
+            background-color: var(--gw-input-bg) !important;
+            border-color: {border} !important;
+        }}
+
+        /* Text fields — native controls and Base Web wrappers */
         .stTextInput input,
         .stTextArea textarea,
         .stNumberInput input,
         .stDateInput input,
+        [data-testid="stTextInputField"],
         [data-baseweb="input"] input,
         [data-baseweb="select"] input,
         [data-baseweb="input"] > div,
@@ -147,6 +157,10 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
             color: var(--gw-text) !important;
             border-color: {border} !important;
             -webkit-text-fill-color: var(--gw-text) !important;
+        }}
+
+        [data-testid="stTextInputField"] {{
+            background-color: transparent !important;
         }}
 
         .stTextInput input:disabled,
@@ -258,6 +272,84 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
 
         li[role="option"] {{
             color: var(--gw-text) !important;
+            background-color: var(--gw-input-bg) !important;
+        }}
+
+        li[role="option"]:hover,
+        li[role="option"][data-highlighted="true"] {{
+            background-color: var(--gw-blue) !important;
+            color: var(--gw-blue-text) !important;
+        }}
+
+        /* Portaled select/multiselect menus (outside .stApp) */
+        [data-testid="stSelectboxVirtualDropdown"],
+        [data-testid="stMultiSelectDropdown"] {{
+            background-color: var(--gw-input-bg) !important;
+            color: var(--gw-text) !important;
+            border: 1px solid {border} !important;
+        }}
+
+        [data-testid="stSelectboxVirtualDropdown"] *,
+        [data-testid="stMultiSelectDropdown"] * {{
+            color: var(--gw-text);
+        }}
+
+        .gw-pantry-aisle-heading {{
+            color: var(--gw-text);
+            font-size: 1.02rem;
+            font-weight: 700;
+            margin: 0.65rem 0 0.12rem 0;
+            padding-bottom: 0.1rem;
+            border-bottom: 1px solid {border};
+        }}
+
+        .gw-pantry-aisle-heading:first-of-type {{
+            margin-top: 0.2rem;
+        }}
+
+        p.gw-pantry-item,
+        p.gw-recurring-item {{
+            color: var(--gw-text);
+            font-size: 0.92rem;
+            line-height: 1.15;
+            margin: 0 0 0 0.75rem;
+            padding: 0;
+        }}
+
+        [data-testid="stHorizontalBlock"]:has(p.gw-pantry-item),
+        [data-testid="stHorizontalBlock"]:has(p.gw-recurring-item) {{
+            align-items: center !important;
+            gap: 0.2rem !important;
+            margin-bottom: 0 !important;
+        }}
+
+        [data-testid="stHorizontalBlock"]:has(p.gw-pantry-item) [data-testid="stColumn"],
+        [data-testid="stHorizontalBlock"]:has(p.gw-recurring-item) [data-testid="stColumn"] {{
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            min-height: 0 !important;
+        }}
+
+        [data-testid="stHorizontalBlock"]:has(p.gw-pantry-item) .stButton,
+        [data-testid="stHorizontalBlock"]:has(p.gw-recurring-item) .stButton {{
+            margin: 0 !important;
+        }}
+
+        [data-testid="stHorizontalBlock"]:has(p.gw-pantry-item) .stButton button,
+        [data-testid="stHorizontalBlock"]:has(p.gw-recurring-item) .stButton button {{
+            padding: 0 0.35rem !important;
+            min-height: 1.25rem !important;
+            height: 1.25rem !important;
+            min-width: 1.25rem !important;
+            width: 1.25rem !important;
+            font-size: 0.95rem !important;
+            line-height: 1 !important;
+        }}
+
+        [data-testid="stHorizontalBlock"]:has(p.gw-pantry-item) .stButton button p,
+        [data-testid="stHorizontalBlock"]:has(p.gw-recurring-item) .stButton button p {{
+            font-size: 0.95rem !important;
+            line-height: 1 !important;
         }}
 
         [data-testid="stToolbar"], footer, #MainMenu {{

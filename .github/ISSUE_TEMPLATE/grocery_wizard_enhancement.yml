@@ -1,13 +1,13 @@
 name: Grocery Wizard enhancement
-description: Feature or improvement for the backlog (picked up via /work-on-enhancement)
+description: Feature or improvement for the backlog (picked up via /work-on-issue)
 labels:
   - grocery-wizard
 body:
   - type: markdown
     attributes:
       value: |
-        Pick up with `/work-on-enhancement <issue-number>` or
-        `uv run python -m src.grocery_wizard dev work-on-enhancement <issue-number>`.
+        Pick up with `/work-on-issue <issue-number>` or
+        `uv run python -m src.grocery_wizard dev work-on-issue <issue-number>`.
   - type: textarea
     id: description
     attributes:

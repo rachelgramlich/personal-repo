@@ -1,31 +1,42 @@
 # Agent instructions (grocery_wizard)
 
-## Enhancement backlog
+## Issues (slash commands = primary UX)
 
-- **Storage:** GitHub Issues with the **`grocery-wizard`** label (clean titles; no required prefix). Legacy issues may still match **Grocery Wizard** in the title until backfilled.
-- **List open items:** `uv run python -m src.grocery_wizard dev list-enhancements`
-- **Implement one item:** `uv run python -m src.grocery_wizard dev work-on-enhancement <issue-number>`
-  - Same as `dev show-enhancement <issue-number>` — prints the full implementation + ship checklist.
-  - Use the GitHub issue number (`96` / `#96`).
-- **Add backlog item:** `uv run python -m src.grocery_wizard dev add-enhancement --title "…" --expected-behavior "…"` (applies **`grocery-wizard`** label; requires `gh`).
-- **Backfill labels (once):** `uv run python -m src.grocery_wizard dev backfill-enhancement-labels` (optional `--strip-title-prefix`).
-- **Report a bug:** `uv run python -m src.grocery_wizard dev report-bug …` (template **Bug report**; not the backlog).
-- **Issue forms:** `.github/ISSUE_TEMPLATE/grocery_wizard_enhancement.yml`, `bug_report.yml`.
+| You type | Purpose |
+| --- | --- |
+| **`/create-issues`** | One or more notes → auto **bug vs backlog**, merge by **code area**, create GitHub issue(s) |
+| **`/list-enhancements`** | Open backlog (grocery-wizard label) |
+| **`/work-on-issue N`** | Full implementation brief for backlog **or** bug #N |
 
-When shipping an enhancement, the agent must:
+Slash files: `.cursor/commands/create-issues.md`, `list-enhancements.md`, `work-on-issue.md`.
 
-1. Set the PR title via `dev enhancement-pr-title <issue-number>`.
-2. Fill the PR template **Manual verification** section and include `Closes #<issue-number>` in the PR body (GitHub closes the issue when the PR merges).
-3. Ask the user to run manual verification (echo the PR section); when they confirm, run `dev record-manual-verification <issue-number>`.
+Agents run the matching CLI when structured output or `gh` is needed:
 
-Do not close backlog issues with `gh issue close` or ask the user to close issues by hand — merge the PR with `Closes #N`.
+- `dev create-issues` — `--dry-run` to preview; `--item` (repeat) or stdin; `--plan-file` for edited JSON
+- `dev list-enhancements`
+- `dev work-on-issue <issue-number>`
 
-Legacy JSONL (if any) can be imported once: `dev migrate-enhancements-to-github`.
+**Create issues on This Mac** when possible (`gh` auth). Cloud agents should ask the user to switch before running `create-issues`.
 
-### Cursor slash commands
+### Backlog ship checklist (enhancements)
 
-Committed in **`.cursor/commands/`** (`/add-enhancement`, `/list-enhancements`, `/work-on-enhancement`). Cloud agents can read those files from the repo clone or use the CLI above.
+1. PR title: `dev enhancement-pr-title <issue-number>`
+2. PR template **Manual verification** + `Closes #<issue-number>`
+3. After user confirms manual UAT: `dev record-manual-verification <issue-number>`
 
-Ingredient UI edit logs remain local-only: `.local/grocery_wizard/ingredient_edits.jsonl` (for `dev suggest-fixes`).
+Do not close backlog issues by hand — merge with `Closes #N`.
 
-After `just setup`, Streamlit’s `developing-with-streamlit` agent skill is available under `.cursor/skills/` for UI work.
+One-time: `dev migrate-enhancements-to-github`, `dev backfill-enhancement-labels`.
+
+## Dev CLI (maintenance)
+
+`uv run python -m src.grocery_wizard dev --help`
+
+| Area | Commands |
+| --- | --- |
+| **Notion ingredients** | `backfill-ingredients`, `reconcile-ingredients`, `refresh-all-ingredients`, `reformat-ingredients`, `audit-recipes`, `show-schema` |
+| **Parser hints from UI** | `suggest-fixes` (`.local/grocery_wizard/ingredient_edits.jsonl`) |
+| **Pipeline check** | `validate-pipeline` |
+| **Prod feedback log** | `list-feedback` |
+
+After `just setup`, Streamlit’s `developing-with-streamlit` skill is under `.cursor/skills/` for UI work.
