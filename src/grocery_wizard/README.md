@@ -221,6 +221,7 @@ Normalization and pantry exclusion happen at grocery-list time only — not when
    - `NOTION_PANTRY_DATABASE_ID`, `NOTION_RECURRING_WEEKLY_DATABASE_ID`, `NOTION_WEEKLY_MEAL_PLANS_DATABASE_ID`
 5. From repo root: `just setup`
 6. Verify: `uv run python -m src.grocery_wizard.cli dev show-schema`
+7. Sync pantry aisle select options: `uv run python -m src.grocery_wizard dev sync-notion-pantry-sections`
 
 ## Meal planning
 

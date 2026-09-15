@@ -216,6 +216,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     schema_parser.set_defaults(func=cmd_dev_schema)
 
+    sync_pantry_parser = dev_subparsers.add_parser(
+        "sync-notion-pantry-sections",
+        help="Set pantry Section select options from config/store_aisles.txt",
+    )
+    sync_pantry_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print planned changes without calling Notion",
+    )
+    sync_pantry_parser.set_defaults(func=cmd_dev_sync_notion_pantry_sections)
+
     list_feedback_parser = dev_subparsers.add_parser(
         "list-feedback",
         help="Show feedback collected from production commands",
@@ -549,6 +560,25 @@ def cmd_pantry(_args: argparse.Namespace) -> int:
     from src.grocery_wizard.shopping.pantry import run_pantry_interactive
 
     return run_pantry_interactive()
+
+
+def cmd_dev_sync_notion_pantry_sections(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.integrations.notion_pantry_setup import sync_pantry_section_store_aisles
+
+    try:
+        result = sync_pantry_section_store_aisles(dry_run=args.dry_run)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    mode = "Dry run —" if args.dry_run else "Updated"
+    print(f"{mode} pantry Section was {result.previous_type!r}")
+    print(f"Select options ({len(result.aisle_labels)}): {', '.join(result.aisle_labels)}")
+    if args.dry_run:
+        print(f"Would migrate {result.rows_migrated} pantry row(s) to canonical aisle labels.")
+    else:
+        print(f"Migrated {result.rows_migrated} pantry row(s) to canonical aisle labels.")
+    return 0
 
 
 def cmd_dev_schema(_args: argparse.Namespace) -> int:

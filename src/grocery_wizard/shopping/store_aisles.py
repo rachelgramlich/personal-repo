@@ -7,6 +7,7 @@ __all__ = [
     "aisle_label",
     "canonical_pantry_section_label",
     "group_grocery_items_by_aisle",
+    "pantry_aisle_section_labels",
     "ingredient_name",
     "load_store_aisles",
     "pantry_aisle_for_item",
@@ -245,6 +246,12 @@ def pantry_aisle_for_item(
     if resolved is not None:
         return resolved
     return classify_aisle(item_name, config=cfg)
+
+
+def pantry_aisle_section_labels(*, config: StoreAisleConfig | None = None) -> list[str]:
+    """Display labels for pantry Notion ``Section`` select options (store walk order)."""
+    cfg = config or load_store_aisles()
+    return [aisle_label(aisle_id, config=cfg) for aisle_id in cfg.aisle_order]
 
 
 def canonical_pantry_section_label(

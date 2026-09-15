@@ -32,6 +32,10 @@ class NotionDatabase:
         self._data_source_id = self._resolve_data_source_id()
         self.column_types = self._load_column_types()
 
+    @property
+    def data_source_id(self) -> str:
+        return self._data_source_id
+
     def _resolve_data_source_id(self) -> str:
         db = self._client.databases.retrieve(database_id=self._database_id)
         data_sources = db.get("data_sources", [])
@@ -86,6 +90,17 @@ class NotionDatabase:
     def read(self, row: NotionPageRow, column_name: str) -> Any:
         column_type = self.column_types.get(column_name, "")
         return read_notion_property(row.properties.get(column_name), column_type)
+
+    def retrieve_data_source(self) -> dict[str, Any]:
+        return self._client.data_sources.retrieve(data_source_id=self._data_source_id)
+
+    def update_data_source_properties(self, properties: dict[str, Any]) -> dict[str, Any]:
+        updated = self._client.data_sources.update(
+            data_source_id=self._data_source_id,
+            properties=properties,
+        )
+        self.column_types = self._load_column_types()
+        return updated
 
 
 def read_notion_property(prop: dict[str, Any] | None, prop_type: str) -> Any:

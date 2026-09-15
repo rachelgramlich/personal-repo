@@ -17,7 +17,7 @@ Pantry staples, recurring weekly items, and saved weekly meal plans live in **No
 
 | Data | Notion database | Properties |
 |------|-----------------|------------|
-| Pantry staples | Pantry | **Name** (title), optional **Section** (text) |
+| Pantry staples | Pantry | **Name** (title), **Section** (select — store aisle labels from `store_aisles.txt`) |
 | Recurring weekly items | Recurring | **Name** (title) only |
 | Saved weekly meal plans | Weekly plans | **Name**, **Week start**, **Version**, **Recipes** (relation → Recipes) |
 
@@ -43,3 +43,13 @@ Required for Grocery Wizard:
 - `NOTION_WEEKLY_MEAL_PLANS_DATABASE_ID`
 
 Cloud agents use the same names as Secrets.
+
+### Pantry `Section` select options
+
+After creating the pantry database (with a **Section** column), sync select options from the committed aisle config:
+
+```bash
+uv run python -m src.grocery_wizard dev sync-notion-pantry-sections
+```
+
+Use `--dry-run` to preview. The command sets **Section** to a **select** whose options are the display labels in `store_aisles.txt` (e.g. `Fruit`, `Dry goods`, `Other`) and normalizes existing rows to those labels. Re-run whenever you add or rename aisles in `store_aisles.txt`.
