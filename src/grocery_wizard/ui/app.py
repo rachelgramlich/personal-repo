@@ -75,6 +75,7 @@ from src.grocery_wizard.shopping.store_aisles import (
     load_store_aisles,
 )
 from src.grocery_wizard.ui.dev_jumps import (
+    DEFAULT_DEV_MEAL_COUNT,
     DEV_JUMP_CAPTIONS,
     DevJumpTarget,
     apply_dev_jump,
@@ -945,6 +946,7 @@ def _reset_weekly_plan_workflow(*, clear_mode: bool = False) -> None:
         st.session_state.pop(key, None)
     if clear_mode:
         st.session_state.pop("weekly_plan_mode", None)
+        st.session_state.pop("plan_meal_count", None)
     _clear_grocery_result()
 
 
@@ -1042,10 +1044,14 @@ def _render_dev_jump_tools(db: NotionRecipesDB) -> None:
             if manual_recipes is not None and not manual_recipes:
                 st.warning("Pick at least one recipe for the manual meals jump.")
                 return
+            meal_count = int(
+                st.session_state.get("plan_meal_count", DEFAULT_DEV_MEAL_COUNT)
+            )
             names = apply_dev_jump(
                 st.session_state,
                 db,
                 target,
+                meal_count=meal_count,
                 recipe_names=manual_recipes,
             )
             if not names:
@@ -1110,6 +1116,7 @@ def _render_weekly_plan_entry() -> bool:
         st.info(f"**{labels[mode]}**{detail}")
         if st.button("Change how I started", key="weekly_plan_change_mode"):
             _reset_weekly_plan_workflow(clear_mode=True)
+            st.session_state.weekly_plan_mode_choice = "new"
             st.rerun()
         return True
 
@@ -1151,6 +1158,13 @@ def _render_weekly_plan_entry() -> bool:
                 key="weekly_plan_saved_name_pick",
             )
 
+    if choice == "dev":
+        st.session_state.weekly_plan_mode = "dev"
+        _reset_weekly_plan_workflow(clear_mode=False)
+        st.session_state.plan_meals_text = ""
+        st.session_state.plan_meal_count = 1
+        st.rerun()
+
     if st.button("Continue", type="primary", key="weekly_plan_mode_continue"):
         if choice == "saved" and not saved_plans:
             return False
@@ -1161,8 +1175,9 @@ def _render_weekly_plan_entry() -> bool:
                 load_plan_recipes(selected_plan_name, recipes_db=get_db())
             )
             st.session_state.weekly_plan_loaded_name = selected_plan_name
-        elif choice in ("new", "dev"):
+        elif choice == "new":
             st.session_state.plan_meals_text = ""
+            st.session_state.plan_meal_count = load_config().default_meals
         st.rerun()
 
     return False
@@ -1304,7 +1319,6 @@ def render_create_weekly_plan() -> None:
         return
 
     db = get_db()
-    _render_dev_jump_tools(db)
     schema = db.schema
     config = load_config()
     all_recipes = db.query_recipes()
@@ -1312,14 +1326,29 @@ def render_create_weekly_plan() -> None:
     if "plan_meals_text" not in st.session_state:
         st.session_state.plan_meals_text = ""
 
+    if _weekly_plan_mode() == "dev" and "plan_meal_count" not in st.session_state:
+        st.session_state.plan_meal_count = 1
+
     st.markdown("### 1. Meals")
-    meal_count = st.number_input(
-        "How many meals this week?",
-        min_value=1,
-        max_value=21,
-        value=config.default_meals,
-        step=1,
-    )
+    if _weekly_plan_mode() == "dev":
+        meal_count = st.number_input(
+            "How many meals this week?",
+            min_value=1,
+            max_value=21,
+            step=1,
+            key="plan_meal_count",
+        )
+    else:
+        meal_count = st.number_input(
+            "How many meals this week?",
+            min_value=1,
+            max_value=21,
+            value=int(st.session_state.get("plan_meal_count", config.default_meals)),
+            step=1,
+            key="plan_meal_count",
+        )
+
+    _render_dev_jump_tools(db)
 
     filter_defaults = default_filters(schema.all_columns)
     filter_columns = [*schema.filter_columns, *schema.checkbox_columns]

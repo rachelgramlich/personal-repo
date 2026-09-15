@@ -8,11 +8,16 @@ import pytest
 
 from src.grocery_wizard.integrations.notion import Recipe
 from src.grocery_wizard.ui.dev_jumps import (
+    DEFAULT_DEV_MEAL_COUNT,
     DevJumpTarget,
     apply_dev_jump,
     clear_grocery_flow_state,
     pick_default_recipe_names,
 )
+
+
+def test_default_dev_meal_count_is_one() -> None:
+    assert DEFAULT_DEV_MEAL_COUNT == 1
 
 
 def _recipe(name: str, *, ingredients: str = "1 cup flour") -> Recipe:

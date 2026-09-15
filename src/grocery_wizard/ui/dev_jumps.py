@@ -10,7 +10,7 @@ from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
 from src.grocery_wizard.shopping.grocery_list import build_grocery_list
 from src.grocery_wizard.shopping.recurring_weekly_items import load_recurring_weekly_items
 
-DEFAULT_DEV_MEAL_COUNT = 3
+DEFAULT_DEV_MEAL_COUNT = 1
 _DEV_MEAL_PICK_SEED = 142
 
 

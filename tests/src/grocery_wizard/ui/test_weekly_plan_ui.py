@@ -90,6 +90,22 @@ def test_dev_mode_exposes_collapsed_dev_tools_expander() -> None:
     assert dev_section.index("Meals filled: manual") < dev_section.index("Pre-build grocery")
 
 
+def test_dev_mode_auto_continues_without_continue_button() -> None:
+    source = APP_PATH.read_text(encoding="utf-8")
+    entry = source.split("def _render_weekly_plan_entry", 1)[1].split(
+        "def _invalidate_stale_grocery_result", 1
+    )[0]
+    assert 'if choice == "dev":' in entry
+    assert "plan_meal_count = 1" in entry
+    assert entry.index('if choice == "dev":') < entry.index("weekly_plan_mode_continue")
+
+
+def test_dev_mode_default_meal_count() -> None:
+    source = APP_PATH.read_text(encoding="utf-8")
+    assert '_weekly_plan_mode() == "dev"' in source
+    assert 'key="plan_meal_count"' in source
+
+
 def test_prebuild_recipe_picker_before_build_my_plan() -> None:
     source = APP_PATH.read_text(encoding="utf-8")
     assert "_render_prebuild_recipe_picker" in source
