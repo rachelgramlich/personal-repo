@@ -1,0 +1,13 @@
+# Committed defaults for Grocery Wizard (repo root is the Streamlit working directory).
+# See src/grocery_wizard/docs/remote-access.md for remote / tunnel access.
+
+[server]
+headless = true
+# Bind address is set via CLI for LAN/tunnel (see `just grocery-ui-remote`).
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# Avoid stale UI when iterating; remote sessions benefit too.
+toolbarMode = "auto"

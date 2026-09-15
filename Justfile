@@ -37,6 +37,11 @@ test-cov:
 grocery-ui *ARGS:
     uv run streamlit run src/grocery_wizard/ui/app.py {{ARGS}}
 
+# Streamlit on all interfaces (8501) — pair with Cloudflare Tunnel, Tailscale, or LAN
+grocery-ui-remote *ARGS:
+    uv run streamlit run src/grocery_wizard/ui/app.py \
+        --server.address=0.0.0.0 --server.port=8501 {{ARGS}}
+
 # Clean up Python cache files
 clean:
     find . -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
