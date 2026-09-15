@@ -12,6 +12,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 import html
 import json
+from collections.abc import Callable
 from datetime import UTC, date, datetime
 from typing import Any
 
@@ -218,6 +219,34 @@ def _group_pantry_items_by_store_aisle(
     return grouped
 
 
+def _render_compact_removable_row(
+    *,
+    item: str,
+    item_class: str,
+    button_key: str,
+    remove_help: str,
+    on_remove: Callable[[], bool],
+) -> None:
+    """One tight list row: bullet label + small remove control."""
+    item_col, remove_col = st.columns([11, 1], gap="small", vertical_alignment="center")
+    with item_col:
+        st.markdown(
+            f'<p class="{item_class}">• {html.escape(item)}</p>',
+            unsafe_allow_html=True,
+        )
+    with remove_col:
+        if st.button(
+            "x",
+            key=button_key,
+            help=remove_help,
+            type="secondary",
+        ):
+            if on_remove():
+                st.rerun()
+            else:
+                st.warning(f"Could not remove “{item}”.")
+
+
 def render_pantry_and_recurring() -> None:
     """Dedicated tab for pantry staples and the recurring weekly grocery template."""
     st.subheader("Pantry & recurring items")
@@ -244,24 +273,13 @@ def render_pantry_and_recurring() -> None:
                 unsafe_allow_html=True,
             )
             for item_key, item in items:
-                item_col, remove_col = st.columns([6, 1])
-                with item_col:
-                    safe_item = html.escape(item)
-                    st.markdown(
-                        f'<p class="gw-pantry-item">• {safe_item}</p>',
-                        unsafe_allow_html=True,
-                    )
-                with remove_col:
-                    if st.button(
-                        "Remove",
-                        key=f"pantry_tab_remove_{item_key}",
-                        help=f"Remove {item} from pantry",
-                    ):
-                        if remove_pantry_item_by_name(item):
-                            st.success(f"Removed “{item}” from pantry.")
-                            st.rerun()
-                        else:
-                            st.warning(f"Could not remove “{item}”.")
+                _render_compact_removable_row(
+                    item=item,
+                    item_class="gw-pantry-item",
+                    button_key=f"pantry_tab_remove_{item_key}",
+                    remove_help=f"Remove {item} from pantry",
+                    on_remove=lambda name=item: remove_pantry_item_by_name(name),
+                )
     elif pantry_entries:
         st.caption("No pantry items matched a store aisle.")
     else:
@@ -294,20 +312,13 @@ def render_pantry_and_recurring() -> None:
     template = load_recurring_weekly_items()
     if template:
         for index, item in enumerate(template):
-            item_col, remove_col = st.columns([6, 1])
-            with item_col:
-                st.write(item)
-            with remove_col:
-                if st.button(
-                    "Remove",
-                    key=f"recurring_tab_remove_{index}",
-                    help=f"Remove {item} from recurring list",
-                ):
-                    if remove_recurring_weekly_item(item):
-                        st.success(f"Removed “{item}” from recurring items.")
-                        st.rerun()
-                    else:
-                        st.warning(f"Could not remove “{item}”.")
+            _render_compact_removable_row(
+                item=item,
+                item_class="gw-recurring-item",
+                button_key=f"recurring_tab_remove_{index}",
+                remove_help=f"Remove {item} from recurring list",
+                on_remove=lambda name=item: remove_recurring_weekly_item(name),
+            )
     else:
         st.caption("_No recurring items yet._")
 
@@ -603,27 +614,60 @@ def _inject_app_styles() -> None:
 
         .gw-pantry-aisle-heading {
             color: var(--gw-text);
-            font-size: 1.05rem;
+            font-size: 1.02rem;
             font-weight: 700;
-            margin: 1.1rem 0 0.2rem 0;
-            padding-bottom: 0.15rem;
+            margin: 0.65rem 0 0.12rem 0;
+            padding-bottom: 0.1rem;
             border-bottom: 1px solid #d48aad;
         }
 
         .gw-pantry-aisle-heading:first-of-type {
-            margin-top: 0.35rem;
+            margin-top: 0.2rem;
         }
 
-        p.gw-pantry-item {
+        p.gw-pantry-item,
+        p.gw-recurring-item {
             color: var(--gw-text);
-            font-size: 0.95rem;
-            line-height: 1.25;
-            margin: 0.05rem 0 0.05rem 0.85rem;
+            font-size: 0.92rem;
+            line-height: 1.15;
+            margin: 0 0 0 0.75rem;
             padding: 0;
         }
 
-        [data-testid="column"] p.gw-pantry-item {
-            margin-bottom: 0.05rem;
+        [data-testid="stHorizontalBlock"]:has(p.gw-pantry-item),
+        [data-testid="stHorizontalBlock"]:has(p.gw-recurring-item) {
+            align-items: center !important;
+            gap: 0.2rem !important;
+            margin-bottom: 0 !important;
+        }
+
+        [data-testid="stHorizontalBlock"]:has(p.gw-pantry-item) [data-testid="stColumn"],
+        [data-testid="stHorizontalBlock"]:has(p.gw-recurring-item) [data-testid="stColumn"] {
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            min-height: 0 !important;
+        }
+
+        [data-testid="stHorizontalBlock"]:has(p.gw-pantry-item) .stButton,
+        [data-testid="stHorizontalBlock"]:has(p.gw-recurring-item) .stButton {
+            margin: 0 !important;
+        }
+
+        [data-testid="stHorizontalBlock"]:has(p.gw-pantry-item) .stButton button,
+        [data-testid="stHorizontalBlock"]:has(p.gw-recurring-item) .stButton button {
+            padding: 0 0.35rem !important;
+            min-height: 1.25rem !important;
+            height: 1.25rem !important;
+            min-width: 1.25rem !important;
+            width: 1.25rem !important;
+            font-size: 0.95rem !important;
+            line-height: 1 !important;
+        }
+
+        [data-testid="stHorizontalBlock"]:has(p.gw-pantry-item) .stButton button p,
+        [data-testid="stHorizontalBlock"]:has(p.gw-recurring-item) .stButton button p {
+            font-size: 0.95rem !important;
+            line-height: 1 !important;
         }
         </style>
         """,
