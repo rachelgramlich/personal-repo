@@ -2,6 +2,15 @@
 
 **Scope: issue capture only.** Create one GitHub issue and stop. Backlog features are implemented later with **`/work-on-enhancement <issue-number>`**; bugs are fixed in a normal fix PR (not the enhancement backlog).
 
+## Use This Mac (local agent)
+
+**Before running any issue CLI below**, tell the user:
+
+> Issue creation works best on **This Mac** (local agent). If this chat is a **Cloud** agent, switch to **This Mac** on this repo and run **`/add-enhancement`** again — do not create the issue from Cloud.
+
+- If the session is Cloud (or you are not sure), **stop after the reminder** and wait for the user to confirm they switched to This Mac.
+- Only run `dev add-enhancement` / `dev report-bug` once you are on This Mac or the user confirms they are.
+
 ## Do not explore or implement
 
 In this turn you must **not**:
