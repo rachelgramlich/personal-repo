@@ -83,12 +83,16 @@ def test_dev_mode_exposes_collapsed_dev_tools_expander() -> None:
     assert "Meals filled: auto" in source
     assert "Meals filled: manual" in source
     assert 'key="dev_jump_manual_recipes"' in source
-    assert 'st.markdown("#### Meals filled")' in source
+    assert 'st.markdown("#### Meals filled")' not in source
     assert '"Choose recipes manually"' in source
+    assert '"Final list"' in source
     dev_section = source.split('st.expander("Dev tools"', 1)[1].split("def _render_weekly_plan_entry", 1)[0]
+    assert dev_section.index("for target in DevJumpTarget") < dev_section.index("Meals filled: auto")
+    assert "Meals Filled" in dev_section or "meals_filled" in dev_section.lower()
     assert dev_section.index("Meals filled: auto") < dev_section.index("Choose recipes manually")
     assert dev_section.index("Choose recipes manually") < dev_section.index("Meals filled: manual")
     assert dev_section.index("Meals filled: manual") < dev_section.index("Pre-build grocery")
+    assert dev_section.index('label="Per-recipe review"') < dev_section.index('label="Final list"')
 
 
 def test_dev_mode_auto_continues_without_continue_button() -> None:

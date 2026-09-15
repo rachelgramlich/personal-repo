@@ -34,7 +34,7 @@ DEV_JUMP_CAPTIONS: dict[DevJumpTarget, str] = {
         "Per-recipe ingredient review — expanders and **Build final list**."
     ),
     DevJumpTarget.GROCERY_RESULT: (
-        "Final grocery list — re-add/remove, copy button, meals list."
+        "Final list — built grocery list with re-add/remove, copy, and meals."
     ),
 }
 

@@ -1028,9 +1028,10 @@ def _render_dev_jump_tools(db: NotionRecipesDB) -> None:
             "(recipes with ingredients). Use when manually testing UI without "
             "clicking through meal generation each time."
         )
-        other_targets = [t for t in DevJumpTarget if t != DevJumpTarget.MEALS_FILLED]
-        for target in other_targets:
+        for target in DevJumpTarget:
             title = target.value.replace("_", " ").title()
+            if target == DevJumpTarget.GROCERY_RESULT:
+                title = "Final list"
             st.markdown(f"- **{title}** — {DEV_JUMP_CAPTIONS[target]}")
 
         def _dev_jump_button(
@@ -1065,8 +1066,6 @@ def _render_dev_jump_tools(db: NotionRecipesDB) -> None:
             st.session_state.plan_prebuild_pinned_recipes = list(names)
             st.rerun()
 
-        st.markdown("#### Meals filled")
-        st.caption(DEV_JUMP_CAPTIONS[DevJumpTarget.MEALS_FILLED])
         _dev_jump_button(
             DevJumpTarget.MEALS_FILLED,
             label="Meals filled: auto",
@@ -1087,21 +1086,24 @@ def _render_dev_jump_tools(db: NotionRecipesDB) -> None:
             manual_recipes=manual_pick,
         )
 
-        st.divider()
-        col_a, col_b = st.columns(2)
-        other_jumps: list[tuple[Any, DevJumpTarget, str]] = [
-            (col_a, DevJumpTarget.PRE_BUILD_GROCERY, "Pre-build grocery"),
-            (col_b, DevJumpTarget.PER_RECIPE_REVIEW, "Per-recipe review"),
-            (col_a, DevJumpTarget.GROCERY_RESULT, "Final grocery list"),
-        ]
-        for column, target, label in other_jumps:
-            with column:
-                _dev_jump_button(
-                    target,
-                    label=label,
-                    key_suffix=f"btn_{target.value}",
-                    manual_recipes=None,
-                )
+        _dev_jump_button(
+            DevJumpTarget.PRE_BUILD_GROCERY,
+            label="Pre-build grocery",
+            key_suffix="btn_pre_build",
+            manual_recipes=None,
+        )
+        _dev_jump_button(
+            DevJumpTarget.PER_RECIPE_REVIEW,
+            label="Per-recipe review",
+            key_suffix="btn_review",
+            manual_recipes=None,
+        )
+        _dev_jump_button(
+            DevJumpTarget.GROCERY_RESULT,
+            label="Final list",
+            key_suffix="btn_final_list",
+            manual_recipes=None,
+        )
 
 
 def _render_weekly_plan_entry() -> bool:
