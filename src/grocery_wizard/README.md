@@ -187,7 +187,7 @@ Same subfolders as source — e.g. `recipes/test_scraper.py` tests `recipes/scra
 # CLI (primary)
 uv run python -m src.grocery_wizard.cli <command>
 
-# Streamlit (secondary)
+# Streamlit (secondary) — run from repository root so .streamlit/config.toml loads
 just grocery-ui
 # or: uv run streamlit run src/grocery_wizard/ui/app.py
 ```

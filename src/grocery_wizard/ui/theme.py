@@ -125,11 +125,16 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
         }}
 
         .stApp h1, .stApp h2, .stApp h3, .stApp h4,
-        .stApp label, .stApp p, .stApp li, .stApp span,
+        .stApp label, .stApp p, .stApp li,
         .stApp [data-testid="stMarkdownContainer"],
         .stApp [data-testid="stWidgetLabel"] p,
         .stApp [data-testid="stCaptionContainer"] {{
             color: var(--gw-text);
+        }}
+
+        /* Avoid painting all spans (breaks primary buttons and tag chips). */
+        .stApp span:not(.stButton span):not([data-baseweb="tag"] span) {{
+            color: inherit;
         }}
 
         .stApp .stCaption, .stApp small {{
@@ -139,13 +144,46 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
         /* Streamlit 1.6x widget shells (textarea/input use transparent inner + colored root) */
         [data-testid="stTextInputRootElement"],
         [data-testid="stTextAreaRootElement"],
-        [data-testid="stSelectbox"] div:has(> input:not([type="hidden"])),
-        [data-testid="stMultiSelect"] div:has([data-testid="stMultiSelectTagsContainer"]),
+        [data-testid="stNumberInputContainer"],
         [data-testid="stMultiSelectTagsContainer"],
+        /* React Aria select/multiselect closed triggers (emotion styled, not baseweb) */
+        [data-testid="stMultiSelect"] div:has([data-testid="stMultiSelectTagsContainer"]),
+        [data-testid="stSelectbox"] div:has(button[aria-label="Open"]),
+        [data-testid="stSelectbox"] div:has(> input:not([type="hidden"])),
         .stSelectbox div[data-baseweb="select"] > div,
         .stMultiSelect div[data-baseweb="select"] > div {{
             background-color: var(--gw-input-bg) !important;
             border-color: {border} !important;
+            color: var(--gw-text) !important;
+        }}
+
+        [data-testid="stMultiSelect"] input,
+        [data-testid="stSelectbox"] input,
+        [data-testid="stNumberInputField"] {{
+            background-color: transparent !important;
+            color: var(--gw-text) !important;
+            -webkit-text-fill-color: var(--gw-text) !important;
+        }}
+
+        [data-testid="stMultiSelect"] input::placeholder,
+        [data-testid="stSelectbox"] input::placeholder,
+        [data-testid="stNumberInputField"]::placeholder {{
+            color: var(--gw-text-muted) !important;
+            -webkit-text-fill-color: var(--gw-text-muted) !important;
+            opacity: 1 !important;
+        }}
+
+        [data-testid="stNumberInputStepDown"],
+        [data-testid="stNumberInputStepUp"] {{
+            background-color: var(--gw-input-bg) !important;
+            color: var(--gw-text) !important;
+            border-color: {border} !important;
+        }}
+
+        [data-testid="stNumberInputStepDown"]:hover:enabled,
+        [data-testid="stNumberInputStepUp"]:hover:enabled {{
+            background-color: var(--gw-accent) !important;
+            color: {t.on_accent} !important;
         }}
 
         /* Text fields — native controls and Base Web wrappers */
@@ -208,7 +246,9 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
         }}
 
         .stButton button[kind="primary"],
+        .stButton button[data-testid="stBaseButton-primary"],
         .stButton button[data-testid="baseButton-primary"],
+        .stDownloadButton button[data-testid="stBaseButton-primary"],
         .stDownloadButton button {{
             background-color: var(--gw-accent) !important;
             border-color: var(--gw-accent) !important;
@@ -216,16 +256,13 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
             font-weight: 600 !important;
         }}
 
-        .stButton button[kind="primary"] p,
-        .stButton button[kind="primary"] span,
-        .stButton button[kind="primary"] div,
-        .stButton button[data-testid="baseButton-primary"] p,
-        .stButton button[data-testid="baseButton-primary"] span,
-        .stButton button[data-testid="baseButton-primary"] div,
-        .stDownloadButton button p,
-        .stDownloadButton button span,
-        .stDownloadButton button div {{
+        .stButton button[kind="primary"] *,
+        .stButton button[data-testid="stBaseButton-primary"] *,
+        .stButton button[data-testid="baseButton-primary"] *,
+        .stDownloadButton button[data-testid="stBaseButton-primary"] *,
+        .stDownloadButton button * {{
             color: {t.on_accent} !important;
+            -webkit-text-fill-color: {t.on_accent} !important;
             font-weight: 600 !important;
         }}
 
@@ -243,8 +280,31 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
             color: var(--gw-text) !important;
         }}
 
-        [data-testid="stExpander"] summary {{
+        [data-testid="stExpander"] summary,
+        [data-testid="stExpander"] details > summary {{
+            background-color: var(--gw-input-bg) !important;
             color: var(--gw-text) !important;
+            border: 1px solid {border} !important;
+            border-radius: 0.25rem !important;
+        }}
+
+        [data-testid="stExpander"] summary:hover,
+        [data-testid="stExpander"] summary:focus-visible,
+        [data-testid="stExpander"] details[open] > summary {{
+            background-color: var(--gw-input-bg) !important;
+            color: var(--gw-text) !important;
+        }}
+
+        [data-testid="stExpander"] summary *,
+        [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"],
+        [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] p {{
+            color: var(--gw-text) !important;
+        }}
+
+        [data-testid="stExpander"] [data-testid="stExpanderDetails"] {{
+            border: 1px solid {border} !important;
+            border-top: none !important;
+            background-color: var(--gw-bg) !important;
         }}
 
         .stCheckbox label[data-baseweb="checkbox"] > span[data-checked="true"],
