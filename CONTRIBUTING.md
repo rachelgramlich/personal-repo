@@ -2,6 +2,8 @@
 
 This document codifies the coding standards enforced in this repository. All changes should pass the automated checks described here before review.
 
+**Who uses this:** contributors and agents running **`/architecture-review`** (Phase A checklist). It is **not** loaded automatically by Cursor — agents are pointed here via that command and this file. **Enforcement** comes from Ruff/pre-commit/CI (`pyproject.toml`, `just check`), which should stay aligned with the rules described below.
+
 ---
 
 ## Automated Checks

@@ -125,6 +125,7 @@ def create_enhancement(
     *,
     expected_behavior: str = "",
     path: Path | None = None,
+    audit: bool = False,
 ) -> dict:
     """Create a backlog item; returns entry metadata (includes ``issue_url`` on GitHub)."""
     if path is not None:
@@ -137,7 +138,13 @@ def create_enhancement(
         new_id = _add_enhancement_file(title, combined, area, path)
         entry = get_enhancement(new_id, path=path)
         return entry or {"id": new_id, "title": title, "area": area}
-    entry = gh.create_issue(title, description, area, expected_behavior=expected_behavior)
+    entry = gh.create_issue(
+        title,
+        description,
+        area,
+        expected_behavior=expected_behavior,
+        audit=audit,
+    )
     if not entry.get("issue_number"):
         raise RuntimeError("GitHub issue created but issue number missing.")
     entry["id"] = str(entry["issue_number"])
@@ -152,6 +159,7 @@ def report_bug(
     actual: str,
     expected: str,
     context: str = "",
+    audit: bool = False,
 ) -> dict:
     """File a bug report issue (``bug_report.yml`` template; not the enhancement backlog)."""
     return gh.create_bug_issue(
@@ -161,6 +169,7 @@ def report_bug(
         actual=actual,
         expected=expected,
         context=context,
+        audit=audit,
     )
 
 
@@ -225,6 +234,7 @@ def create_planned_issues(
                 actual=issue.actual,
                 expected=issue.expected,
                 context=issue.context,
+                audit=issue.audit,
             )
             created.append(
                 {
@@ -240,6 +250,7 @@ def create_planned_issues(
                 issue.description,
                 issue.area,
                 expected_behavior=issue.expected_behavior,
+                audit=issue.audit,
             )
             created.append(
                 {

@@ -2,6 +2,8 @@ from src.grocery_wizard.dev.issue_planning import (
     classify_kind,
     infer_area,
     plan_from_items,
+    planned_issue_from_dict,
+    planned_issue_to_dict,
 )
 
 
