@@ -227,6 +227,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     sync_pantry_parser.set_defaults(func=cmd_dev_sync_notion_pantry_sections)
 
+    remap_pantry_parser = dev_subparsers.add_parser(
+        "remap-notion-pantry-aisles",
+        help="Set each pantry row's Aisle from store_aisles keyword rules on the item name",
+    )
+    remap_pantry_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print planned changes without calling Notion",
+    )
+    remap_pantry_parser.set_defaults(func=cmd_dev_remap_notion_pantry_aisles)
+
     list_feedback_parser = dev_subparsers.add_parser(
         "list-feedback",
         help="Show feedback collected from production commands",
@@ -572,12 +583,30 @@ def cmd_dev_sync_notion_pantry_sections(args: argparse.Namespace) -> int:
         return 1
 
     mode = "Dry run —" if args.dry_run else "Updated"
-    print(f"{mode} pantry Section was {result.previous_type!r}")
+    print(f"{mode} pantry Aisle/Section property was {result.previous_type!r}")
     print(f"Select options ({len(result.aisle_labels)}): {', '.join(result.aisle_labels)}")
     if args.dry_run:
-        print(f"Would migrate {result.rows_migrated} pantry row(s) to canonical aisle labels.")
+        print(f"Would remap {result.rows_migrated} pantry row(s) by item name.")
     else:
-        print(f"Migrated {result.rows_migrated} pantry row(s) to canonical aisle labels.")
+        print(f"Remapped {result.rows_migrated} pantry row(s) by item name.")
+    return 0
+
+
+def cmd_dev_remap_notion_pantry_aisles(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.integrations.notion_pantry_setup import (
+        remap_pantry_aisles_from_item_names,
+    )
+
+    try:
+        result = remap_pantry_aisles_from_item_names(dry_run=args.dry_run)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    prefix = "Would update" if args.dry_run else "Updated"
+    print(f"{prefix} {result.rows_updated} row(s); {result.rows_unchanged} already correct.")
+    for label in sorted(result.by_aisle):
+        print(f"  {label}: {result.by_aisle[label]}")
     return 0
 
 

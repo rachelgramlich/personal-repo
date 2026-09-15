@@ -24,8 +24,25 @@ from src.grocery_wizard.shopping.store_aisles import (
 )
 
 PANTRY_NAME_COLUMN = "Name"
-PANTRY_SECTION_COLUMN = "Section"
+PANTRY_AISLE_COLUMN = "Aisle"
+PANTRY_STORE_AISLE_COLUMN = "Store Aisle"
+LEGACY_PANTRY_SECTION_COLUMN = "Section"
 RECURRING_NAME_COLUMN = "Name"
+
+_PANTRY_AISLE_COLUMN_CANDIDATES = (
+    PANTRY_STORE_AISLE_COLUMN,
+    PANTRY_AISLE_COLUMN,
+    LEGACY_PANTRY_SECTION_COLUMN,
+)
+
+
+def resolve_pantry_aisle_column(column_types: dict[str, str]) -> str:
+    """Return the pantry store-aisle property (``Store Aisle``, ``Aisle``, or legacy ``Section``)."""
+    for name in _PANTRY_AISLE_COLUMN_CANDIDATES:
+        if name in column_types:
+            return name
+    expected = ", ".join(repr(n) for n in _PANTRY_AISLE_COLUMN_CANDIDATES)
+    raise ValueError(f"Pantry database needs a store-aisle column ({expected}).")
 
 PLAN_NAME_COLUMN = "Name"
 PLAN_WEEK_START_COLUMN = "Week start"
@@ -67,6 +84,11 @@ class NotionPantryDB:
         if not db_id:
             raise ValueError("NOTION_PANTRY_DATABASE_ID is required")
         self._db = NotionDatabase(cfg, db_id)
+        self._aisle_column = resolve_pantry_aisle_column(self._db.column_types)
+
+    @property
+    def aisle_column(self) -> str:
+        return self._aisle_column
 
     def load_item_names(self) -> set[str]:
         return {entry.name.strip().lower() for entry in self.list_entries() if entry.name.strip()}
@@ -78,7 +100,7 @@ class NotionPantryDB:
             name = self._db.read(row, PANTRY_NAME_COLUMN)
             if not name or not str(name).strip():
                 continue
-            section = self._db.read(row, PANTRY_SECTION_COLUMN)
+            section = self._db.read(row, self._aisle_column)
             entries.append(
                 PantryEntry(
                     page_id=row.page_id,
@@ -142,12 +164,12 @@ class NotionPantryDB:
             if entry is None:
                 props = {
                     **self._db.property_payload(PANTRY_NAME_COLUMN, name),
-                    **self._db.property_payload(PANTRY_SECTION_COLUMN, section or ""),
+                    **self._db.property_payload(self._aisle_column, section or ""),
                 }
                 self._db.create_page(props)
             elif (entry.section or "") != (section or ""):
                 props = {
-                    **self._db.property_payload(PANTRY_SECTION_COLUMN, section or ""),
+                    **self._db.property_payload(self._aisle_column, section or ""),
                 }
                 self._db.update_page(entry.page_id, props)
 
@@ -169,7 +191,7 @@ class NotionPantryDB:
             target_section = aisle_label("other", config=cfg)
         props = {
             **self._db.property_payload(PANTRY_NAME_COLUMN, cleaned),
-            **self._db.property_payload(PANTRY_SECTION_COLUMN, target_section),
+            **self._db.property_payload(self._aisle_column, target_section),
         }
         self._db.create_page(props)
         return True

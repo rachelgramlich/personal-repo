@@ -277,6 +277,32 @@ beans
 seaweed
 jam
 canned
+vinegar
+wine vinegar
+balsamic vinegar
+soy sauce
+tamari
+sriracha
+tahini
+bouillon
+cooking spray
+sesame seed
+agave
+red pepper flake
+black pepper
+paprika
+smoked paprika
+cumin
+cinnamon
+nutmeg
+oregano
+turmeric
+cayenne
+chili powder
+curry powder
+italian seasoning
+bay leaf
+salt
 
 # --- baking: Baking ---
 chocolate chips
@@ -297,6 +323,7 @@ yeast
 honey
 maple syrup
 molasses
+vanilla bean paste
 
 # --- frozen: Frozen ---
 frozen peas

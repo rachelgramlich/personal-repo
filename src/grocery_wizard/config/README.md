@@ -17,7 +17,7 @@ Pantry staples, recurring weekly items, and saved weekly meal plans live in **No
 
 | Data | Notion database | Properties |
 |------|-----------------|------------|
-| Pantry staples | Pantry | **Name** (title), **Section** (select — store aisle labels from `store_aisles.txt`) |
+| Pantry staples | Pantry | **Name** (title), **Store Aisle** or **Aisle** (select — labels from `store_aisles.txt`) |
 | Recurring weekly items | Recurring | **Name** (title) only |
 | Saved weekly meal plans | Weekly plans | **Name**, **Week start**, **Version**, **Recipes** (relation → Recipes) |
 
@@ -44,12 +44,18 @@ Required for Grocery Wizard:
 
 Cloud agents use the same names as Secrets.
 
-### Pantry `Section` select options
+### Pantry `Aisle` select options
 
-After creating the pantry database (with a **Section** column), sync select options from the committed aisle config:
+After creating the pantry database (with an **Aisle** column — legacy **Section** still works), sync select options from the committed aisle config:
 
 ```bash
 uv run python -m src.grocery_wizard dev sync-notion-pantry-sections
 ```
 
-Use `--dry-run` to preview. The command sets **Section** to a **select** whose options are the display labels in `store_aisles.txt` (e.g. `Fruit`, `Dry goods`, `Other`) and normalizes existing rows to those labels. Re-run whenever you add or rename aisles in `store_aisles.txt`.
+Use `--dry-run` to preview. The command sets **Aisle** to a **select** whose options are the display labels in `store_aisles.txt` and reclassifies each row from the item name.
+
+If rows land in the wrong aisle, extend keywords in `store_aisles.txt`, then:
+
+```bash
+uv run python -m src.grocery_wizard dev remap-notion-pantry-aisles
+```
