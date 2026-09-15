@@ -82,6 +82,12 @@ def test_dev_mode_exposes_collapsed_dev_tools_expander() -> None:
     assert "Meals filled: auto" in source
     assert "Meals filled: manual" in source
     assert 'key="dev_jump_manual_recipes"' in source
+    assert 'st.markdown("#### Meals filled")' in source
+    assert '"Choose recipes manually"' in source
+    dev_section = source.split('st.expander("Dev tools"', 1)[1].split("def _render_weekly_plan_entry", 1)[0]
+    assert dev_section.index("Meals filled: auto") < dev_section.index("Choose recipes manually")
+    assert dev_section.index("Choose recipes manually") < dev_section.index("Meals filled: manual")
+    assert dev_section.index("Meals filled: manual") < dev_section.index("Pre-build grocery")
 
 
 def test_prebuild_recipe_picker_before_build_my_plan() -> None:

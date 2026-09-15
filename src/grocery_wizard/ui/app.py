@@ -1025,46 +1025,75 @@ def _render_dev_jump_tools(db: NotionRecipesDB) -> None:
             "(recipes with ingredients). Use when manually testing UI without "
             "clicking through meal generation each time."
         )
-        for target, hint in DEV_JUMP_CAPTIONS.items():
-            st.markdown(f"- **{target.value.replace('_', ' ').title()}** — {hint}")
+        other_targets = [t for t in DevJumpTarget if t != DevJumpTarget.MEALS_FILLED]
+        for target in other_targets:
+            title = target.value.replace("_", " ").title()
+            st.markdown(f"- **{title}** — {DEV_JUMP_CAPTIONS[target]}")
 
+        def _dev_jump_button(
+            target: DevJumpTarget,
+            *,
+            label: str,
+            key_suffix: str,
+            manual_recipes: list[str] | None,
+        ) -> None:
+            if not st.button(label, key=f"dev_jump_{target.value}_{key_suffix}"):
+                return
+            if manual_recipes is not None and not manual_recipes:
+                st.warning("Pick at least one recipe for the manual meals jump.")
+                return
+            names = apply_dev_jump(
+                st.session_state,
+                db,
+                target,
+                recipe_names=manual_recipes,
+            )
+            if not names:
+                st.error(
+                    "No recipes in Notion to use for dev jump. Add recipes with "
+                    "ingredients first."
+                )
+                return
+            st.session_state.plan_prebuild_pinned_recipes = list(names)
+            st.rerun()
+
+        st.markdown("#### Meals filled")
+        st.caption(DEV_JUMP_CAPTIONS[DevJumpTarget.MEALS_FILLED])
+        _dev_jump_button(
+            DevJumpTarget.MEALS_FILLED,
+            label="Meals filled: auto",
+            key_suffix="auto",
+            manual_recipes=None,
+        )
         all_names = sorted({recipe.name for recipe in db.query_recipes()}, key=str.lower)
         manual_pick = st.multiselect(
-            "Recipes for manual meals jump",
+            "Choose recipes manually",
             options=all_names,
             key="dev_jump_manual_recipes",
             placeholder="Pick one or more recipes…",
         )
+        _dev_jump_button(
+            DevJumpTarget.MEALS_FILLED,
+            label="Meals filled: manual",
+            key_suffix="manual",
+            manual_recipes=manual_pick,
+        )
 
+        st.divider()
         col_a, col_b = st.columns(2)
-        jumps: list[tuple[Any, DevJumpTarget, str, bool]] = [
-            (col_a, DevJumpTarget.MEALS_FILLED, "Meals filled: auto", False),
-            (col_b, DevJumpTarget.MEALS_FILLED, "Meals filled: manual", True),
-            (col_a, DevJumpTarget.PRE_BUILD_GROCERY, "Pre-build grocery", False),
-            (col_b, DevJumpTarget.PER_RECIPE_REVIEW, "Per-recipe review", False),
-            (col_a, DevJumpTarget.GROCERY_RESULT, "Final grocery list", False),
+        other_jumps: list[tuple[Any, DevJumpTarget, str]] = [
+            (col_a, DevJumpTarget.PRE_BUILD_GROCERY, "Pre-build grocery"),
+            (col_b, DevJumpTarget.PER_RECIPE_REVIEW, "Per-recipe review"),
+            (col_a, DevJumpTarget.GROCERY_RESULT, "Final grocery list"),
         ]
-        for column, target, label, requires_manual in jumps:
+        for column, target, label in other_jumps:
             with column:
-                key_suffix = "manual" if requires_manual else "auto"
-                if st.button(label, key=f"dev_jump_{target.value}_{key_suffix}"):
-                    if requires_manual and not manual_pick:
-                        st.warning("Pick at least one recipe for the manual meals jump.")
-                    else:
-                        names = apply_dev_jump(
-                            st.session_state,
-                            db,
-                            target,
-                            recipe_names=manual_pick if requires_manual else None,
-                        )
-                        if not names:
-                            st.error(
-                                "No recipes in Notion to use for dev jump. Add recipes with "
-                                "ingredients first."
-                            )
-                        else:
-                            st.session_state.plan_prebuild_pinned_recipes = list(names)
-                            st.rerun()
+                _dev_jump_button(
+                    target,
+                    label=label,
+                    key_suffix=f"btn_{target.value}",
+                    manual_recipes=None,
+                )
 
 
 def _render_weekly_plan_entry() -> bool:
