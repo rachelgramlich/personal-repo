@@ -1,5 +1,11 @@
 # Agent instructions (grocery_wizard)
 
+## Do not invent dev tooling
+
+- **Notion and other MCPs:** When the user asks to read, create, or update something in Notion (or another connected integration), do it in-session with that MCP and its skills. Do **not** add `grocery_wizard dev` subcommands, scripts, or new `.cursor/commands` as a stand-in unless they explicitly want repeatable CLI or repo automation.
+- **Enhancement work:** Implement the GitHub issue scope. Do **not** add new dev CLI or slash commands “for convenience” while shipping an enhancement unless the issue requires it or the user asks.
+- **Backlog for cleanup:** Stale or redundant dev tooling is tracked in GitHub (e.g. audit/remove unused `dev` commands and slash commands).
+
 ## Enhancement backlog
 
 - **Storage:** GitHub Issues with the **`grocery-wizard`** label (clean titles; no required prefix). Legacy issues may still match **Grocery Wizard** in the title until backfilled.
@@ -7,7 +13,7 @@
 - **Implement one item:** `uv run python -m src.grocery_wizard dev work-on-enhancement <issue-number>`
   - Same as `dev show-enhancement <issue-number>` — prints the full implementation + ship checklist.
   - Use the GitHub issue number (`96` / `#96`).
-- **Add backlog item:** `uv run python -m src.grocery_wizard dev add-enhancement --title "…" --expected-behavior "…"` (applies **`grocery-wizard`** label; requires `gh`).
+- **Add backlog item:** `uv run python -m src.grocery_wizard dev add-enhancement --title "…" --expected-behavior "…"` (applies **`grocery-wizard`** label; requires `gh`). Prefer **This Mac** (local agent): issue creation via `gh` is much worse on Cloud agents — use slash command **`/add-enhancement`**, which reminds you to switch before running the CLI.
 - **Backfill labels (once):** `uv run python -m src.grocery_wizard dev backfill-enhancement-labels` (optional `--strip-title-prefix`).
 - **Report a bug:** `uv run python -m src.grocery_wizard dev report-bug …` (template **Bug report**; not the backlog).
 - **Issue forms:** `.github/ISSUE_TEMPLATE/grocery_wizard_enhancement.yml`, `bug_report.yml`.
