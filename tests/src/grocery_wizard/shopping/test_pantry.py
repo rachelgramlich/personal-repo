@@ -120,6 +120,33 @@ def test_fresh_red_pepper_not_matched_by_generic_pepper_pantry() -> None:
     assert is_pantry_item("red pepper flakes", pantry)
 
 
+@pytest.mark.parametrize(
+    "variety",
+    [
+        "white",
+        "black",
+        "pinto",
+        "kidney",
+        "butter",
+        "cannellini",
+        "navy",
+    ],
+)
+def test_named_bean_varieties_not_matched_by_generic_or_modifier_pantry(
+    variety: str,
+) -> None:
+    ingredient = f"{variety} beans"
+    assert not is_pantry_item(ingredient, {"beans"})
+    assert not is_pantry_item(ingredient, {variety})
+    assert is_pantry_item(ingredient, {ingredient})
+    assert is_pantry_item("beans", {"beans"})
+
+
+def test_peanut_butter_not_matched_by_dairy_butter_pantry() -> None:
+    assert not is_pantry_item("peanut butter", {"butter"})
+    assert is_pantry_item("peanut butter", {"peanut butter"})
+
+
 def test_append_and_remove_pantry_item(tmp_path: Path) -> None:
     path = tmp_path / "pantry.txt"
     path.write_text("# --- Spices ---\nsalt\n", encoding="utf-8")

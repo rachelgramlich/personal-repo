@@ -52,9 +52,43 @@ _FRESH_COLORED_PEPPER_RE = re.compile(
 # Generic pantry ``pepper`` must not match fresh bell peppers (``red pepper``).
 _GENERIC_PEPPER_PANTRY = frozenset({"pepper", "peppers"})
 
+# Generic ``beans`` is not the same as named varieties (``butter beans``, ``white beans``).
+_GENERIC_BEANS_PANTRY = frozenset({"bean", "beans"})
+
+# Spreads named ``… butter`` are not dairy butter on the pantry list.
+_NOT_DAIRY_BUTTER_PHRASES = frozenset(
+    {
+        "peanut butter",
+        "almond butter",
+        "apple butter",
+        "cashew butter",
+        "sunflower butter",
+        "cookie butter",
+    }
+)
+
 
 def _pantry_match_key(text: str) -> str:
     return text.strip().lower().replace("-", " ")
+
+
+def _is_named_bean_ingredient(ingredient_name: str) -> bool:
+    """True for grocery items like ``black beans`` (not a single word ``beans``)."""
+    words = ingredient_name.split()
+    return len(words) >= 2 and words[-1] in ("bean", "beans")
+
+
+def _skip_pantry_phrase_match(ingredient_name: str, pantry_item_norm: str) -> bool:
+    """Return True when a pantry staple must not match this ingredient name."""
+    if pantry_item_norm == "butter" and ingredient_name in _NOT_DAIRY_BUTTER_PHRASES:
+        return True
+    if not _is_named_bean_ingredient(ingredient_name):
+        return False
+    if pantry_item_norm in _GENERIC_BEANS_PANTRY:
+        return True
+    # ``black`` in the pantry is not ``black beans``; same for ``butter``, ``kidney``, etc.
+    pantry_words = pantry_item_norm.split()
+    return len(pantry_words) == 1 and pantry_item_norm in ingredient_name.split()[:-1]
 
 
 def is_pantry_item(normalized: str, pantry: set[str]) -> bool:
@@ -85,6 +119,8 @@ def is_pantry_item(normalized: str, pantry: set[str]) -> bool:
 
     for item in pantry:
         item_norm = _pantry_match_key(item)
+        if _skip_pantry_phrase_match(name, item_norm):
+            continue
         if name == item_norm:
             return True
         if _contains_word_phrase(name_words, item_norm.split()):
