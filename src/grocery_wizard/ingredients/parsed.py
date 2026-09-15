@@ -1011,6 +1011,20 @@ _GARLIC_HEAD_LEGACY_RE = re.compile(
 
 _GARLIC_CLOVE_HEAD_THRESHOLD = 10
 
+
+def format_garlic_grocery_amount(amount: str) -> str:
+    """Turn internal garlic encodings (``clove:``, ``head:``) into list-facing text."""
+    if amount.startswith("clove:"):
+        qty = _parse_qty(amount[6:])
+        unit = _display_unit("clove", qty)
+        return f"{_format_qty(qty)} {unit}"
+    if amount.startswith("head:"):
+        qty = _parse_qty(amount[5:])
+        unit = _display_unit("head", qty)
+        return f"{_format_qty(qty)} {unit}"
+    return amount
+
+
 _GARLIC_CLOVE_LINE_RE = re.compile(
     r"^((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+"
     r"(?:(?:cloves?|clove)\s+(?:of\s+)?garlic|garlic\s+cloves?)\b",
@@ -1195,7 +1209,12 @@ def _aggregate_garlic_amounts(amounts: list[str | None]) -> str | None:
     total_heads = max(head_total, clove_heads)
     if total_heads > 0:
         return _format_qty(total_heads)
-    if has_bare_garlic or clove_total > 0:
+    if clove_total > 0:
+        clove_lines = sum(1 for amount in amounts if amount and amount.startswith("clove:"))
+        if clove_lines > 1:
+            return None
+        return format_garlic_grocery_amount(f"clove:{_format_qty(clove_total)}")
+    if has_bare_garlic:
         return None
     return None
 

@@ -304,9 +304,7 @@ def test_split_recipe_title_bleed() -> None:
         "zucchini",
         "orzo",
     ]
-    assert split_recipe_title_bleed(
-        "chimichurri zucchini orzo lemon red pepper red onions"
-    ) == [
+    assert split_recipe_title_bleed("chimichurri zucchini orzo lemon red pepper red onions") == [
         "chimichurri",
         "zucchini",
         "orzo",
@@ -449,9 +447,9 @@ def test_aggregate_amounts_garlic_over_ten_cloves_shows_two_heads() -> None:
     assert aggregate_amounts(amounts, name="garlic") == "2"
 
 
-def test_aggregate_amounts_garlic_six_cloves_shows_bare_garlic() -> None:
+def test_aggregate_amounts_garlic_six_cloves_shows_clove_count() -> None:
     amounts = [parse_amount("6 cloves garlic, minced")[1]]
-    assert aggregate_amounts(amounts, name="garlic") is None
+    assert aggregate_amounts(amounts, name="garlic") == "6 cloves"
 
 
 def test_aggregate_amounts_garlic_sums_explicit_heads() -> None:

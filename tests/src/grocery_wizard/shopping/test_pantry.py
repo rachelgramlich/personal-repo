@@ -147,6 +147,14 @@ def test_peanut_butter_not_matched_by_dairy_butter_pantry() -> None:
     assert is_pantry_item("peanut butter", {"peanut butter"})
 
 
+def test_cauliflower_rice_not_matched_by_rice_pantry() -> None:
+    pantry = {"rice"}
+    assert not is_pantry_item("cauliflower rice", pantry)
+    assert not is_pantry_item("riced cauliflower", pantry)
+    assert is_pantry_item("brown rice", pantry)
+    assert is_pantry_item("rice", pantry)
+
+
 def test_append_and_remove_pantry_item(tmp_path: Path) -> None:
     path = tmp_path / "pantry.txt"
     path.write_text("# --- Spices ---\nsalt\n", encoding="utf-8")

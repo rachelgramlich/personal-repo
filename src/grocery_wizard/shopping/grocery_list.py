@@ -46,6 +46,7 @@ from src.grocery_wizard.ingredients.normalize import (
     parse_amount,
     should_show_amount,
 )
+from src.grocery_wizard.ingredients.parsed import format_garlic_grocery_amount
 from src.grocery_wizard.ingredients.sync import (
     SyncSummary,
     format_sync_summary,
@@ -89,6 +90,8 @@ def _prefer_onion_display_name(existing: str, incoming: str) -> str:
     if " or " in existing.lower():
         return existing
     return incoming if len(incoming.split()) >= len(existing.split()) else existing
+
+
 _TITLE_NORMALIZE = re.compile(r"[^a-z0-9\s]+")
 
 
@@ -456,8 +459,17 @@ def _get_ingredient_lines(recipe: Recipe) -> list[str]:
     return []
 
 
+def _amount_for_grocery_display(name: str, amount: str | None) -> str | None:
+    if amount is None:
+        return None
+    if name.lower() == "garlic" and amount.startswith(("clove:", "head:")):
+        return format_garlic_grocery_amount(amount)
+    return amount
+
+
 def format_grocery_item(name: str, amount: str | None) -> str:
     """Format a grocery item for display: ``"amount name"`` or just ``name``."""
+    amount = _amount_for_grocery_display(name, amount)
     if amount is None:
         return name
     return f"{amount} {name}"
@@ -474,6 +486,8 @@ def normalize_grocery_list_item(item: str) -> str:
         amount = None
     else:
         name = normalize_ingredient(name) or name
+    if name.lower() == "garlic" and amount is not None:
+        amount = aggregate_amounts([amount], name=name) or amount
     return format_grocery_item(name, amount)
 
 
