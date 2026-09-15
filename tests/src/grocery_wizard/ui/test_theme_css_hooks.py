@@ -8,6 +8,7 @@ from src.grocery_wizard.ui.theme import app_theme_css
 _REQUIRED_CSS_FRAGMENTS = (
     "stTextInputRootElement",
     "stTextAreaRootElement",
+    'stTextAreaRootElement"] textarea::placeholder',
     "stMultiSelectTagsContainer",
     'div:has(button[aria-label="Open"])',
     "stNumberInputContainer",

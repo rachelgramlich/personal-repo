@@ -1352,10 +1352,13 @@ def render_create_weekly_plan() -> None:
         )
 
     with st.expander("Add extra items", expanded=False):
-        st.caption("One-off items for this grocery run (not saved as recurring).")
+        st.caption(
+            "One-off items for this grocery run (not saved as recurring). "
+            "Enter one item per line — checklist lines like `- [ ] Flowers` are OK."
+        )
         extra_items_text = st.text_area(
             "Extra items (one per line)",
-            placeholder="milk\neggs\n- [ ] Flowers",
+            placeholder="Start typing — one item per line",
             height=80,
             key=_grocery_pre_extra_items_widget_key(),
             label_visibility="collapsed",

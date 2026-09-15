@@ -167,10 +167,15 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
 
         [data-testid="stMultiSelect"] input::placeholder,
         [data-testid="stSelectbox"] input::placeholder,
-        [data-testid="stNumberInputField"]::placeholder {{
+        [data-testid="stNumberInputField"]::placeholder,
+        [data-testid="stTextInputField"]::placeholder,
+        [data-testid="stTextAreaRootElement"] textarea::placeholder,
+        .stTextInput input::placeholder,
+        .stTextArea textarea::placeholder {{
             color: var(--gw-text-muted) !important;
             -webkit-text-fill-color: var(--gw-text-muted) !important;
-            opacity: 1 !important;
+            opacity: 0.72 !important;
+            font-style: italic;
         }}
 
         [data-testid="stNumberInputStepDown"],
