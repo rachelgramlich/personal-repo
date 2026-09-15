@@ -7,8 +7,16 @@ Personal snippets live in a separate repo: **[`rg-playground`](https://github.co
 ## After merging the split PR
 
 1. GitHub → **Settings → General → Repository name** → `grocery-wizard`.
-2. Create an empty repo **`rg-playground`** (no README/license if you will push an existing tree).
-3. Push the playground tree (see `rg-playground` README for layout).
+2. Create an empty repo **`rg-playground`** on GitHub.
+3. Seed it from branch **`rg-playground/initial`** on this repo (until merge, on `personal-repo`):
+   ```shell
+   git clone --branch rg-playground/initial \
+     https://github.com/rachelgramlich/grocery-wizard.git rg-playground
+   cd rg-playground
+   git remote set-url origin git@github.com:rachelgramlich/rg-playground.git
+   git push -u origin main
+   ```
+   (Use `personal-repo` in the clone URL until you have renamed to `grocery-wizard`.)
 4. Local remotes:
    ```shell
    git remote set-url origin git@github.com:rachelgramlich/grocery-wizard.git
