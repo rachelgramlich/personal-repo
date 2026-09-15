@@ -23,7 +23,9 @@ from src.grocery_wizard.cli.main import main
         (["dev", "refresh-all"], "refresh-all-ingredients"),
         (["dev", "audit"], "audit-recipes"),
         (["dev", "schema"], "show-schema"),
-        (["dev", "show-enhancement"], "work-on-enhancement"),
+        (["dev", "show-enhancement"], "work-on-issue"),
+        (["dev", "work-on-enhancement"], "work-on-issue"),
+        (["dev", "add-enhancement"], "create-issues"),
         (["dev", "spawn-enhancement-workers"], "list-enhancements"),
     ],
 )

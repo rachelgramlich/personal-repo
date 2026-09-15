@@ -26,7 +26,10 @@ _DEPRECATED_DEV_COMMANDS: dict[str, str] = {
     "refresh-all": "Use `dev refresh-all-ingredients` instead.",
     "audit": "Use `dev audit-recipes` instead.",
     "schema": "Use `dev show-schema` instead.",
-    "show-enhancement": "Use `dev work-on-enhancement` instead.",
+    "show-enhancement": "Use `dev work-on-issue` instead.",
+    "work-on-enhancement": "Use `dev work-on-issue` instead.",
+    "add-enhancement": "Use `dev create-issues` instead.",
+    "report-bug": "Use `dev create-issues` instead.",
     "close-enhancement": (
         "Merge a PR whose body includes `Closes #N` (do not close backlog issues by hand)."
     ),
@@ -278,44 +281,40 @@ def main(argv: list[str] | None = None) -> int:
     )
     suggest_fixes_parser.set_defaults(func=cmd_dev_suggest_fixes)
 
-    add_enh_parser = dev_subparsers.add_parser(
-        "add-enhancement",
-        help="Open a GitHub issue in the enhancement backlog",
+    create_issues_parser = dev_subparsers.add_parser(
+        "create-issues",
+        help="Plan and open GitHub issue(s) from one or more notes (bug vs backlog auto)",
     )
-    add_enh_parser.add_argument("--title", help="Short one-liner title")
-    add_enh_parser.add_argument("--description", default="", help="Longer freeform description")
-    add_enh_parser.add_argument(
-        "--expected-behavior",
-        default="",
-        dest="expected_behavior",
-        help="How it should work + manual test hints (required for non-interactive backlog items)",
+    create_issues_parser.add_argument(
+        "items",
+        nargs="*",
+        help="Freeform notes (or omit and pass --item / --plan-file / stdin)",
     )
-    add_enh_parser.add_argument(
-        "--area",
-        choices=["ui", "parser", "shopping", "recipes", "cli", "other"],
-        help="Area of the codebase this enhancement relates to",
+    create_issues_parser.add_argument(
+        "--item",
+        action="append",
+        dest="item_flags",
+        default=[],
+        metavar="TEXT",
+        help="Repeat for each note; grouped by code area and kind",
     )
-    add_enh_parser.set_defaults(func=cmd_dev_add_enhancement)
-
-    report_bug_parser = dev_subparsers.add_parser(
-        "report-bug",
-        help="Open a GitHub bug report (Bug report template, not the enhancement backlog)",
+    create_issues_parser.add_argument(
+        "--plan-file",
+        metavar="PATH",
+        help="JSON array of planned issues (from --dry-run --json); skips auto-planning",
     )
-    report_bug_parser.add_argument("--title", help="Short one-liner title")
-    report_bug_parser.add_argument(
-        "--description",
-        default="",
-        help="Plain-language summary of the bug",
+    create_issues_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print grouping plan without creating issues",
     )
-    report_bug_parser.add_argument("--repro", default="", help="Steps to reproduce")
-    report_bug_parser.add_argument("--actual", default="", help="What happened")
-    report_bug_parser.add_argument("--expected", default="", help="What should have happened")
-    report_bug_parser.add_argument(
-        "--context",
-        default="",
-        help="Screenshots, logs, environment (optional)",
+    create_issues_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="output_json",
+        help="With --dry-run: emit planned issues as JSON for --plan-file",
     )
-    report_bug_parser.set_defaults(func=cmd_dev_report_bug)
+    create_issues_parser.set_defaults(func=cmd_dev_create_issues)
 
     list_enh_parser = dev_subparsers.add_parser(
         "list-enhancements",
@@ -335,15 +334,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     list_enh_parser.set_defaults(func=cmd_dev_list_enhancements)
 
-    work_enh_parser = dev_subparsers.add_parser(
-        "work-on-enhancement",
-        help="Full agent brief to implement an enhancement",
+    work_issue_parser = dev_subparsers.add_parser(
+        "work-on-issue",
+        help="Full agent brief for a backlog item or bug issue",
     )
-    work_enh_parser.add_argument(
+    work_issue_parser.add_argument(
         "id",
         help="GitHub issue number (#74 or 74)",
     )
-    work_enh_parser.set_defaults(func=cmd_dev_work_on_enhancement)
+    work_issue_parser.set_defaults(func=cmd_dev_work_on_issue)
 
     manual_ver_parser = dev_subparsers.add_parser(
         "record-manual-verification",
@@ -1038,104 +1037,70 @@ def cmd_nyt_apply_metadata(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_dev_add_enhancement(args: argparse.Namespace) -> int:
-    from src.grocery_wizard.dev.enhancement_log import VALID_AREAS, create_enhancement
+def cmd_dev_create_issues(args: argparse.Namespace) -> int:
+    import json
+    from pathlib import Path
 
-    title: str = args.title or ""
-    description: str = args.description or ""
-    expected_behavior: str = args.expected_behavior or ""
-    area: str | None = args.area
-    non_interactive = bool(args.title)
+    from src.grocery_wizard.dev.enhancement_log import create_planned_issues
+    from src.grocery_wizard.dev.issue_planning import (
+        plan_from_items,
+        planned_issue_from_dict,
+        planned_issue_to_dict,
+    )
 
-    if not title:
-        title = input("Title: ").strip()
-        if not title:
-            print("Title is required.", file=sys.stderr)
+    if args.plan_file:
+        path = Path(args.plan_file)
+        if not path.exists():
+            print(f"Plan file not found: {path}", file=sys.stderr)
             return 1
+        raw_plan = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(raw_plan, list):
+            print("Plan file must be a JSON array.", file=sys.stderr)
+            return 1
+        planned = [planned_issue_from_dict(row) for row in raw_plan]
+    else:
+        notes = list(args.items) + list(args.item_flags or [])
+        if not notes and not sys.stdin.isatty():
+            stdin_text = sys.stdin.read()
+            notes = [block.strip() for block in stdin_text.split("\n\n") if block.strip()]
+            if len(notes) == 1 and "\n" in notes[0]:
+                notes = [line.strip() for line in notes[0].splitlines() if line.strip()]
+        if not notes:
+            print(
+                "Provide notes as arguments, --item (repeat), stdin paragraphs, or --plan-file.",
+                file=sys.stderr,
+            )
+            return 1
+        planned = plan_from_items(notes)
 
-    if not description:
-        description = input("Description (optional, press Enter to skip): ").strip()
-
-    if not expected_behavior:
-        expected_behavior = input(
-            "Expected behavior & manual test hints (required for backlog): "
-        ).strip()
-
-    if non_interactive and not expected_behavior.strip():
-        print(
-            "Expected behavior is required for backlog items. "
-            "Pass --expected-behavior (GitHub: Grocery Wizard enhancement template).",
-            file=sys.stderr,
-        )
+    if not planned:
+        print("Nothing to create.", file=sys.stderr)
         return 1
 
-    if area is None:
-        choices_str = "/".join(VALID_AREAS)
-        area = input(f"Area [{choices_str}] (default: other): ").strip() or "other"
-        if area not in VALID_AREAS:
-            print(f"Unknown area '{area}'. Choose from: {choices_str}", file=sys.stderr)
-            return 1
+    if args.dry_run:
+        if args.output_json:
+            print(json.dumps([planned_issue_to_dict(p) for p in planned], indent=2))
+            return 0
+        print(f"Would create {len(planned)} issue(s):\n")
+        for index, issue in enumerate(planned, start=1):
+            items_note = (
+                f" ({len(issue.source_items)} notes merged)"
+                if len(issue.source_items) > 1
+                else ""
+            )
+            print(f"{index}. [{issue.kind}] area={issue.area}{items_note}")
+            print(f"   title: {issue.title}")
+        return 0
 
-    entry = create_enhancement(
-        title, description, area, expected_behavior=expected_behavior
-    )
-    num = entry.get("issue_number")
-    ref = f"#{num}" if num else entry.get("id") or "?"
-    print(f"Added enhancement {ref}: {title}")
-    if entry.get("issue_url"):
-        print(entry["issue_url"])
-    return 0
-
-
-def cmd_dev_report_bug(args: argparse.Namespace) -> int:
-    from src.grocery_wizard.dev.enhancement_log import report_bug
-
-    title: str = args.title or ""
-    description: str = args.description or ""
-    repro: str = args.repro or ""
-    actual: str = args.actual or ""
-    expected: str = args.expected or ""
-    context: str = args.context or ""
-
-    if not title:
-        title = input("Title: ").strip()
-    if not description:
-        description = input("Describe the bug: ").strip()
-    if not repro:
-        repro = input("Steps to reproduce: ").strip()
-    if not actual:
-        actual = input("Actual behavior: ").strip()
-    if not expected:
-        expected = input("Expected behavior: ").strip()
-
-    missing = [
-        name
-        for name, val in [
-            ("title", title),
-            ("description", description),
-            ("repro", repro),
-            ("actual", actual),
-            ("expected", expected),
-        ]
-        if not val.strip()
-    ]
-    if missing:
-        print(f"Missing required field(s): {', '.join(missing)}", file=sys.stderr)
-        return 1
-
-    issue = report_bug(
-        title,
-        description=description,
-        repro=repro,
-        actual=actual,
-        expected=expected,
-        context=context,
-    )
-    num = issue.get("number")
-    ref = f"#{num}" if num else "?"
-    print(f"Opened bug report {ref}: {title}")
-    if issue.get("url"):
-        print(issue["url"])
+    created = create_planned_issues(planned, dry_run=False)
+    for row in created:
+        kind = row.get("kind", "?")
+        num = row.get("issue_number")
+        ref = f"#{num}" if num else "?"
+        url = row.get("issue_url") or ""
+        print(f"Created {kind} {ref}: {row.get('title', '')}")
+        if url:
+            print(f"  {url}")
     return 0
 
 
@@ -1169,15 +1134,18 @@ def cmd_dev_list_enhancements(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_dev_work_on_enhancement(args: argparse.Namespace) -> int:
-    from src.grocery_wizard.dev.enhancement_log import format_agent_prompt, get_enhancement
+def cmd_dev_work_on_issue(args: argparse.Namespace) -> int:
+    from src.grocery_wizard.dev.enhancement_log import format_work_prompt, get_work_item
 
-    entry = get_enhancement(args.id)
+    entry = get_work_item(args.id)
     if entry is None:
-        print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
+        print(
+            f"Issue '{args.id}' not found (backlog label grocery-wizard or label bug).",
+            file=sys.stderr,
+        )
         return 1
 
-    print(format_agent_prompt(entry))
+    print(format_work_prompt(entry))
     return 0
 
 

@@ -308,6 +308,34 @@ def _normalize_lookup_id(raw: str) -> str:
     return raw.strip().removeprefix("#")
 
 
+def _is_bug_issue(issue: dict[str, Any]) -> bool:
+    return "bug" in _issue_label_names(issue)
+
+
+def _bug_to_entry(issue: dict[str, Any]) -> dict[str, Any]:
+    parsed = parse_issue_body(issue.get("body") or "")
+    number = issue.get("number")
+    issue_id = str(number) if number is not None else ""
+    repro = _form_section(issue.get("body") or "", "steps to reproduce")
+    actual = _form_section(issue.get("body") or "", "actual behavior")
+    expected = _form_section(issue.get("body") or "", "expected behavior")
+    context = _form_section(issue.get("body") or "", "additional context")
+    return {
+        "id": issue_id,
+        "issue_number": number,
+        "issue_url": issue.get("url") or "",
+        "kind": "bug",
+        "status": "open" if (issue.get("state") or "OPEN").upper() == "OPEN" else "done",
+        "title": (issue.get("title") or "").strip(),
+        "description": parsed.get("description") or "",
+        "area": "other",
+        "repro": repro,
+        "actual": actual,
+        "expected": expected,
+        "context": context,
+    }
+
+
 def get_issue(raw_id: str) -> dict[str, Any] | None:
     lookup = _normalize_lookup_id(raw_id)
     if not lookup.isdigit():
@@ -315,7 +343,24 @@ def get_issue(raw_id: str) -> dict[str, Any] | None:
     issue = _view_issue(lookup)
     if not is_backlog_issue(issue):
         return None
-    return _issue_to_entry(issue)
+    entry = _issue_to_entry(issue)
+    entry["kind"] = "enhancement"
+    return entry
+
+
+def get_work_item(raw_id: str) -> dict[str, Any] | None:
+    """Backlog enhancement or ``bug``-labeled issue for ``work-on-issue``."""
+    lookup = _normalize_lookup_id(raw_id)
+    if not lookup.isdigit():
+        return None
+    issue = _view_issue(lookup)
+    if is_backlog_issue(issue):
+        entry = _issue_to_entry(issue)
+        entry["kind"] = "enhancement"
+        return entry
+    if _is_bug_issue(issue):
+        return _bug_to_entry(issue)
+    return None
 
 
 def _issue_number_from_url(url: str) -> str:
