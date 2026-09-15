@@ -302,6 +302,8 @@ chili powder
 curry powder
 italian seasoning
 bay leaf
+bay leaves
+pepper
 salt
 
 # --- baking: Baking ---
