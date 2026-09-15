@@ -1238,11 +1238,14 @@ def cmd_dev_enhancement_pr_title(args: argparse.Namespace) -> int:
 
 
 def cmd_dev_record_manual_verification(args: argparse.Namespace) -> int:
-    from src.grocery_wizard.dev.enhancement_log import get_enhancement, record_manual_verification
+    from src.grocery_wizard.dev.enhancement_log import get_work_item, record_manual_verification
 
-    entry = get_enhancement(args.id)
+    entry = get_work_item(args.id)
     if entry is None:
-        print(f"Enhancement '{args.id}' not found.", file=sys.stderr)
+        print(
+            f"Issue '{args.id}' not found (backlog label grocery-wizard or label bug).",
+            file=sys.stderr,
+        )
         return 1
 
     pr_url = (args.pr_url or "").strip()
