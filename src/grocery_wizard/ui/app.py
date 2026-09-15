@@ -20,10 +20,7 @@ import streamlit as st
 
 from src.grocery_wizard.config import WEEK_PLAN_PATH, load_config
 from src.grocery_wizard.dev.edit_log import log_ingredient_edits
-from src.grocery_wizard.ingredients.sync import (
-    format_ingredients_for_review,
-    prepare_ingredients_for_notion,
-)
+from src.grocery_wizard.ingredients.sync import prepare_ingredients_for_notion
 from src.grocery_wizard.integrations.notion import (
     ColumnInfo,
     DatabaseSchema,
@@ -53,7 +50,6 @@ from src.grocery_wizard.recipes.scraper import ScrapeError, ingredients_to_text,
 from src.grocery_wizard.recipes.weeknight import DEFAULT_WEEKNIGHT_COLUMN
 from src.grocery_wizard.shopping.grocery_list import (
     align_item_provenance_with_items,
-    build_grocery_list,
     format_grocery_items_copy_text,
     format_item_provenance,
     format_meals_copy_text,
@@ -63,7 +59,6 @@ from src.grocery_wizard.shopping.line_items import parse_line_items
 from src.grocery_wizard.shopping.pantry import append_pantry_item, remove_pantry_item_by_name
 from src.grocery_wizard.shopping.recurring_weekly_items import (
     append_recurring_weekly_item,
-    apply_recurring_session_overrides,
     load_recurring_weekly_items,
     remove_recurring_weekly_item,
     write_recurring_weekly_items,
@@ -82,6 +77,17 @@ from src.grocery_wizard.ui.dev_jumps import (
     commit_dev_jump,
     dev_jump_display_title,
     pick_default_recipe_names,
+)
+from src.grocery_wizard.ui.grocery_flow import (
+    GroceryPreBuildOptions,
+    build_grocery_result_payload,
+    bump_grocery_pre_extra_items_widget,
+    clear_grocery_session_overrides as _clear_grocery_session_overrides_dict,
+    default_pre_build_grocery_options,
+    effective_recurring_items as _effective_recurring_items_dict,
+    grocery_pre_extra_items_widget_key as _grocery_pre_extra_items_widget_key_dict,
+    session_pantry_extra as _session_pantry_extra_dict,
+    stash_recipe_review,
 )
 from src.grocery_wizard.ui.theme import app_theme_css
 
@@ -849,40 +855,20 @@ def _render_slot_manual_picker(
 
 
 def _session_pantry_extra() -> set[str]:
-    if "grocery_session_pantry" not in st.session_state:
-        st.session_state.grocery_session_pantry = set()
-    return st.session_state.grocery_session_pantry
-
-
-def _session_recurring_removals() -> set[str]:
-    if "grocery_session_recurring_removals" not in st.session_state:
-        st.session_state.grocery_session_recurring_removals = set()
-    return st.session_state.grocery_session_recurring_removals
-
-
-def _session_recurring_additions() -> list[str]:
-    if "grocery_session_recurring_additions" not in st.session_state:
-        st.session_state.grocery_session_recurring_additions = []
-    return st.session_state.grocery_session_recurring_additions
+    return _session_pantry_extra_dict(st.session_state)
 
 
 def _grocery_pre_extra_items_widget_key() -> str:
-    epoch = int(st.session_state.get("grocery_pre_extra_items_epoch", 0))
-    return f"grocery_pre_extra_items_{epoch}"
+    return _grocery_pre_extra_items_widget_key_dict(st.session_state)
 
 
 def _bump_grocery_pre_extra_items_widget() -> None:
     """New widget key so Streamlit does not replay prior extra-item text."""
-    st.session_state.grocery_pre_extra_items_epoch = (
-        int(st.session_state.get("grocery_pre_extra_items_epoch", 0)) + 1
-    )
+    bump_grocery_pre_extra_items_widget(st.session_state)
 
 
 def _clear_grocery_session_overrides() -> None:
-    st.session_state.pop("grocery_session_pantry", None)
-    st.session_state.pop("grocery_session_recurring_removals", None)
-    st.session_state.pop("grocery_session_recurring_additions", None)
-    _bump_grocery_pre_extra_items_widget()
+    _clear_grocery_session_overrides_dict(st.session_state)
 
 
 def _clear_grocery_pre_extra_items() -> None:
@@ -890,11 +876,7 @@ def _clear_grocery_pre_extra_items() -> None:
 
 
 def _effective_recurring_items(template: list[str]) -> list[str]:
-    return apply_recurring_session_overrides(
-        template,
-        additions=_session_recurring_additions(),
-        removals=_session_recurring_removals(),
-    )
+    return _effective_recurring_items_dict(st.session_state, template)
 
 
 def _render_persistence_scope_radio(*, key: str) -> str:
@@ -1211,19 +1193,13 @@ def _start_recipe_review(
     extra_items_text: str,
 ) -> None:
     """Fetch per-recipe ingredients from Notion and stash them for the review UI."""
-    recipes_by_name = {r.name.lower(): r for r in db.query_recipes()}
-    review: dict[str, str] = {}
-    for name in selected:
-        recipe = recipes_by_name.get(name.lower())
-        raw = recipe.ingredients or "" if recipe else ""
-        review[name] = format_ingredients_for_review(raw)
-    st.session_state.grocery_per_recipe_review = review
-    st.session_state.grocery_review_options = {
-        "exclude_pantry": exclude_pantry,
-        "recurring_text": recurring_text,
-        "default_recurring": default_recurring,
-        "extra_items_text": extra_items_text,
-    }
+    options = GroceryPreBuildOptions(
+        exclude_pantry=exclude_pantry,
+        recurring_text=recurring_text,
+        default_recurring=list(default_recurring),
+        extra_items_text=extra_items_text,
+    )
+    stash_recipe_review(st.session_state, db, selected, options)
 
 
 def _render_per_recipe_review(db: NotionRecipesDB, selected: list[str]) -> None:
@@ -1262,23 +1238,26 @@ def _render_per_recipe_review(db: NotionRecipesDB, selected: list[str]) -> None:
                 overrides[name.lower()] = edited_text
                 edit_count += log_ingredient_edits(name, original_text, edited_text)
 
-            recurring_weekly_items = _parse_line_items(opts["recurring_text"])
+            extra_items_text = opts.get("extra_items_text", "")
 
             with st.spinner("Building grocery list..."):
-                items, excluded, _sync_summary, missing_ingredients, item_provenance, mismatches = (
-                    build_grocery_list(
-                        db,
-                        recipe_names=selected,
-                        exclude_pantry=opts["exclude_pantry"],
-                        pantry_extra=_session_pantry_extra(),
-                        recurring_weekly_items=recurring_weekly_items,
-                        include_recurring_weekly_items=True,
-                        ingredient_overrides=overrides,
-                    )
+                result_payload = build_grocery_result_payload(
+                    db,
+                    selected,
+                    exclude_pantry=opts["exclude_pantry"],
+                    recurring_text=opts["recurring_text"],
+                    extra_items_text=extra_items_text,
+                    pantry_extra=_session_pantry_extra(),
+                    ingredient_overrides=overrides,
+                    edit_count=edit_count,
                 )
 
-            extra_items_text = opts.get("extra_items_text", "")
-            if not items and not excluded and not _parse_line_items(extra_items_text):
+            if (
+                not result_payload["items"]
+                and not result_payload["excluded"]
+                and not _parse_line_items(extra_items_text)
+            ):
+                missing_ingredients = result_payload["missing_ingredients"]
                 if missing_ingredients:
                     st.warning(
                         "No grocery items found — all selected recipes are missing ingredients. "
@@ -1288,20 +1267,7 @@ def _render_per_recipe_review(db: NotionRecipesDB, selected: list[str]) -> None:
                     st.warning("No grocery items found.")
                 return
 
-            st.session_state.grocery_result = {
-                "items": items,
-                "excluded": excluded,
-                "missing_ingredients": missing_ingredients,
-                "item_provenance": item_provenance,
-                "name_link_mismatches": mismatches,
-                "readd": [],
-                "additional_text": extra_items_text,
-                "recurring_items": list(recurring_weekly_items),
-                "run_removals": [],
-                "source_recipes": tuple(selected),
-                "week_plan": tuple(selected),
-                "edit_count": edit_count,
-            }
+            st.session_state.grocery_result = result_payload
             st.session_state.pop("grocery_per_recipe_review", None)
             st.session_state.pop("grocery_review_options", None)
             for key in list(st.session_state.keys()):
@@ -1490,10 +1456,10 @@ def render_create_weekly_plan() -> None:
         st.caption("Build a meal plan above to continue.")
         return
 
-    template_recurring = load_recurring_weekly_items()
-    default_recurring = _effective_recurring_items(template_recurring)
-    exclude_pantry = True
-    recurring_text = "\n".join(default_recurring)
+    pre_build_defaults = default_pre_build_grocery_options(st.session_state)
+    default_recurring = pre_build_defaults.default_recurring
+    exclude_pantry = pre_build_defaults.exclude_pantry
+    recurring_text = pre_build_defaults.recurring_text
 
     with st.expander("Pantry & Recurring Items", expanded=False):
         exclude_pantry = st.checkbox("Exclude pantry items", value=True)

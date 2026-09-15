@@ -7,8 +7,12 @@ from enum import StrEnum
 from typing import Any
 
 from src.grocery_wizard.integrations.notion import NotionRecipesDB, Recipe
-from src.grocery_wizard.shopping.grocery_list import build_grocery_list
-from src.grocery_wizard.shopping.recurring_weekly_items import load_recurring_weekly_items
+from src.grocery_wizard.ui.grocery_flow import (
+    clear_grocery_session_overrides,
+    default_pre_build_grocery_options,
+    stash_grocery_result,
+    stash_recipe_review,
+)
 
 DEFAULT_DEV_MEAL_COUNT = 1
 _DEV_MEAL_PICK_SEED = 142
@@ -72,82 +76,6 @@ def pick_default_recipe_names(
     return [recipe.name for recipe in shuffled[:meal_count]]
 
 
-def _recipes_by_name(db: NotionRecipesDB) -> dict[str, Recipe]:
-    return {recipe.name.lower(): recipe for recipe in db.query_recipes()}
-
-
-def _default_grocery_options() -> tuple[bool, str, list[str], str]:
-    exclude_pantry = True
-    template_recurring = load_recurring_weekly_items()
-    default_recurring = list(template_recurring)
-    recurring_text = "\n".join(default_recurring)
-    extra_items_text = ""
-    return exclude_pantry, recurring_text, default_recurring, extra_items_text
-
-
-def _stash_recipe_review(
-    session_state: Any,
-    db: NotionRecipesDB,
-    selected: list[str],
-    *,
-    exclude_pantry: bool,
-    recurring_text: str,
-    default_recurring: list[str],
-    extra_items_text: str,
-) -> None:
-    recipes_by_name = _recipes_by_name(db)
-    review: dict[str, str] = {}
-    for name in selected:
-        recipe = recipes_by_name.get(name.lower())
-        review[name] = recipe.ingredients or "" if recipe else ""
-    session_state["grocery_per_recipe_review"] = review
-    session_state["grocery_review_options"] = {
-        "exclude_pantry": exclude_pantry,
-        "recurring_text": recurring_text,
-        "default_recurring": default_recurring,
-        "extra_items_text": extra_items_text,
-    }
-
-
-def _stash_grocery_result(
-    session_state: Any,
-    db: NotionRecipesDB,
-    selected: list[str],
-    *,
-    exclude_pantry: bool,
-    recurring_text: str,
-    extra_items_text: str,
-) -> None:
-    from src.grocery_wizard.shopping.line_items import parse_line_items
-
-    recurring_weekly_items = parse_line_items(recurring_text)
-    items, excluded, _sync_summary, missing_ingredients, item_provenance, mismatches = (
-        build_grocery_list(
-            db,
-            recipe_names=selected,
-            exclude_pantry=exclude_pantry,
-            pantry_extra=set(),
-            recurring_weekly_items=recurring_weekly_items,
-            include_recurring_weekly_items=True,
-            ingredient_overrides=None,
-        )
-    )
-    session_state["grocery_result"] = {
-        "items": items,
-        "excluded": excluded,
-        "missing_ingredients": missing_ingredients,
-        "item_provenance": item_provenance,
-        "name_link_mismatches": mismatches,
-        "readd": [],
-        "additional_text": extra_items_text,
-        "recurring_items": list(recurring_weekly_items),
-        "run_removals": [],
-        "source_recipes": tuple(selected),
-        "week_plan": tuple(selected),
-        "edit_count": 0,
-    }
-
-
 def clear_grocery_flow_state(session_state: Any) -> None:
     """Drop grocery result, review UI, and run-scoped pantry/recurring overrides."""
     for key in (
@@ -160,14 +88,12 @@ def clear_grocery_flow_state(session_state: Any) -> None:
         "meals_final_list_fingerprint",
         "grocery_per_recipe_review",
         "grocery_review_options",
-        "grocery_session_pantry",
-        "grocery_session_recurring_removals",
-        "grocery_session_recurring_additions",
     ):
         session_state.pop(key, None)
     for key in list(session_state.keys()):
         if key.startswith("review_ing_"):
             session_state.pop(key, None)
+    clear_grocery_session_overrides(session_state)
 
 
 def commit_dev_jump(
@@ -190,29 +116,14 @@ def commit_dev_jump(
     if target in (DevJumpTarget.MEALS_FILLED, DevJumpTarget.PRE_BUILD_GROCERY):
         return cleaned
 
-    exclude_pantry, recurring_text, default_recurring, extra_items_text = _default_grocery_options()
+    grocery_options = default_pre_build_grocery_options(session_state)
 
     if target == DevJumpTarget.PER_RECIPE_REVIEW:
-        _stash_recipe_review(
-            session_state,
-            db,
-            cleaned,
-            exclude_pantry=exclude_pantry,
-            recurring_text=recurring_text,
-            default_recurring=default_recurring,
-            extra_items_text=extra_items_text,
-        )
+        stash_recipe_review(session_state, db, cleaned, grocery_options)
         return cleaned
 
     if target == DevJumpTarget.GROCERY_RESULT:
-        _stash_grocery_result(
-            session_state,
-            db,
-            cleaned,
-            exclude_pantry=exclude_pantry,
-            recurring_text=recurring_text,
-            extra_items_text=extra_items_text,
-        )
+        stash_grocery_result(session_state, db, cleaned, grocery_options)
         return cleaned
 
     return cleaned
