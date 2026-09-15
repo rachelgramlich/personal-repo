@@ -991,6 +991,10 @@ def test_build_grocery_list_issue_27_quality_fixes(tmp_path: Path) -> None:
         ("1. [ ] Apples", "apples"),
         ("• eggs", "eggs"),
         ("2 carrots", "2 carrots"),
+        ("clove:5 garlic", "5 cloves garlic"),
+        ("5 cloves garlic, minced", "5 cloves garlic"),
+        ("zest:1 lemons", "zest of 1 lemon"),
+        ("- zest:1 lemons", "zest of 1 lemon"),
     ],
 )
 def test_normalize_grocery_list_item_strips_checklist_prefixes(
@@ -998,6 +1002,46 @@ def test_normalize_grocery_list_item_strips_checklist_prefixes(
     expected: str,
 ) -> None:
     assert normalize_grocery_list_item(raw) == expected
+
+
+def test_build_grocery_list_zest_lemons_shows_readable_line(tmp_path: Path) -> None:
+    pantry_path = tmp_path / "pantry.txt"
+    pantry_path.write_text("salt\n", encoding="utf-8")
+    db = MagicMock()
+    db.query_recipes.return_value = [_recipe("Orzo", "zest lemons\nlemon juice")]
+
+    items, _, _, _, _, _ = build_grocery_list(
+        db,
+        recipe_names=["Orzo"],
+        pantry_path=pantry_path,
+        exclude_pantry=True,
+    )
+
+    assert "zest of 1 lemon" in items
+    assert not any("zest:" in item for item in items)
+    assert any("lemon juice" in item for item in items)
+
+
+def test_build_grocery_list_keeps_cauliflower_rice_when_rice_in_pantry(
+    pantry_file: Path,
+) -> None:
+    pantry_file.write_text("salt\nolive oil\nrice\n", encoding="utf-8")
+    db = MagicMock()
+    db.query_recipes.return_value = [
+        _recipe("Spinach Artichoke Bean Orzo", "cauliflower rice\n5 cloves garlic, minced"),
+    ]
+
+    items, excluded, *_ = build_grocery_list(
+        db,
+        recipe_names=["Spinach Artichoke Bean Orzo"],
+        pantry_path=pantry_file,
+        exclude_pantry=True,
+    )
+
+    assert any("cauliflower rice" in item for item in items)
+    assert "cauliflower rice" not in excluded
+    assert "5 cloves garlic" in items
+    assert "clove:" not in " ".join(items)
 
 
 def test_merge_grocery_items_dedups_checklist_and_case_variants() -> None:

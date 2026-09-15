@@ -55,6 +55,10 @@ _GENERIC_PEPPER_PANTRY = frozenset({"pepper", "peppers"})
 # Generic ``beans`` is not the same as named varieties (``butter beans``, ``white beans``).
 _GENERIC_BEANS_PANTRY = frozenset({"bean", "beans"})
 
+# Pantry ``rice`` is not cauliflower-based stand-ins (``cauliflower rice``).
+_GENERIC_RICE_PANTRY = frozenset({"rice"})
+_NOT_ACTUAL_RICE_PHRASES = frozenset({"cauliflower rice", "riced cauliflower"})
+
 # Spreads named ``… butter`` are not dairy butter on the pantry list.
 _NOT_DAIRY_BUTTER_PHRASES = frozenset(
     {
@@ -81,6 +85,8 @@ def _is_named_bean_ingredient(ingredient_name: str) -> bool:
 def _skip_pantry_phrase_match(ingredient_name: str, pantry_item_norm: str) -> bool:
     """Return True when a pantry staple must not match this ingredient name."""
     if pantry_item_norm == "butter" and ingredient_name in _NOT_DAIRY_BUTTER_PHRASES:
+        return True
+    if pantry_item_norm in _GENERIC_RICE_PANTRY and ingredient_name in _NOT_ACTUAL_RICE_PHRASES:
         return True
     if not _is_named_bean_ingredient(ingredient_name):
         return False

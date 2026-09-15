@@ -6,6 +6,7 @@ import pytest
 
 from src.grocery_wizard.ingredients.sync import (
     apply_removals,
+    format_ingredients_for_review,
     is_directive,
     is_removal_directive,
     merge_ingredients,
@@ -69,6 +70,19 @@ def test_is_directive() -> None:
     assert is_directive("remove: pepper")
     assert is_directive("# comment")
     assert not is_directive("2 cups rice")
+
+
+def test_format_ingredients_for_review_expands_storage_encodings() -> None:
+    stored = "olive oil\n1/2 onions\nclove:5 garlic\nzest lemons\n2 cans white beans\nremove: salt"
+    display = format_ingredients_for_review(stored)
+    lines = display.splitlines()
+    assert "olive oil" in lines
+    assert "1/2 onions" in lines
+    assert "5 cloves garlic" in lines
+    assert "clove:5" not in display
+    assert "zest of 1 lemon" in lines
+    assert "2 cans white beans" in lines
+    assert "remove: salt" in lines
 
 
 def test_prepare_ingredients_for_notion_strips_trailing_prep() -> None:

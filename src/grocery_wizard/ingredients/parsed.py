@@ -1004,12 +1004,62 @@ _STORED_CLOVE_GARLIC_RE = re.compile(
     re.IGNORECASE,
 )
 
+_STORED_ZEST_LEMONS_RE = re.compile(
+    r"^zest:((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+lemons?\Z",
+    re.IGNORECASE,
+)
+
 _GARLIC_HEAD_LEGACY_RE = re.compile(
     r"^((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+garlic\s+heads?\Z",
     re.IGNORECASE,
 )
 
 _GARLIC_CLOVE_HEAD_THRESHOLD = 10
+
+
+def format_lemon_zest_grocery_line(amount: str) -> str:
+    """Turn ``zest:N`` internal encoding into a full grocery list line."""
+    qty_str = amount[5:].strip() if amount.startswith("zest:") else amount.strip()
+    if not qty_str:
+        qty_str = "1"
+    qty = _parse_qty(qty_str)
+    noun = "lemon" if qty == 1 else "lemons"
+    return f"zest of {_format_qty(qty)} {noun}"
+
+
+def format_garlic_grocery_amount(amount: str) -> str:
+    """Turn internal garlic encodings (``clove:``, ``head:``) into list-facing text."""
+    if amount.startswith("clove:"):
+        qty = _parse_qty(amount[6:])
+        unit = _display_unit("clove", qty)
+        return f"{_format_qty(qty)} {unit}"
+    if amount.startswith("head:"):
+        qty = _parse_qty(amount[5:])
+        unit = _display_unit("head", qty)
+        return f"{_format_qty(qty)} {unit}"
+    return amount
+
+
+def format_stored_line_for_display(line: str) -> str:
+    """Render a Notion storage line as human-readable text (review UI, exports)."""
+    text = _normalize_unicode(line.strip())
+    if not text:
+        return line
+    name, amount = parse_stored_ingredient(text)
+    if not name:
+        return line
+    if amount is None:
+        return line
+    if amount.startswith(("clove:", "head:")) and name.lower() == "garlic":
+        return f"{format_garlic_grocery_amount(amount)} {name}"
+    if amount.startswith("zest:") and name.lower() == "lemons":
+        return format_lemon_zest_grocery_line(amount)
+    if amount.startswith(("clove:", "head:", "zest:")):
+        return line
+    if looks_like_stored_ingredient_line(text):
+        return f"{amount} {name}".strip()
+    return line
+
 
 _GARLIC_CLOVE_LINE_RE = re.compile(
     r"^((?:\d+\s+)?\d+/\d+|\d+(?:\.\d+)?)\s+"
@@ -1036,6 +1086,10 @@ def parse_stored_ingredient(line: str) -> tuple[str, str | None]:
     stored_clove_match = _STORED_CLOVE_GARLIC_RE.match(text)
     if stored_clove_match:
         return "garlic", f"clove:{stored_clove_match.group(1).strip()}"
+
+    stored_zest_match = _STORED_ZEST_LEMONS_RE.match(text)
+    if stored_zest_match:
+        return "lemons", f"zest:{stored_zest_match.group(1).strip()}"
 
     if text.lower() == "garlic":
         return "garlic", None
@@ -1195,7 +1249,12 @@ def _aggregate_garlic_amounts(amounts: list[str | None]) -> str | None:
     total_heads = max(head_total, clove_heads)
     if total_heads > 0:
         return _format_qty(total_heads)
-    if has_bare_garlic or clove_total > 0:
+    if clove_total > 0:
+        clove_lines = sum(1 for amount in amounts if amount and amount.startswith("clove:"))
+        if clove_lines > 1:
+            return None
+        return format_garlic_grocery_amount(f"clove:{_format_qty(clove_total)}")
+    if has_bare_garlic:
         return None
     return None
 
