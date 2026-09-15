@@ -197,6 +197,7 @@ def render_pantry_and_recurring() -> None:
     )
 
     st.markdown("### Pantry")
+    st.caption("Grouped by the same store aisles as your grocery list (`config/store_aisles.txt`).")
     aisle_config = load_store_aisles()
     try:
         from src.grocery_wizard.integrations.notion_household import NotionPantryDB
