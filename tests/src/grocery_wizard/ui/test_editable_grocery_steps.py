@@ -8,11 +8,14 @@ APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui"
 
 
 def test_start_recipe_review_formats_notion_storage_lines() -> None:
-    source = APP_PATH.read_text(encoding="utf-8")
-    start_block = source.split("def _start_recipe_review", 1)[1].split(
+    flow_path = APP_PATH.parent / "grocery_flow.py"
+    source = flow_path.read_text(encoding="utf-8")
+    assert "format_ingredients_for_review" in source
+    app_source = APP_PATH.read_text(encoding="utf-8")
+    start_block = app_source.split("def _start_recipe_review", 1)[1].split(
         "def _render_per_recipe_review", 1
     )[0]
-    assert "format_ingredients_for_review" in start_block
+    assert "stash_recipe_review" in start_block
 
 
 def test_per_recipe_review_initializes_widget_keys_without_value_param() -> None:
