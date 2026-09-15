@@ -851,7 +851,6 @@ def _clear_grocery_result() -> None:
         "grocery_result",
         "grocery_readd",
         "grocery_remove_once",
-        "grocery_permanent_remove_lines",
         "grocery_final_list",
         "grocery_final_list_fingerprint",
         "meals_final_list",
@@ -1439,40 +1438,6 @@ def _render_adjust_this_week_list(result: dict) -> None:
         else:
             st.caption("No buy-list lines to remove for this run.")
 
-        st.markdown("**Remove from grocery list (permanently) and add to pantry**")
-        permanent_lines = st.multiselect(
-            "Lines to move to pantry",
-            options=buy_lines,
-            default=[],
-            key="grocery_permanent_remove_lines",
-            help="Removes the line from this list and treats it as a pantry staple.",
-        )
-        pantry_scope = _render_persistence_scope_radio(key="output_pantry_scope")
-        if st.button("Remove and add to pantry", key="output_permanent_pantry_btn"):
-            if not permanent_lines:
-                st.warning("Select at least one line from the buy list.")
-            else:
-                items: list[str] = list(result["items"])
-                excluded_set = {e.lower() for e in result.get("excluded", [])}
-                for line in permanent_lines:
-                    name = line.strip()
-                    if not name:
-                        continue
-                    items = [item for item in items if not _grocery_line_matches_name(item, name)]
-                    if pantry_scope == "template":
-                        append_pantry_item(name)
-                    _session_pantry_extra().add(name.lower())
-                    if name.lower() not in excluded_set:
-                        excluded_set.add(name.lower())
-                        result.setdefault("excluded", []).append(name)
-                result["items"] = items
-                result["excluded"] = sorted(result.get("excluded", []), key=str.lower)
-                st.success(
-                    f"Moved {len(permanent_lines)} line(s) to pantry "
-                    f"({'template' if pantry_scope == 'template' else 'this run'})."
-                )
-                st.rerun()
-
 
 def _render_added_and_removed_summary(result: dict) -> None:
     """Post-build summary plus week-only list adjustments."""
@@ -1532,48 +1497,48 @@ def _render_grocery_result() -> None:
         meals_copy_text = format_meals_copy_text(meals)
         grocery_copy_text = format_grocery_items_copy_text(final_items)
 
-        with st.expander("Customize list", expanded=False):
-            st.caption("Edit meals and grocery copy/export text only.")
-            st.markdown("**Meals**")
-            meals_fingerprint = tuple(meals)
-            if st.session_state.get("meals_final_list_fingerprint") != meals_fingerprint:
-                st.session_state["meals_final_list_fingerprint"] = meals_fingerprint
-                st.session_state["meals_final_list"] = meals_copy_text
-            st.text_area(
-                "Meals",
-                height=120,
-                label_visibility="collapsed",
-                key="meals_final_list",
-            )
-            meals_for_copy = st.session_state.get("meals_final_list", meals_copy_text)
-            _render_copy_button(meals_for_copy, label="Copy meals", key="meals_copy")
+        st.markdown("### Customize list")
+        st.caption("Edit meals and grocery copy/export text before copying or downloading.")
+        st.markdown("**Meals**")
+        meals_fingerprint = tuple(meals)
+        if st.session_state.get("meals_final_list_fingerprint") != meals_fingerprint:
+            st.session_state["meals_final_list_fingerprint"] = meals_fingerprint
+            st.session_state["meals_final_list"] = meals_copy_text
+        st.text_area(
+            "Meals",
+            height=120,
+            label_visibility="collapsed",
+            key="meals_final_list",
+        )
+        meals_for_copy = st.session_state.get("meals_final_list", meals_copy_text)
+        _render_copy_button(meals_for_copy, label="Copy meals", key="meals_copy")
 
-            st.markdown("**Grocery List**")
-            st.caption("Edit the list below before copying or downloading.")
-            grocery_fingerprint = (tuple(final_items),)
-            if st.session_state.get("grocery_final_list_fingerprint") != grocery_fingerprint:
-                st.session_state["grocery_final_list_fingerprint"] = grocery_fingerprint
-                st.session_state["grocery_final_list"] = grocery_copy_text
-            st.text_area(
-                "Grocery list",
-                height=320,
-                label_visibility="collapsed",
-                key="grocery_final_list",
-                help="Edit this consolidated list directly before copy or download.",
+        st.markdown("**Grocery List**")
+        st.caption("Edit the list below before copying or downloading.")
+        grocery_fingerprint = (tuple(final_items),)
+        if st.session_state.get("grocery_final_list_fingerprint") != grocery_fingerprint:
+            st.session_state["grocery_final_list_fingerprint"] = grocery_fingerprint
+            st.session_state["grocery_final_list"] = grocery_copy_text
+        st.text_area(
+            "Grocery list",
+            height=320,
+            label_visibility="collapsed",
+            key="grocery_final_list",
+            help="Edit this consolidated list directly before copy or download.",
+        )
+        grocery_for_copy = st.session_state.get("grocery_final_list", grocery_copy_text)
+        download_text = f"{meals_for_copy}\n\n{grocery_for_copy}"
+        col_copy, col_download = st.columns(2)
+        with col_copy:
+            _render_copy_button(grocery_for_copy, label="Copy list", key="grocery_copy")
+        with col_download:
+            st.download_button(
+                "Download",
+                data=download_text,
+                file_name="weekly_plan.txt",
+                mime="text/plain",
+                use_container_width=True,
             )
-            grocery_for_copy = st.session_state.get("grocery_final_list", grocery_copy_text)
-            download_text = f"{meals_for_copy}\n\n{grocery_for_copy}"
-            col_copy, col_download = st.columns(2)
-            with col_copy:
-                _render_copy_button(grocery_for_copy, label="Copy list", key="grocery_copy")
-            with col_download:
-                st.download_button(
-                    "Download",
-                    data=download_text,
-                    file_name="weekly_plan.txt",
-                    mime="text/plain",
-                    use_container_width=True,
-                )
     elif not excluded and not meal_names:
         st.warning("No grocery items found.")
 

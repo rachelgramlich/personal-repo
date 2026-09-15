@@ -26,7 +26,9 @@ def test_output_step_shows_added_removed_and_editable_grocery_list() -> None:
     assert 'with st.expander("Adjust this week\'s list"' in source
     assert "Add to grocery list from pantry (1x)" in source
     assert "Remove from grocery list (1x)" in source
-    assert 'with st.expander("Customize list"' in result_block
+    assert "Remove and add to pantry" not in source
+    assert 'with st.expander("Customize list"' not in result_block
+    assert "### Customize list" in result_block
     assert "Extra items (one per line)" not in result_block
     assert "Edit the list below before copying or downloading." in result_block
     assert 'key="grocery_final_list"' in result_block
