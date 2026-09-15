@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.grocery_wizard.ui.app import _section_display_title
-
 APP_PATH = Path(__file__).resolve().parents[4] / "src" / "grocery_wizard" / "ui" / "app.py"
 
 
@@ -28,8 +26,5 @@ def test_pantry_and_recurring_share_one_tab() -> None:
     )[0]
     assert "### Pantry" in pantry_fn
     assert "### Recurring weekly items" in pantry_fn
-
-
-def test_section_display_title() -> None:
-    assert _section_display_title("# --- Spices ---") == "Spices"
-    assert _section_display_title(None) == "Uncategorized"
+    assert "load_store_aisles" in pantry_fn
+    assert 'st.selectbox(\n            "Store aisle"' in pantry_fn or '"Store aisle"' in pantry_fn

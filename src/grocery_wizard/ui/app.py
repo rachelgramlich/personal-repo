@@ -55,17 +55,19 @@ from src.grocery_wizard.shopping.grocery_list import (
     merge_grocery_items,
 )
 from src.grocery_wizard.shopping.line_items import parse_line_items
-from src.grocery_wizard.shopping.pantry import (
-    PantrySection,
-    append_pantry_item,
-    remove_pantry_item_by_name,
-)
+from src.grocery_wizard.shopping.pantry import append_pantry_item, remove_pantry_item_by_name
 from src.grocery_wizard.shopping.recurring_weekly_items import (
     append_recurring_weekly_item,
     apply_recurring_session_overrides,
     load_recurring_weekly_items,
     remove_recurring_weekly_item,
     write_recurring_weekly_items,
+)
+from src.grocery_wizard.shopping.store_aisles import (
+    StoreAisleConfig,
+    aisle_label,
+    load_store_aisles,
+    pantry_aisle_for_item,
 )
 
 
@@ -166,39 +168,24 @@ def _save_recurring_template(text: str) -> None:
     write_recurring_weekly_items(None, _parse_line_items(text))
 
 
-def _section_display_title(header: str | None) -> str:
-    """Human-readable store section label from a pantry header line."""
-    if not header:
-        return "Uncategorized"
-    text = header.strip()
-    if text.startswith("#"):
-        inner = text.removeprefix("#").strip()
-        if inner.startswith("---"):
-            inner = inner.removeprefix("---").strip()
-        if inner.endswith("---"):
-            inner = inner.removesuffix("---").strip()
-        return inner or "Uncategorized"
-    return text
+def _group_pantry_items_by_store_aisle(
+    entries: list,
+    *,
+    config: StoreAisleConfig,
+) -> list[tuple[str, list[tuple[int, str]]]]:
+    """Group pantry rows by store walk order (aisle id, sorted item names)."""
+    by_aisle: dict[str, list[str]] = {aisle: [] for aisle in config.aisle_order}
+    for entry in entries:
+        aisle = pantry_aisle_for_item(entry.name, entry.section, config=config)
+        by_aisle.setdefault(aisle, []).append(entry.name)
 
-
-def _load_pantry_sections() -> list[PantrySection]:
-    from src.grocery_wizard.integrations.notion_household import NotionPantryDB
-
-    _lines, sections = NotionPantryDB().load_as_pantry_lines()
-    return sections
-
-
-def _pantry_section_choices(sections: list[PantrySection]) -> list[str]:
-    labels: list[str] = []
-    seen: set[str] = set()
-    for section in sections:
-        label = _section_display_title(section.header)
-        if label not in seen:
-            seen.add(label)
-            labels.append(label)
-    if "Uncategorized" not in seen:
-        labels.append("Uncategorized")
-    return labels or ["Uncategorized"]
+    grouped: list[tuple[str, list[tuple[int, str]]]] = []
+    for aisle_index, aisle_id in enumerate(config.aisle_order):
+        names = sorted(set(by_aisle.get(aisle_id, [])), key=str.lower)
+        if not names:
+            continue
+        grouped.append((aisle_id, [(aisle_index * 1000 + i, name) for i, name in enumerate(names)]))
+    return grouped
 
 
 def render_pantry_and_recurring() -> None:
@@ -210,27 +197,27 @@ def render_pantry_and_recurring() -> None:
     )
 
     st.markdown("### Pantry")
+    aisle_config = load_store_aisles()
     try:
-        sections = _load_pantry_sections()
+        from src.grocery_wizard.integrations.notion_household import NotionPantryDB
+
+        pantry_entries = NotionPantryDB().list_entries()
     except ValueError as exc:
         st.error(str(exc))
-        sections = []
+        pantry_entries = []
 
-    if sections:
-        for section_index, section in enumerate(sections):
-            if not section.items and section.header is None:
-                continue
-            st.markdown(f"**{_section_display_title(section.header)}**")
-            if not section.items:
-                st.caption("_No items in this section yet._")
-            for item_index, (_line_idx, item) in enumerate(section.items):
+    grouped_aisles = _group_pantry_items_by_store_aisle(pantry_entries, config=aisle_config)
+    if grouped_aisles:
+        for aisle_id, items in grouped_aisles:
+            st.markdown(f"**{aisle_label(aisle_id, config=aisle_config)}**")
+            for item_key, item in items:
                 item_col, remove_col = st.columns([6, 1])
                 with item_col:
                     st.write(item)
                 with remove_col:
                     if st.button(
                         "Remove",
-                        key=f"pantry_tab_remove_{section_index}_{item_index}",
+                        key=f"pantry_tab_remove_{item_key}",
                         help=f"Remove {item} from pantry",
                     ):
                         if remove_pantry_item_by_name(item):
@@ -238,21 +225,29 @@ def render_pantry_and_recurring() -> None:
                             st.rerun()
                         else:
                             st.warning(f"Could not remove “{item}”.")
+    elif pantry_entries:
+        st.caption("No pantry items matched a store aisle.")
     else:
-        st.caption("No pantry sections loaded.")
+        st.caption("No pantry items yet.")
 
-    section_choices = _pantry_section_choices(sections)
     with st.form("pantry_add_form", clear_on_submit=True):
         new_pantry_name = st.text_input("Add pantry item", placeholder="e.g. soy sauce")
-        new_pantry_section = st.selectbox("Store section", section_choices)
+        new_pantry_aisle = st.selectbox(
+            "Store aisle",
+            options=list(aisle_config.aisle_order),
+            format_func=lambda aisle_id: aisle_label(aisle_id, config=aisle_config),
+            index=list(aisle_config.aisle_order).index("dry goods")
+            if "dry goods" in aisle_config.aisle_order
+            else 0,
+        )
         if st.form_submit_button("Add to pantry", type="primary"):
             name = new_pantry_name.strip()
             if not name:
                 st.warning("Enter an item name.")
             else:
-                section_arg = None if new_pantry_section == "Uncategorized" else new_pantry_section
-                if append_pantry_item(name, section=section_arg):
-                    st.success(f"Added “{name}” to pantry.")
+                section_label = aisle_label(new_pantry_aisle, config=aisle_config)
+                if append_pantry_item(name, section=section_label):
+                    st.success(f"Added “{name}” to pantry ({section_label}).")
                     st.rerun()
                 else:
                     st.warning("Could not add — empty name or already in pantry.")

@@ -7,10 +7,14 @@ from pathlib import Path
 import pytest
 
 from src.grocery_wizard.shopping.store_aisles import (
+    aisle_label,
+    canonical_pantry_section_label,
     classify_aisle,
     group_grocery_items_by_aisle,
     load_store_aisles,
+    pantry_aisle_for_item,
     parse_store_aisles_file,
+    resolve_pantry_aisle_id,
     sort_grocery_items,
     strip_checklist_prefix,
 )
@@ -223,3 +227,23 @@ def test_classify_aisle_strips_checklist_prefix(item: str, expected_aisle: str) 
 )
 def test_classify_aisle_misclassifications(item: str, expected_aisle: str) -> None:
     assert classify_aisle(item) == expected_aisle
+
+
+def test_resolve_pantry_aisle_id_accepts_id_or_label() -> None:
+    config = load_store_aisles()
+    assert resolve_pantry_aisle_id("dry goods", config=config) == "dry goods"
+    assert resolve_pantry_aisle_id("Dry goods", config=config) == "dry goods"
+    assert resolve_pantry_aisle_id(None, config=config) is None
+
+
+def test_pantry_aisle_for_item_uses_section_or_classifies_name() -> None:
+    config = load_store_aisles()
+    assert pantry_aisle_for_item("soy sauce", "Dry goods", config=config) == "dry goods"
+    assert pantry_aisle_for_item("bananas", None, config=config) == "fruit"
+
+
+def test_canonical_pantry_section_label_from_aisle_id() -> None:
+    config = load_store_aisles()
+    assert canonical_pantry_section_label(None, aisle_id="fruit", config=config) == aisle_label(
+        "fruit", config=config
+    )
