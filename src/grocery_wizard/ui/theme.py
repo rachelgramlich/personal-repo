@@ -114,6 +114,10 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
             --gw-blue-text: {t.blue_text};
         }}
 
+        html {{
+            color-scheme: light;
+        }}
+
         .stApp {{
             background-color: var(--gw-bg);
             color: var(--gw-text);
@@ -135,6 +139,9 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
         /* Streamlit 1.6x widget shells (textarea/input use transparent inner + colored root) */
         [data-testid="stTextInputRootElement"],
         [data-testid="stTextAreaRootElement"],
+        [data-testid="stSelectbox"] div:has(> input:not([type="hidden"])),
+        [data-testid="stMultiSelect"] div:has([data-testid="stMultiSelectTagsContainer"]),
+        [data-testid="stMultiSelectTagsContainer"],
         .stSelectbox div[data-baseweb="select"] > div,
         .stMultiSelect div[data-baseweb="select"] > div {{
             background-color: var(--gw-input-bg) !important;
@@ -159,8 +166,14 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
             -webkit-text-fill-color: var(--gw-text) !important;
         }}
 
-        [data-testid="stTextInputField"] {{
+        [data-testid="stTextInputField"],
+        [data-testid="stTextAreaRootElement"] textarea {{
             background-color: transparent !important;
+        }}
+
+        [data-testid="stSelectbox"] input:not([type="hidden"]) {{
+            color: var(--gw-text) !important;
+            -webkit-text-fill-color: var(--gw-text) !important;
         }}
 
         .stTextInput input:disabled,
@@ -287,11 +300,17 @@ def app_theme_css(tokens: ThemeTokens = GW_THEME) -> str:
             background-color: var(--gw-input-bg) !important;
             color: var(--gw-text) !important;
             border: 1px solid {border} !important;
+            color-scheme: light;
         }}
 
         [data-testid="stSelectboxVirtualDropdown"] *,
         [data-testid="stMultiSelectDropdown"] * {{
             color: var(--gw-text);
+        }}
+
+        [data-testid="stSelectboxVirtualDropdown"] [role="listbox"],
+        [data-testid="stMultiSelectDropdown"] [role="listbox"] {{
+            background-color: var(--gw-input-bg) !important;
         }}
 
         .gw-pantry-aisle-heading {{
