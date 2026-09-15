@@ -68,10 +68,10 @@ Deploy the same app to a PaaS (Railway, Fly.io, Render, a small VPS, etc.) or **
 
 | Phase | Backlog issue | Topic |
 | --- | --- | --- |
-| — | ~~[#137](https://github.com/rachelgramlich/personal-repo/issues/137)~~ | Mac tunnel runbook — **not planned** (Mac often off) |
-| 1 | [#138](https://github.com/rachelgramlich/personal-repo/issues/138) | Always-on Streamlit deploy (container + platform secrets) |
-| 2 | [#139](https://github.com/rachelgramlich/personal-repo/issues/139) | Access control in-app or at edge |
-| 3 | [#140](https://github.com/rachelgramlich/personal-repo/issues/140) | Mobile UX: Add to Home Screen hints, optional PWA meta, touch layout pass |
+| — | ~~[#137](https://github.com/rachelgramlich/grocery-wizard/issues/137)~~ | Mac tunnel runbook — **not planned** (Mac often off) |
+| 1 | [#138](https://github.com/rachelgramlich/grocery-wizard/issues/138) | Always-on Streamlit deploy (container + platform secrets) |
+| 2 | [#139](https://github.com/rachelgramlich/grocery-wizard/issues/139) | Access control in-app or at edge |
+| 3 | [#140](https://github.com/rachelgramlich/grocery-wizard/issues/140) | Mobile UX: Add to Home Screen hints, optional PWA meta, touch layout pass |
 
 ## Security checklist (any public URL)
 

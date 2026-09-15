@@ -1,6 +1,6 @@
 # Streamlit UI performance research
 
-**Issue:** [#128](https://github.com/rachelgramlich/personal-repo/issues/128)
+**Issue:** [#128](https://github.com/rachelgramlich/grocery-wizard/issues/128)
 **Scope:** Research and recommendations only (implementation staged in follow-up issues).
 **Primary code:** `src/grocery_wizard/ui/app.py` (~1,760 lines, single entry script).
 
@@ -228,9 +228,9 @@ Justification threshold: Phase 1–3 fail metrics **and** UI is a primary daily 
 
 | Phase | GitHub | When to implement |
 | --- | --- | --- |
-| **1** — cache, lazy tabs, dedupe fetches | [#144](https://github.com/rachelgramlich/personal-repo/issues/144) | **Now** (first implementation after this research) |
-| **2** — modularize app, lighten DOM | [#145](https://github.com/rachelgramlich/personal-repo/issues/145) | Only if Phase 1 merged and UAT still too slow, or `app.py` blocks further work |
-| **3** — freshness policy, local snapshot | [#146](https://github.com/rachelgramlich/personal-repo/issues/146) | Only if Phase 1+2 done and latency still unacceptable with warm cache |
+| **1** — cache, lazy tabs, dedupe fetches | [#144](https://github.com/rachelgramlich/grocery-wizard/issues/144) | **Now** (first implementation after this research) |
+| **2** — modularize app, lighten DOM | [#145](https://github.com/rachelgramlich/grocery-wizard/issues/145) | Only if Phase 1 merged and UAT still too slow, or `app.py` blocks further work |
+| **3** — freshness policy, local snapshot | [#146](https://github.com/rachelgramlich/grocery-wizard/issues/146) | Only if Phase 1+2 done and latency still unacceptable with warm cache |
 
 Phase 1 combines the original micro-items: Notion `st.cache_data` + invalidation, lazy tabs, single fetch per rerun, filtered `find_by_link`. Details are in each issue body.
 

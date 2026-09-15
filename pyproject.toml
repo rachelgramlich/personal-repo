@@ -1,24 +1,19 @@
 [project]
-name = "personal-repo"
+name = "grocery-wizard"
 version = "0.0.0"
-description = "Personal projects"
+description = "Notion-driven meal planning and grocery lists"
 requires-python = ">=3.12,<3.13"
 
 dependencies = [
     "beautifulsoup4>=4.12.3",
     "ingredient-parser-nlp>=2.7.0",
-    "jenkspy>=0.4.1",
     "loguru>=0.7.2",
-    "matplotlib>=3.9.1",
     "notion-client>=2.2.1",
-    "numpy>=1.26.4",
-    "pandas>=2.2.2",
     "pytest>=8.2.2",
     "pydantic-settings>=2.7.0",
     "python-dotenv>=1.0.1",
     "requests>=2.32.3",
     "ruff>=0.15.6",
-    "seaborn>=0.13.2",
     "streamlit>=1.39.0",
 ]
 
@@ -31,7 +26,6 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-exclude = ["src/python_practice/tidy_first", "tests/src/python_practice/test_tidy_first.py"]
 
 [tool.ruff.lint]
 select = [
@@ -40,7 +34,7 @@ select = [
     "I",    # isort
     "UP",   # pyupgrade
     "B",    # flake8-bugbear
-    "N",    # pep8-naming
+    "N",    # PEP 8 naming
     "SIM",  # flake8-simplify
     "RUF",  # ruff-specific rules
     "C4",   # flake8-comprehensions
@@ -58,29 +52,23 @@ select = [
     "TRY",  # tryceratops
     "EM",   # flake8-errmsg
     "FURB", # refurb (modernise patterns)
-    "ANN",  # flake8-annotations — public API return types and arg annotations
+    "ANN",  # flake8-annotations
 ]
 ignore = [
-    # Exception message style — allow inline strings for simple cases
-    "EM101",   # string literal as exception argument
-    "EM102",   # f-string as exception argument
-    "TRY003",  # long exception messages (pairs with EM)
-    # Pylint thresholds — too noisy for a personal project
-    "PLR2004", # magic value comparison
-    "PLR0912", # too-many-branches
-    "PLR0913", # too-many-arguments
-    "PLR0915", # too-many-statements
-    "PLR0911", # too-many-return-statements
-    # Simplify rules that conflict with explicit/readable style
-    "SIM108",  # ternary instead of if-else (often less readable)
-    # Any is acceptable at Notion/API boundaries and dynamic property reads
+    "EM101",
+    "EM102",
+    "TRY003",
+    "PLR2004",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "PLR0911",
+    "SIM108",
     "ANN401",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["E501", "PLR2004", "ANN"]
-"src/fisher_jenks_natural_breaks/**/*.py" = ["ANN"]
-"src/python_practice/**/*.py" = ["ANN"]
 "src/grocery_wizard/ui/app.py" = ["E402"]
 
 [tool.ruff.lint.flake8-annotations]
