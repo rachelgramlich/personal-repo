@@ -328,6 +328,7 @@ def build_grocery_list(
     db: NotionRecipesDB,
     *,
     recipe_names: list[str],
+    recipes: list[Recipe] | None = None,
     staples: list[str] | None = None,
     week_plan_path: Path = WEEK_PLAN_PATH,
     pantry_path: Path | None = None,
@@ -353,8 +354,11 @@ def build_grocery_list(
     ``recurring_weekly_items`` is a per-run override list (flow A). It does not
     read or write the on-disk recurring template; callers pass the merged list
     for this session only.
+
+    When ``recipes`` is provided, it is used instead of calling ``db.query_recipes()``.
     """
-    recipes_by_name = {recipe.name.lower(): recipe for recipe in db.query_recipes()}
+    recipe_list = recipes if recipes is not None else db.query_recipes()
+    recipes_by_name = {recipe.name.lower(): recipe for recipe in recipe_list}
     pantry = load_pantry(pantry_path)
     if pantry_extra:
         pantry = pantry | {item.strip().lower() for item in pantry_extra if item.strip()}
