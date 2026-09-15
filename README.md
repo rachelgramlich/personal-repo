@@ -25,3 +25,12 @@ The enhancement backlog lives on **GitHub Issues** (label `grocery-wizard`). Age
 `just setup` runs `streamlit skills` and links the same skill into `.cursor/skills/` for Cursor (gitignored symlinks into `.venv`).
 
 # Execution
+
+## Grocery Wizard UI
+
+From the repository root (so `.streamlit/config.toml` theme applies):
+
+```shell
+just grocery-ui
+# or: uv run streamlit run src/grocery_wizard/ui/app.py
+```
