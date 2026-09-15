@@ -55,8 +55,6 @@ _GENERIC_PEPPER_PANTRY = frozenset({"pepper", "peppers"})
 # Generic ``beans`` is not the same as named varieties (``butter beans``, ``white beans``).
 _GENERIC_BEANS_PANTRY = frozenset({"bean", "beans"})
 
-_BUTTER_BEANS_RE = re.compile(r"^butter\s+beans?$", re.IGNORECASE)
-
 # Spreads named ``… butter`` are not dairy butter on the pantry list.
 _NOT_DAIRY_BUTTER_PHRASES = frozenset(
     {
@@ -74,18 +72,23 @@ def _pantry_match_key(text: str) -> str:
     return text.strip().lower().replace("-", " ")
 
 
+def _is_named_bean_ingredient(ingredient_name: str) -> bool:
+    """True for grocery items like ``black beans`` (not a single word ``beans``)."""
+    words = ingredient_name.split()
+    return len(words) >= 2 and words[-1] in ("bean", "beans")
+
+
 def _skip_pantry_phrase_match(ingredient_name: str, pantry_item_norm: str) -> bool:
     """Return True when a pantry staple must not match this ingredient name."""
-    if pantry_item_norm == "butter":
-        if _BUTTER_BEANS_RE.match(ingredient_name):
-            return True
-        if ingredient_name in _NOT_DAIRY_BUTTER_PHRASES:
-            return True
+    if pantry_item_norm == "butter" and ingredient_name in _NOT_DAIRY_BUTTER_PHRASES:
+        return True
+    if not _is_named_bean_ingredient(ingredient_name):
+        return False
     if pantry_item_norm in _GENERIC_BEANS_PANTRY:
-        words = ingredient_name.split()
-        if len(words) >= 2 and words[-1] in ("bean", "beans"):
-            return True
-    return False
+        return True
+    # ``black`` in the pantry is not ``black beans``; same for ``butter``, ``kidney``, etc.
+    pantry_words = pantry_item_norm.split()
+    return len(pantry_words) == 1 and pantry_item_norm in ingredient_name.split()[:-1]
 
 
 def is_pantry_item(normalized: str, pantry: set[str]) -> bool:

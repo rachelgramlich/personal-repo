@@ -98,17 +98,22 @@ _STOCK_PREFIXES = frozenset(
 
 _CREAM_PREFIXES = frozenset({"heavy", "sour", "whipped", "whole-milk"})
 
+# Modifiers before ``beans`` / ``bean`` — keep the phrase intact when both words are
+# grocery nouns (e.g. ``butter beans``) or for title-bleed split detection.
 _BEANS_PREFIXES = frozenset(
     {
         "black",
         "butter",
         "cannellini",
+        "fava",
         "garbanzo",
         "great",
         "kidney",
+        "lima",
         "navy",
         "northern",
         "pinto",
+        "refried",
         "white",
     }
 )

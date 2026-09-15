@@ -157,8 +157,22 @@ def test_expand_ingredient_line_does_not_split_white_beans() -> None:
     assert expand_ingredient_line("–2 cans white beans") == ["-2 cans white beans"]  # noqa: RUF001
 
 
-def test_expand_ingredient_line_does_not_split_butter_beans() -> None:
-    assert expand_ingredient_line("2 cans butter beans") == ["2 cans butter beans"]
+@pytest.mark.parametrize(
+    "variety",
+    [
+        "white",
+        "black",
+        "pinto",
+        "kidney",
+        "butter",
+        "cannellini",
+        "navy",
+        "great northern",
+    ],
+)
+def test_expand_ingredient_line_does_not_split_named_bean_varieties(variety: str) -> None:
+    line = f"2 cans {variety} beans"
+    assert expand_ingredient_line(line) == [line]
 
 
 def test_normalize_ingredient_white_beans() -> None:

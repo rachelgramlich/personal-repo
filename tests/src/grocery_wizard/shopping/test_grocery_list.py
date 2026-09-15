@@ -232,24 +232,39 @@ def test_build_grocery_list_white_beans_not_split(tmp_path: Path) -> None:
     assert "beans" not in items
 
 
-def test_build_grocery_list_keeps_butter_beans_when_pantry_has_butter(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("variety", "pantry_line"),
+    [
+        ("butter", "butter"),
+        ("black", "beans"),
+        ("kidney", "beans"),
+        ("white", "beans"),
+        ("pinto", "beans"),
+    ],
+)
+def test_build_grocery_list_keeps_named_beans_when_pantry_has_modifier_or_generic(
+    tmp_path: Path,
+    variety: str,
+    pantry_line: str,
+) -> None:
     pantry_path = tmp_path / "pantry.txt"
-    pantry_path.write_text("butter\nsalt\n", encoding="utf-8")
+    pantry_path.write_text(f"{pantry_line}\nsalt\n", encoding="utf-8")
 
+    recipe_name = f"{variety.title()} Bean Soup"
     db = MagicMock()
     db.query_recipes.return_value = [
-        _recipe("French Onion Butter Beans", "2 cans butter beans"),
+        _recipe(recipe_name, f"2 cans {variety} beans"),
     ]
 
     items, excluded, _sync, _missing, _, _ = build_grocery_list(
         db,
-        recipe_names=["French Onion Butter Beans"],
+        recipe_names=[recipe_name],
         pantry_path=pantry_path,
         exclude_pantry=True,
     )
 
-    assert items == ["2 cans butter beans"]
-    assert "butter beans" not in excluded
+    assert items == [f"2 cans {variety} beans"]
+    assert f"{variety} beans" not in excluded
 
 
 def test_run_grocery_list_interactive_flow_order(

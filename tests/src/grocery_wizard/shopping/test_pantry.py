@@ -120,12 +120,26 @@ def test_fresh_red_pepper_not_matched_by_generic_pepper_pantry() -> None:
     assert is_pantry_item("red pepper flakes", pantry)
 
 
-def test_butter_beans_not_matched_by_dairy_butter_or_generic_beans() -> None:
-    assert not is_pantry_item("butter beans", {"butter"})
-    assert not is_pantry_item("butter beans", {"beans"})
-    assert not is_pantry_item("butter beans", {"butter", "beans"})
-    assert is_pantry_item("butter beans", {"butter beans"})
-    assert is_pantry_item("butter", {"butter"})
+@pytest.mark.parametrize(
+    "variety",
+    [
+        "white",
+        "black",
+        "pinto",
+        "kidney",
+        "butter",
+        "cannellini",
+        "navy",
+    ],
+)
+def test_named_bean_varieties_not_matched_by_generic_or_modifier_pantry(
+    variety: str,
+) -> None:
+    ingredient = f"{variety} beans"
+    assert not is_pantry_item(ingredient, {"beans"})
+    assert not is_pantry_item(ingredient, {variety})
+    assert is_pantry_item(ingredient, {ingredient})
+    assert is_pantry_item("beans", {"beans"})
 
 
 def test_peanut_butter_not_matched_by_dairy_butter_pantry() -> None:
