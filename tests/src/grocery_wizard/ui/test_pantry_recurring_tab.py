@@ -26,5 +26,6 @@ def test_pantry_and_recurring_share_one_tab() -> None:
     )[0]
     assert "### Pantry" in pantry_fn
     assert "### Recurring weekly items" in pantry_fn
+    assert pantry_fn.index("### Recurring weekly items") < pantry_fn.index("### Pantry")
     assert "load_store_aisles" in pantry_fn
     assert 'st.selectbox(\n            "Store aisle"' in pantry_fn or '"Store aisle"' in pantry_fn
